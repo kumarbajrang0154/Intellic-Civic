@@ -1,0 +1,8 @@
+export const API_PREFIX = '/api/v1';
+
+export enum UserRole {
+  CITIZEN = 'CITIZEN',
+  FIELD_WORKER = 'FIELD_WORKER',
+  DEPARTMENT_ADMIN = 'DEPARTMENT_ADMIN',
+  SUPER_ADMIN = 'SUPER_ADMIN',
+}

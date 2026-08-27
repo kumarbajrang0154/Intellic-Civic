@@ -1,0 +1,353 @@
+// Prisma Schema for IntelliCivic Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum UserRole {
+  CITIZEN
+  DEPARTMENT_HEAD
+  DEPARTMENT_OFFICER
+  ADMIN
+}
+
+enum AuthProvider {
+  MOBILE_OTP
+  GOOGLE
+}
+
+enum ComplaintStatus {
+  SUBMITTED
+  AI_PROCESSING
+  PENDING_DEPT_REVIEW
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+  REJECTED
+  DUPLICATE
+}
+
+enum PriorityLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum EvidenceStage {
+  BEFORE
+  DURING
+  AFTER
+}
+
+enum NotificationType {
+  COMPLAINT_CREATED
+  UNDER_REVIEW
+  DEPARTMENT_ASSIGNED
+  STATUS_CHANGED
+  RESOLVED
+  CLOSED
+}
+
+// ==========================================
+// MODELS
+// ==========================================
+
+model User {
+  id           String       @id @default(uuid())
+  role         UserRole?
+  authProvider AuthProvider
+  mobileNumber String?      @unique
+  email        String?      @unique
+  googleId     String?      @unique
+  name         String
+  avatarUrl    String?
+  isAuthorized Boolean      @default(false)
+  departmentId String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  complaints          Complaint[]    @relation("CitizenComplaints")
+  assignmentsHandled  Assignment[]   @relation("OfficerAssignments")
+  assignmentsCreated  Assignment[]   @relation("AssignedBy")
+  evidenceUploaded    Evidence[]
+  statusChanges       StatusHistory[]
+  notifications       Notification[]
+  feedbacks           Feedback[]
+  auditLogs           AuditLog[]
+  refreshTokens       RefreshToken[]
+
+  @@map("users")
+}
+
+model OtpRequest {
+  id           String   @id @default(uuid())
+  mobileNumber String
+  otpCode      String
+  expiresAt    DateTime
+  isVerified   Boolean  @default(false)
+  attempts     Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@index([mobileNumber])
+  @@map("otp_requests")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Department {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String   @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users                    User[]
+  categories               Category[]
+  complaints               Complaint[]    @relation("DepartmentComplaints")
+  aiRecommendedComplaints Complaint[]    @relation("AiRecommendedDepartmentComplaints")
+  aiPredictions            AiPrediction[]
+  fieldWorkers             FieldWorker[]
+
+  @@map("departments")
+}
+
+model Category {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  description  String   @db.Text
+  departmentId String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+
+  complaints    Complaint[]
+  aiPredictions AiPrediction[]
+
+  @@map("categories")
+}
+
+model Complaint {
+  id                         String          @id @default(uuid())
+  ticketId                   String          @unique
+  citizenId                  String
+  title                      String
+  description                String          @db.Text
+  status                     ComplaintStatus @default(SUBMITTED)
+  priority                   PriorityLevel?
+  categoryId                 String?
+  departmentId               String?
+  aiRecommendedDepartmentId String?
+  isVoiceInput               Boolean         @default(false)
+  voiceTranscript            String?         @db.Text
+  createdAt                  DateTime        @default(now())
+  updatedAt                  DateTime        @updatedAt
+  resolvedAt                 DateTime?
+  closedAt                   DateTime?
+
+  citizen                 User        @relation("CitizenComplaints", fields: [citizenId], references: [id], onDelete: Restrict)
+  category                Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  department              Department? @relation("DepartmentComplaints", fields: [departmentId], references: [id], onDelete: SetNull)
+  aiRecommendedDepartment Department? @relation("AiRecommendedDepartmentComplaints", fields: [aiRecommendedDepartmentId], references: [id], onDelete: SetNull)
+
+  images              ComplaintImage[]
+  location            ComplaintLocation?
+  aiPrediction        AiPrediction?
+  duplicateMatches    DuplicateMatch[]   @relation("PrimaryComplaint")
+  matchedAsDuplicate  DuplicateMatch[]   @relation("MatchedComplaint")
+  assignment          Assignment?
+  evidence            Evidence[]
+  statusHistory       StatusHistory[]
+  notifications       Notification[]
+  feedback            Feedback?
+
+  @@index([status])
+  @@index([departmentId])
+  @@index([citizenId])
+  @@map("complaints")
+}
+
+model ComplaintImage {
+  id          String   @id @default(uuid())
+  complaintId String
+  imageUrl    String
+  uploadedAt  DateTime @default(now())
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@map("complaint_images")
+}
+
+model ComplaintLocation {
+  id          String   @id @default(uuid())
+  complaintId String   @unique
+  latitude    Float
+  longitude   Float
+  address     String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@map("complaint_locations")
+}
+
+model AiPrediction {
+  id                    String         @id @default(uuid())
+  complaintId           String         @unique
+  suggestedCategoryId   String?
+  suggestedDepartmentId String?
+  suggestedPriority     PriorityLevel?
+  confidenceScore       Float?
+  rawResponse           Json?
+  createdAt             DateTime       @default(now())
+
+  complaint           Complaint   @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  suggestedCategory   Category?   @relation(fields: [suggestedCategoryId], references: [id], onDelete: SetNull)
+  suggestedDepartment Department? @relation(fields: [suggestedDepartmentId], references: [id], onDelete: SetNull)
+
+  @@map("ai_predictions")
+}
+
+model DuplicateMatch {
+  id                 String   @id @default(uuid())
+  complaintId        String
+  matchedComplaintId String
+  similarityScore    Float
+  createdAt          DateTime @default(now())
+
+  complaint        Complaint @relation("PrimaryComplaint", fields: [complaintId], references: [id], onDelete: Cascade)
+  matchedComplaint Complaint @relation("MatchedComplaint", fields: [matchedComplaintId], references: [id], onDelete: Cascade)
+
+  @@map("duplicate_matches")
+}
+
+model Assignment {
+  id                  String   @id @default(uuid())
+  complaintId         String   @unique
+  departmentOfficerId String
+  assignedByUserId    String
+  assignedAt          DateTime @default(now())
+  notes               String?  @db.Text
+
+  complaint         Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  departmentOfficer User      @relation("OfficerAssignments", fields: [departmentOfficerId], references: [id], onDelete: Restrict)
+  assignedByUser    User      @relation("AssignedBy", fields: [assignedByUserId], references: [id], onDelete: Restrict)
+
+  @@map("assignments")
+}
+
+model FieldWorker {
+  id           String   @id @default(uuid())
+  name         String
+  phoneNumber  String
+  departmentId String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  evidence   Evidence[]
+
+  @@map("field_workers")
+}
+
+model Evidence {
+  id               String        @id @default(uuid())
+  complaintId      String
+  stage            EvidenceStage
+  imageUrl         String
+  uploadedByUserId String
+  fieldWorkerId    String?
+  notes            String?       @db.Text
+  uploadedAt       DateTime      @default(now())
+
+  complaint      Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  uploadedByUser User         @relation(fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+  fieldWorker    FieldWorker? @relation(fields: [fieldWorkerId], references: [id], onDelete: SetNull)
+
+  @@map("evidence")
+}
+
+model StatusHistory {
+  id              String           @id @default(uuid())
+  complaintId     String
+  fromStatus      ComplaintStatus?
+  toStatus        ComplaintStatus
+  changedByUserId String?
+  changedAt       DateTime         @default(now())
+
+  complaint     Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  changedByUser User?     @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("status_histories")
+}
+
+model Notification {
+  id              String           @id @default(uuid())
+  complaintId     String
+  recipientUserId String
+  type            NotificationType
+  message         String           @db.Text
+  isRead          Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+
+  complaint     Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  recipientUser User      @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+
+  @@index([recipientUserId])
+  @@map("notifications")
+}
+
+model Feedback {
+  id          String   @id @default(uuid())
+  complaintId String   @unique
+  citizenId   String
+  rating      Int
+  comment     String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  citizen   User      @relation(fields: [citizenId], references: [id], onDelete: Restrict)
+
+  @@map("feedbacks")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("audit_logs")
+}

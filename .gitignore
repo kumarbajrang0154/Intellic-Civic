@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+.npm/
+
+# Build outputs
+dist/
+build/
+.next/
+*.tsbuildinfo
+
+# Environment variables
+.env
+.env.local
+.env.production
+!.env.example
+
+# IDE & OS files
+.DS_Store
+.vscode/
+.idea/
+*.log
+
+# Prisma
+/apps/api/src/database/prisma/*.db
+/apps/api/src/database/prisma/*.db-journal
+
+# Coverage
+coverage/
