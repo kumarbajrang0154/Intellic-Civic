@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { OtpInput } from '@/components/ui/otp-input';
+import { toast } from 'sonner';
 
 export default function CitizenLoginPage() {
   const router = useRouter();
@@ -59,8 +60,11 @@ export default function CitizenLoginPage() {
       setStep('OTP');
       setTimer(60);
       setCanResend(false);
+      toast.success('Verification code sent to your mobile number.');
     } catch (err: any) {
-      setError(err.message || 'Network error occurred. Please try again.');
+      const errMsg = err.message || 'Network error occurred. Please try again.';
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setLoading(false);
     }
@@ -72,6 +76,7 @@ export default function CitizenLoginPage() {
 
     if (otp.length !== 6) {
       setError('OTP must be exactly 6 numeric digits');
+      toast.error('OTP must be exactly 6 numeric digits');
       return;
     }
 
@@ -91,10 +96,13 @@ export default function CitizenLoginPage() {
         throw new Error(data.message || 'Invalid or expired OTP');
       }
 
+      toast.success('Verification successful! Welcome back.');
       router.push('/citizen');
       router.refresh();
     } catch (err: any) {
-      setError(err.message || 'Verification failed. Please check the code.');
+      const errMsg = err.message || 'Verification failed. Please check the code.';
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setLoading(false);
     }

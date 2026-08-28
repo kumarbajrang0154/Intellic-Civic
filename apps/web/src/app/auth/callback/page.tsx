@@ -4,51 +4,33 @@ import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
-function decodeJwtPayload(token: string): any {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const base64Url = parts[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join(''),
-    );
-    return JSON.parse(jsonPayload);
-  } catch {
-    return null;
-  }
-}
-
 function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   React.useEffect(() => {
-    const token = searchParams.get('token');
-    const refreshToken = searchParams.get('refreshToken');
+    const code = searchParams.get('code');
 
-    if (!token || !refreshToken) {
+    if (!code) {
       router.push('/login/staff');
       return;
     }
 
-    async function setSessionAndRedirect() {
+    async function exchangeCodeAndRedirect() {
       try {
-        const res = await fetch('/api/auth/set-session', {
+        const res = await fetch('/api/auth/exchange-code', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accessToken: token, refreshToken }),
+          body: JSON.stringify({ code }),
         });
 
-        if (!res.ok) {
-          throw new Error('Failed to set session');
+        const data = await res.json();
+
+        if (!res.ok || !data.user) {
+          throw new Error(data.message || 'Failed to exchange authorization code');
         }
 
-        const payload: any = decodeJwtPayload(token!);
-        const role = payload?.role;
+        const role = data.user.role;
 
         switch (role) {
           case 'CITIZEN':
@@ -73,7 +55,7 @@ function CallbackContent() {
       }
     }
 
-    setSessionAndRedirect();
+    exchangeCodeAndRedirect();
   }, [searchParams, router]);
 
   return (

@@ -48,7 +48,7 @@ test.describe('Module 5: Frontend Auth Pages & App Shell E2E Tests', () => {
 
     // Step 2: Input 6-digit OTP
     await expect(page.getByText('Enter 6-Digit OTP')).toBeVisible();
-    
+
     // Fill 6 OTP digits
     const inputs = page.locator('input[aria-label^="Digit"]');
     for (let i = 0; i < 6; i++) {
@@ -143,5 +143,26 @@ test.describe('Module 5: Frontend Auth Pages & App Shell E2E Tests', () => {
     const cookies = await context.cookies();
     const accessToken = cookies.find((c) => c.name === 'ic_access_token');
     expect(accessToken).toBeUndefined();
+  });
+
+  test('7. OAuth single-use code exchange redirects to role dashboard without JWT in URL', async ({ page }) => {
+    await page.route('/api/auth/exchange-code', async (route) => {
+      const adminToken = await createMockJwt('ADMIN');
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: {
+          'Set-Cookie': `ic_access_token=${adminToken}; Path=/; HttpOnly; SameSite=Lax`,
+        },
+        body: JSON.stringify({
+          success: true,
+          user: { id: 'admin-1', email: 'admin@city.gov', role: 'ADMIN' },
+        }),
+      });
+    });
+
+    await page.goto('/auth/callback?code=auth_code_mock_opaque_123');
+    await expect(page).toHaveURL(/\/admin/);
+    await expect(page.getByText('Super Admin Triage & System Dashboard')).toBeVisible();
   });
 });

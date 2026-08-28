@@ -14,6 +14,7 @@ import { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { AuthService } from './auth.service';
+import { ExchangeCodeDto } from './dto/exchange-code.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
@@ -49,6 +50,13 @@ export class AuthController {
   async googleAuthCallback(@Req() req: any, @Res() res: Response) {
     const result = await this.authService.handleGoogleCallback(req.user);
     return res.redirect(result.redirectUrl);
+  }
+
+  @Public()
+  @Post('exchange-code')
+  @HttpCode(HttpStatus.OK)
+  async exchangeCode(@Body() exchangeCodeDto: ExchangeCodeDto) {
+    return this.authService.exchangeCode(exchangeCodeDto);
   }
 
   @Public()

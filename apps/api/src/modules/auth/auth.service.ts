@@ -12,6 +12,7 @@ import { AuthProvider, User, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
+import { ExchangeCodeDto } from './dto/exchange-code.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
@@ -20,6 +21,10 @@ import { OTP_PROVIDER_TOKEN, OtpProvider } from './interfaces/otp-provider.inter
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private readonly oauthExchangeCodes = new Map<
+    string,
+    { userId: string; expiresAt: number; used: boolean }
+  >();
 
   constructor(
     private readonly prismaService: PrismaService,
@@ -167,10 +172,17 @@ export class AuthService {
 
     if (user) {
       if (user.isAuthorized) {
-        const tokens = await this.generateTokens(user);
+        // SECURITY ENHANCEMENT: Generate a 60-second single-use opaque authorization code instead of passing JWTs in URL
+        const code = `auth_code_${crypto.randomBytes(24).toString('hex')}`;
+        this.oauthExchangeCodes.set(code, {
+          userId: user.id,
+          expiresAt: Date.now() + 60000, // 60 seconds
+          used: false,
+        });
+
         return {
           status: 'AUTHORIZED',
-          redirectUrl: `${frontendUrl}/auth/callback?token=${tokens.accessToken}&refreshToken=${tokens.refreshToken}`,
+          redirectUrl: `${frontendUrl}/auth/callback?code=${code}`,
         };
       } else {
         return {
@@ -196,6 +208,54 @@ export class AuthService {
     return {
       status: 'PENDING',
       redirectUrl: `${frontendUrl}/auth/pending-approval`,
+    };
+  }
+
+  /**
+   * Single-use authorization code exchange for secure OAuth token retrieval without URL leakage.
+   */
+  async exchangeCode(dto: ExchangeCodeDto) {
+    const entry = this.oauthExchangeCodes.get(dto.code);
+
+    if (!entry) {
+      throw new UnauthorizedException('Invalid or expired authorization code');
+    }
+
+    if (entry.expiresAt < Date.now()) {
+      this.oauthExchangeCodes.delete(dto.code);
+      throw new UnauthorizedException('Authorization code has expired');
+    }
+
+    // SINGLE-USE ENFORCEMENT: Reject if code was already exchanged
+    if (entry.used) {
+      this.oauthExchangeCodes.delete(dto.code);
+      throw new UnauthorizedException('Authorization code has already been used');
+    }
+
+    // Mark used and remove code from store immediately
+    entry.used = true;
+    this.oauthExchangeCodes.delete(dto.code);
+
+    const user = await this.prismaService.user.findUnique({
+      where: { id: entry.userId },
+    });
+
+    if (!user || !user.isAuthorized) {
+      throw new UnauthorizedException('User is not authorized for access');
+    }
+
+    const tokens = await this.generateTokens(user);
+
+    return {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        departmentId: user.departmentId,
+      },
     };
   }
 
