@@ -14,6 +14,7 @@ export const envValidationSchema = Joi.object({
   OTP_PROVIDER_API_KEY: Joi.string().allow('').optional(),
   OTP_PROVIDER_SENDER_ID: Joi.string().allow('').optional(),
   FRONTEND_URL: Joi.string().default('http://localhost:3000'),
+  AI_SERVICE_URL: Joi.string().default('http://localhost:8000'),
   PORT: Joi.number().default(4000),
   NODE_ENV: Joi.string()
     .valid('development', 'production', 'test', 'provision')

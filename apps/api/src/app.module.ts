@@ -6,8 +6,10 @@ import { RolesGuard } from './common/guards/roles.guard';
 import appConfig from './config/app.config';
 import { envValidationSchema } from './config/env.validation';
 import { PrismaModule } from './database/prisma.module';
+import { AiModule } from './modules/ai/ai.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ComplaintsModule } from './modules/complaints/complaints.module';
+import { EvidenceModule } from './modules/evidence/evidence.module';
 import { HealthModule } from './modules/health/health.module';
 
 @Module({
@@ -26,6 +28,8 @@ import { HealthModule } from './modules/health/health.module';
     HealthModule,
     AuthModule,
     ComplaintsModule,
+    AiModule,
+    EvidenceModule,
   ],
   providers: [
     {

@@ -1,0 +1,20 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+PORT = int(os.getenv("PORT", "8000"))
+HOST = os.getenv("HOST", "0.0.0.0")
+
+# Threshold constants for Recommendation Engine
+AUTO_APPROVE_CONFIDENCE_THRESHOLD = 0.85
+AUTO_FLAG_CONFIDENCE_THRESHOLD = 0.40
+
+def check_gemini_api_key():
+    """Verify that GEMINI_API_KEY is configured on startup."""
+    if not GEMINI_API_KEY:
+        raise RuntimeError(
+            "CRITICAL: GEMINI_API_KEY environment variable is not set. "
+            "Please set GEMINI_API_KEY in apps/ai-service/.env file."
+        )

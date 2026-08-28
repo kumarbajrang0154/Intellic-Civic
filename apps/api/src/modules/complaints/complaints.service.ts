@@ -254,7 +254,7 @@ export class ComplaintsService {
       throw new NotFoundException('Complaint not found');
     }
 
-    // Role-based access check
+    // Role-based access check & AI response sanitization
     if (user.role === UserRole.CITIZEN) {
       if (complaint.citizenId !== user.id) {
         /**
@@ -263,6 +263,21 @@ export class ComplaintsService {
          * Citizens should not be able to probe UUIDs to verify if another citizen's complaint exists.
          */
         throw new NotFoundException('Complaint not found');
+      }
+
+      // Redact internal AI reasoning and quality flags for citizens
+      if (complaint.aiPrediction && complaint.aiPrediction.rawResponse) {
+        const raw = complaint.aiPrediction.rawResponse as any;
+        complaint.aiPrediction = {
+          ...complaint.aiPrediction,
+          rawResponse: {
+            recommendation: raw.recommendation || 'MANUAL_REVIEW',
+            statusMessage:
+              raw.recommendation === 'AUTO_APPROVE'
+                ? 'Evidence accepted'
+                : 'Evidence submitted for staff review',
+          },
+        } as any;
       }
     } else if (
       user.role === UserRole.DEPARTMENT_HEAD ||
