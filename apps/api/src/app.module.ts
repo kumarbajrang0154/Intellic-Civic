@@ -8,6 +8,7 @@ import { envValidationSchema } from './config/env.validation';
 import { PrismaModule } from './database/prisma.module';
 import { AiModule } from './modules/ai/ai.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { CategoriesModule } from './modules/categories/categories.module';
 import { ComplaintsModule } from './modules/complaints/complaints.module';
 import { EvidenceModule } from './modules/evidence/evidence.module';
 import { HealthModule } from './modules/health/health.module';
@@ -27,6 +28,7 @@ import { HealthModule } from './modules/health/health.module';
     PrismaModule,
     HealthModule,
     AuthModule,
+    CategoriesModule,
     ComplaintsModule,
     AiModule,
     EvidenceModule,

@@ -36,7 +36,7 @@ interface NavItem {
 const NAV_CONFIG: Record<UserRole, NavItem[]> = {
   CITIZEN: [
     { title: 'My Complaints', href: '/citizen', icon: FileText },
-    { title: 'New Complaint', href: '/citizen/new', icon: PlusCircle },
+    { title: 'New Complaint', href: '/citizen/complaints/new', icon: PlusCircle },
     { title: 'Profile', href: '/citizen/profile', icon: User },
   ],
   DEPARTMENT_HEAD: [
