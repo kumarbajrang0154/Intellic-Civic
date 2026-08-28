@@ -52,6 +52,16 @@ export class ComplaintsController {
   }
 
   /**
+   * GET /api/v1/complaints/stats/summary
+   * System-wide summary stats for Super Admin dashboard.
+   */
+  @Get('stats/summary')
+  @Roles(UserRole.ADMIN)
+  async getSystemStats() {
+    return this.complaintsService.getSystemStats();
+  }
+
+  /**
    * GET /api/v1/complaints/:id
    * Get single complaint detail by ID.
    */
@@ -84,6 +94,7 @@ export class ComplaintsController {
    * Manually assign complaint to a department or department officer. Allowed for ADMIN, DEPARTMENT_HEAD.
    */
   @Patch(':id/assign')
+  @Post(':id/assign')
   @Roles(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
   async assignComplaint(
     @Param('id') id: string,
@@ -92,5 +103,21 @@ export class ComplaintsController {
     user: { id: string; role: UserRole; departmentId?: string | null },
   ) {
     return this.complaintsService.assignComplaint(id, assignComplaintDto, user);
+  }
+
+  /**
+   * PATCH /api/v1/complaints/:id/reject-suggestion
+   * POST /api/v1/complaints/:id/reject-suggestion
+   * Reject an AI department suggestion. Allowed for ADMIN, DEPARTMENT_HEAD.
+   */
+  @Patch(':id/reject-suggestion')
+  @Post(':id/reject-suggestion')
+  @Roles(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
+  async rejectAiSuggestion(
+    @Param('id') id: string,
+    @CurrentUser()
+    user: { id: string; role: UserRole; departmentId?: string | null },
+  ) {
+    return this.complaintsService.rejectAiSuggestion(id, user);
   }
 }

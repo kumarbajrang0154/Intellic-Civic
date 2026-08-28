@@ -53,4 +53,12 @@ export class ListComplaintsQueryDto {
   @IsOptional()
   @Type(() => Boolean)
   pendingAiConfirmation?: boolean;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  assignedToMe?: boolean;
+
+  @IsOptional()
+  @IsString()
+  assignedOfficerId?: string;
 }

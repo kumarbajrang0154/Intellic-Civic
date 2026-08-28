@@ -48,19 +48,22 @@ const NAV_CONFIG: Record<UserRole, NavItem[]> = {
     { title: 'Profile', href: '/department-head/profile', icon: User },
   ],
   DEPARTMENT_OFFICER: [
-    { title: 'Department Queue', href: '/staff', icon: Building2 },
-    { title: 'All Complaints', href: '/staff/all', icon: FileText },
-    { title: 'Profile', href: '/staff/profile', icon: User },
+    { title: 'Dashboard', href: '/officer', icon: Home },
+    { title: 'My Complaints', href: '/officer/complaints', icon: FileText },
+    { title: 'Profile', href: '/officer/profile', icon: User },
   ],
   FIELD_WORKER: [
     { title: 'My Assignments', href: '/field-worker', icon: CheckSquare },
     { title: 'Profile', href: '/field-worker/profile', icon: User },
   ],
   ADMIN: [
-    { title: 'All Complaints', href: '/admin', icon: FileText },
+    { title: 'Dashboard', href: '/admin', icon: Home },
     { title: 'Triage Queue', href: '/admin/triage', icon: AlertCircle },
+    { title: 'All Complaints', href: '/admin/complaints', icon: FileText },
+    { title: 'User Approvals', href: '/admin/users/pending', icon: Shield },
+    { title: 'All Users', href: '/admin/users', icon: Users },
     { title: 'Departments', href: '/admin/departments', icon: Building2 },
-    { title: 'Users', href: '/admin/users', icon: Users },
+    { title: 'Categories', href: '/admin/categories', icon: Sparkles },
     { title: 'Profile', href: '/admin/profile', icon: User },
   ],
 };

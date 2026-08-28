@@ -113,10 +113,10 @@ test.describe('Module 5: Frontend Auth Pages & App Shell E2E Tests', () => {
     ]);
 
     await page.goto('/admin');
-    await expect(page.getByText('Super Admin Triage & System Dashboard')).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Triage Queue' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Departments' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Users' })).toBeVisible();
+    await expect(page.locator('h1')).toContainText('Super Admin System Portal');
+    await expect(page.getByRole('link', { name: 'Triage Queue', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Departments', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'All Users', exact: true })).toBeVisible();
   });
 
   test('6. Logout clears cookies and redirects to landing page', async ({ page, context }) => {
@@ -163,6 +163,6 @@ test.describe('Module 5: Frontend Auth Pages & App Shell E2E Tests', () => {
 
     await page.goto('/auth/callback?code=auth_code_mock_opaque_123');
     await expect(page).toHaveURL(/\/admin/);
-    await expect(page.getByText('Super Admin Triage & System Dashboard')).toBeVisible();
+    await expect(page.locator('h1')).toContainText('Super Admin System Portal');
   });
 });

@@ -289,6 +289,7 @@ export class ComplaintsService {
         where.departmentId = null;
         where.aiPrediction = {
           suggestedDepartmentId: user.departmentId || 'UNASSIGNED_DEPT_FLAG',
+          isRejected: false,
         };
       } else if (user.departmentId) {
         where.departmentId = user.departmentId;
@@ -300,6 +301,7 @@ export class ComplaintsService {
       where.departmentId = null;
       where.aiPrediction = {
         suggestedDepartmentId: { not: null },
+        isRejected: false,
       };
     }
     // ADMIN (SUPER_ADMIN) has unrestricted view across all complaints
@@ -316,6 +318,11 @@ export class ComplaintsService {
     }
     if (query.needsTriage) {
       where.departmentId = null;
+    }
+    if (query.assignedToMe) {
+      where.assignment = { departmentOfficerId: user.id };
+    } else if (query.assignedOfficerId) {
+      where.assignment = { departmentOfficerId: query.assignedOfficerId };
     }
 
     const [total, data] = await Promise.all([
@@ -756,5 +763,115 @@ export class ComplaintsService {
     });
 
     return result;
+  }
+
+  async rejectAiSuggestion(
+    id: string,
+    user: { id: string; role: UserRole; departmentId?: string | null },
+  ) {
+    const complaint = await this.prisma.complaint.findUnique({
+      where: { id },
+      include: { aiPrediction: true },
+    });
+
+    if (!complaint) {
+      throw new NotFoundException('Complaint not found');
+    }
+
+    if (!complaint.aiPrediction) {
+      throw new BadRequestException('Complaint has no AI prediction to reject');
+    }
+
+    // Role access control: DEPARTMENT_HEAD can only reject if suggested for their department
+    if (
+      user.role === UserRole.DEPARTMENT_HEAD &&
+      complaint.aiPrediction.suggestedDepartmentId !== user.departmentId
+    ) {
+      throw new ForbiddenException(
+        'Access denied: You can only reject AI suggestions targeted at your department',
+      );
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      await tx.aiPrediction.update({
+        where: { complaintId: id },
+        data: { isRejected: true },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'AI_SUGGESTION_REJECTED_BY_DEPARTMENT',
+          entityType: 'AiPrediction',
+          entityId: complaint.aiPrediction!.id,
+          metadata: {
+            complaintId: id,
+            departmentId: user.departmentId || null,
+            rejectedByUserId: user.id,
+          },
+        },
+      });
+
+      return tx.complaint.findUnique({
+        where: { id },
+        include: { aiPrediction: true, category: true, department: true },
+      });
+    });
+
+    return result;
+  }
+
+  async getSystemStats() {
+    const [
+      totalComplaints,
+      statusGroups,
+      needsTriageCount,
+      pendingUserApprovalsCount,
+      departmentCount,
+      totalStaffCount,
+    ] = await Promise.all([
+      this.prisma.complaint.count(),
+      this.prisma.complaint.groupBy({
+        by: ['status'],
+        _count: { id: true },
+      }),
+      this.prisma.complaint.count({
+        where: { departmentId: null },
+      }),
+      this.prisma.user.count({
+        where: { isAuthorized: false },
+      }),
+      this.prisma.department.count(),
+      this.prisma.user.count({
+        where: {
+          role: { in: [UserRole.DEPARTMENT_HEAD, UserRole.DEPARTMENT_OFFICER, UserRole.ADMIN] },
+        },
+      }),
+    ]);
+
+    const statusBreakdown: Record<string, number> = {
+      SUBMITTED: 0,
+      AI_PROCESSING: 0,
+      PENDING_DEPT_REVIEW: 0,
+      ASSIGNED: 0,
+      IN_PROGRESS: 0,
+      RESOLVED: 0,
+      CLOSED: 0,
+      REJECTED: 0,
+      DUPLICATE: 0,
+    };
+
+    for (const group of statusGroups) {
+      statusBreakdown[group.status] = group._count.id;
+    }
+
+    return {
+      totalComplaints,
+      statusBreakdown,
+      needsTriageCount,
+      pendingUserApprovalsCount,
+      departmentCount,
+      totalStaffCount,
+    };
   }
 }

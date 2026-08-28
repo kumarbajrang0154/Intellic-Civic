@@ -281,7 +281,7 @@ test.describe('Module 7: Department Head Portal E2E Tests', () => {
     expect(assignCalledWithOfficer).toBe(true);
   });
 
-  test('7. DEPARTMENT_OFFICER role hitting /department-head gets redirected to /staff', async ({
+  test('7. DEPARTMENT_OFFICER role hitting /department-head gets redirected to /officer', async ({
     context,
     page,
   }) => {
@@ -296,6 +296,6 @@ test.describe('Module 7: Department Head Portal E2E Tests', () => {
     ]);
 
     await page.goto('/department-head');
-    await expect(page).toHaveURL('http://localhost:3000/staff');
+    await expect(page).toHaveURL('http://localhost:3000/officer');
   });
 });

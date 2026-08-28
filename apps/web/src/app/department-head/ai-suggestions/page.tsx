@@ -123,24 +123,21 @@ export default function AiSuggestionsPage() {
     setError(null);
 
     try {
-      // Reject suggestion: Update status or leave for admin triage queue
-      const res = await fetch(`/api/complaints/${complaintId}/status`, {
+      // Reject AI suggestion: persist isRejected flag in backend and keep in Admin Triage queue
+      const res = await fetch(`/api/complaints/${complaintId}/reject-suggestion`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'PENDING_DEPT_REVIEW',
-          remarks: 'Rejected department suggestion by Department Head. Flagged for Admin triage.',
-        }),
       });
 
       if (!res.ok) {
-        // Fallback: Remove from list locally
+        const data = await res.json();
+        throw new Error(data.message || 'Failed to reject suggestion');
       }
 
-      setActionSuccess(`Complaint flagged and returned to Admin Triage Queue.`);
+      setActionSuccess(`Complaint suggestion rejected and returned to Admin Triage Queue.`);
       setSuggestions((prev) => prev.filter((s) => s.id !== complaintId));
     } catch (err: any) {
-      setSuggestions((prev) => prev.filter((s) => s.id !== complaintId));
+      setError(err.message || 'Failed to reject suggestion');
     } finally {
       setProcessingId(null);
     }

@@ -5,8 +5,11 @@ const BACKEND_URL = process.env.NESTJS_BACKEND_URL || 'http://localhost:3001';
 
 export async function GET(req: NextRequest) {
   try {
-    const backendRes = await fetch(`${BACKEND_URL}/api/v1/categories`, {
+    const token = cookies().get('token')?.value;
+
+    const backendRes = await fetch(`${BACKEND_URL}/api/v1/departments`, {
       headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         'Content-Type': 'application/json',
       },
     });
@@ -15,7 +18,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data, { status: backendRes.status });
   } catch (error) {
     return NextResponse.json(
-      { message: 'Failed to fetch categories' },
+      { message: 'Failed to fetch departments' },
       { status: 500 },
     );
   }
@@ -30,7 +33,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
 
-    const backendRes = await fetch(`${BACKEND_URL}/api/v1/categories`, {
+    const backendRes = await fetch(`${BACKEND_URL}/api/v1/departments`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -43,7 +46,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(data, { status: backendRes.status });
   } catch (error) {
     return NextResponse.json(
-      { message: 'Failed to create category' },
+      { message: 'Failed to create department' },
       { status: 500 },
     );
   }

@@ -13,6 +13,7 @@ import { ComplaintsModule } from './modules/complaints/complaints.module';
 import { DepartmentsModule } from './modules/departments/departments.module';
 import { EvidenceModule } from './modules/evidence/evidence.module';
 import { HealthModule } from './modules/health/health.module';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { HealthModule } from './modules/health/health.module';
     DepartmentsModule,
     AiModule,
     EvidenceModule,
+    UsersModule,
   ],
   providers: [
     {

@@ -224,6 +224,7 @@ model AiPrediction {
   suggestedPriority     PriorityLevel?
   confidenceScore       Float?
   rawResponse           Json?
+  isRejected            Boolean        @default(false)
   createdAt             DateTime       @default(now())
 
   complaint           Complaint   @relation(fields: [complaintId], references: [id], onDelete: Cascade)
