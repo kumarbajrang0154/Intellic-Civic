@@ -285,12 +285,22 @@ export class ComplaintsService {
       user.role === UserRole.DEPARTMENT_HEAD ||
       user.role === UserRole.DEPARTMENT_OFFICER
     ) {
-      if (user.departmentId) {
+      if (query.pendingAiConfirmation) {
+        where.departmentId = null;
+        where.aiPrediction = {
+          suggestedDepartmentId: user.departmentId || 'UNASSIGNED_DEPT_FLAG',
+        };
+      } else if (user.departmentId) {
         where.departmentId = user.departmentId;
       } else {
         // Staff member without assigned department sees empty list
         where.departmentId = 'UNASSIGNED_DEPT_FLAG';
       }
+    } else if (user.role === UserRole.ADMIN && query.pendingAiConfirmation) {
+      where.departmentId = null;
+      where.aiPrediction = {
+        suggestedDepartmentId: { not: null },
+      };
     }
     // ADMIN (SUPER_ADMIN) has unrestricted view across all complaints
 
@@ -449,10 +459,14 @@ export class ComplaintsService {
       user.role === UserRole.DEPARTMENT_HEAD ||
       user.role === UserRole.DEPARTMENT_OFFICER
     ) {
-      if (
-        !user.departmentId ||
-        complaint.departmentId !== user.departmentId
-      ) {
+      const matchesDept =
+        user.departmentId && complaint.departmentId === user.departmentId;
+      const matchesSuggestedDept =
+        user.departmentId &&
+        complaint.departmentId === null &&
+        complaint.aiPrediction?.suggestedDepartmentId === user.departmentId;
+
+      if (!matchesDept && !matchesSuggestedDept) {
         throw new ForbiddenException(
           'Access denied to complaints outside your department scope',
         );

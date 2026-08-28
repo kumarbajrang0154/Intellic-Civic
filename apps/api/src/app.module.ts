@@ -10,6 +10,7 @@ import { AiModule } from './modules/ai/ai.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { ComplaintsModule } from './modules/complaints/complaints.module';
+import { DepartmentsModule } from './modules/departments/departments.module';
 import { EvidenceModule } from './modules/evidence/evidence.module';
 import { HealthModule } from './modules/health/health.module';
 
@@ -30,6 +31,7 @@ import { HealthModule } from './modules/health/health.module';
     AuthModule,
     CategoriesModule,
     ComplaintsModule,
+    DepartmentsModule,
     AiModule,
     EvidenceModule,
   ],

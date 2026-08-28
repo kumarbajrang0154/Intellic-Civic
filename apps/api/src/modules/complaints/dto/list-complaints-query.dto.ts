@@ -49,4 +49,8 @@ export class ListComplaintsQueryDto {
   @IsOptional()
   @Type(() => Boolean)
   needsTriage?: boolean;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  pendingAiConfirmation?: boolean;
 }

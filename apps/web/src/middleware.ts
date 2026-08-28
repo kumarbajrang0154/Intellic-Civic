@@ -47,13 +47,16 @@ export function middleware(request: NextRequest) {
   // 1. Unauthenticated users trying to access protected paths
   const isProtectedPath =
     pathname.startsWith('/citizen') ||
+    pathname.startsWith('/department-head') ||
     pathname.startsWith('/staff') ||
     pathname.startsWith('/admin') ||
     pathname.startsWith('/field-worker');
 
   if (!isAuthenticated && isProtectedPath) {
     const loginTarget =
-      pathname.startsWith('/staff') || pathname.startsWith('/admin')
+      pathname.startsWith('/department-head') ||
+      pathname.startsWith('/staff') ||
+      pathname.startsWith('/admin')
         ? '/login/staff'
         : '/login/citizen';
     return NextResponse.redirect(new URL(loginTarget, request.url));
@@ -70,10 +73,10 @@ export function middleware(request: NextRequest) {
     if (role === 'CITIZEN' && !pathname.startsWith('/citizen')) {
       return NextResponse.redirect(new URL('/citizen', request.url));
     }
-    if (
-      (role === 'DEPARTMENT_HEAD' || role === 'DEPARTMENT_OFFICER') &&
-      !pathname.startsWith('/staff')
-    ) {
+    if (role === 'DEPARTMENT_HEAD' && !pathname.startsWith('/department-head')) {
+      return NextResponse.redirect(new URL('/department-head', request.url));
+    }
+    if (role === 'DEPARTMENT_OFFICER' && !pathname.startsWith('/staff')) {
       return NextResponse.redirect(new URL('/staff', request.url));
     }
     if (role === 'FIELD_WORKER' && !pathname.startsWith('/field-worker')) {
@@ -92,6 +95,7 @@ function getDashboardForRole(role?: string): string {
     case 'CITIZEN':
       return '/citizen';
     case 'DEPARTMENT_HEAD':
+      return '/department-head';
     case 'DEPARTMENT_OFFICER':
       return '/staff';
     case 'FIELD_WORKER':

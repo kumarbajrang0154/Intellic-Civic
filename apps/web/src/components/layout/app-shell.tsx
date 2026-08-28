@@ -13,6 +13,7 @@ import {
   Menu,
   PlusCircle,
   Shield,
+  Sparkles,
   User,
   Users,
   X,
@@ -40,9 +41,11 @@ const NAV_CONFIG: Record<UserRole, NavItem[]> = {
     { title: 'Profile', href: '/citizen/profile', icon: User },
   ],
   DEPARTMENT_HEAD: [
-    { title: 'Department Queue', href: '/staff', icon: Building2 },
-    { title: 'All Complaints', href: '/staff/all', icon: FileText },
-    { title: 'Profile', href: '/staff/profile', icon: User },
+    { title: 'Dashboard', href: '/department-head', icon: Home },
+    { title: 'Department Queue', href: '/department-head/complaints', icon: Building2 },
+    { title: 'AI Suggestions', href: '/department-head/ai-suggestions', icon: Sparkles },
+    { title: 'Team Roster', href: '/department-head/team', icon: Users },
+    { title: 'Profile', href: '/department-head/profile', icon: User },
   ],
   DEPARTMENT_OFFICER: [
     { title: 'Department Queue', href: '/staff', icon: Building2 },
