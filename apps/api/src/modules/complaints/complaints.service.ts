@@ -11,6 +11,7 @@ import {
   UserRole,
 } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { AiService } from '../ai/ai.service';
 import { VALID_STATUS_TRANSITIONS } from './complaints.constants';
 import { AssignComplaintDto } from './dto/assign-complaint.dto';
 import { CreateComplaintDto } from './dto/create-complaint.dto';
@@ -19,7 +20,10 @@ import { UpdateComplaintStatusDto } from './dto/update-complaint-status.dto';
 
 @Injectable()
 export class ComplaintsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly aiService: AiService,
+  ) {}
 
   /**
    * Helper to generate human-readable unique ticket IDs (e.g. CMP-2026-849201)
@@ -92,6 +96,165 @@ export class ComplaintsService {
       return complaint;
     });
 
+    // Asynchronously trigger AI Complaint Routing in background (non-blocking)
+    setImmediate(async () => {
+      try {
+        const [categories, departments] = await Promise.all([
+          this.prisma.category.findMany(),
+          this.prisma.department.findMany({
+            include: { categories: true },
+          }),
+        ]);
+
+        const availableCategories = categories.map((c) => ({
+          id: c.id,
+          name: c.name,
+        }));
+
+        const availableDepartments = departments.map((d) => ({
+          id: d.id,
+          name: d.name,
+          handled_categories: d.categories.map((c) => c.id),
+        }));
+
+        const aiResult = await this.aiService.routeComplaint({
+          complaintId: result.id,
+          title: result.title,
+          description: result.description,
+          citizenSelectedCategory: result.categoryId || null,
+          availableCategories,
+          availableDepartments,
+        });
+
+        // SAFETY RULE: Check human precedence before applying auto-route updates!
+        const latestComplaint = await this.prisma.complaint.findUnique({
+          where: { id: result.id },
+        });
+
+        if (!latestComplaint) return;
+
+        if (latestComplaint.departmentId !== null) {
+          // Human staff member has already manually assigned department!
+          // DO NOT override human assignment. Save AI suggestion for reference only.
+          await this.prisma.aiPrediction.upsert({
+            where: { complaintId: result.id },
+            create: {
+              complaintId: result.id,
+              suggestedCategoryId: aiResult.suggested_category_id,
+              suggestedDepartmentId: aiResult.suggested_department_id,
+              suggestedPriority: aiResult.suggested_priority,
+              confidenceScore: aiResult.confidence_score,
+              rawResponse: aiResult as any,
+            },
+            update: {
+              suggestedCategoryId: aiResult.suggested_category_id,
+              suggestedDepartmentId: aiResult.suggested_department_id,
+              suggestedPriority: aiResult.suggested_priority,
+              confidenceScore: aiResult.confidence_score,
+              rawResponse: aiResult as any,
+            },
+          });
+
+          await this.prisma.auditLog.create({
+            data: {
+              userId: user.id,
+              action: 'AI_ROUTING_SKIPPED_HUMAN_PRECEDENCE',
+              entityType: 'Complaint',
+              entityId: result.id,
+              metadata: {
+                aiSuggestedDepartmentId: aiResult.suggested_department_id,
+                humanDepartmentId: latestComplaint.departmentId,
+                confidenceScore: aiResult.confidence_score,
+              },
+            },
+          });
+          return;
+        }
+
+        // Apply AUTO_ROUTE if confidence threshold met and unassigned
+        if (aiResult.routing_decision === 'AUTO_ROUTE') {
+          await this.prisma.complaint.update({
+            where: { id: result.id },
+            data: {
+              departmentId: aiResult.suggested_department_id,
+              categoryId: aiResult.suggested_category_id || result.categoryId,
+              priority: aiResult.suggested_priority || result.priority,
+            },
+          });
+
+          await this.prisma.aiPrediction.upsert({
+            where: { complaintId: result.id },
+            create: {
+              complaintId: result.id,
+              suggestedCategoryId: aiResult.suggested_category_id,
+              suggestedDepartmentId: aiResult.suggested_department_id,
+              suggestedPriority: aiResult.suggested_priority,
+              confidenceScore: aiResult.confidence_score,
+              rawResponse: aiResult as any,
+            },
+            update: {
+              suggestedCategoryId: aiResult.suggested_category_id,
+              suggestedDepartmentId: aiResult.suggested_department_id,
+              suggestedPriority: aiResult.suggested_priority,
+              confidenceScore: aiResult.confidence_score,
+              rawResponse: aiResult as any,
+            },
+          });
+
+          await this.prisma.auditLog.create({
+            data: {
+              userId: user.id,
+              action: 'COMPLAINT_AUTO_ROUTED',
+              entityType: 'Complaint',
+              entityId: result.id,
+              metadata: {
+                assignedDepartmentId: aiResult.suggested_department_id,
+                assignedCategoryId: aiResult.suggested_category_id,
+                assignedPriority: aiResult.suggested_priority,
+                confidenceScore: aiResult.confidence_score,
+              },
+            },
+          });
+        } else {
+          // SUGGEST_ONLY or MANUAL_TRIAGE: Save prediction, leave departmentId null
+          await this.prisma.aiPrediction.upsert({
+            where: { complaintId: result.id },
+            create: {
+              complaintId: result.id,
+              suggestedCategoryId: aiResult.suggested_category_id,
+              suggestedDepartmentId: aiResult.suggested_department_id,
+              suggestedPriority: aiResult.suggested_priority,
+              confidenceScore: aiResult.confidence_score,
+              rawResponse: aiResult as any,
+            },
+            update: {
+              suggestedCategoryId: aiResult.suggested_category_id,
+              suggestedDepartmentId: aiResult.suggested_department_id,
+              suggestedPriority: aiResult.suggested_priority,
+              confidenceScore: aiResult.confidence_score,
+              rawResponse: aiResult as any,
+            },
+          });
+
+          await this.prisma.auditLog.create({
+            data: {
+              userId: user.id,
+              action: 'COMPLAINT_AI_TRIAGED',
+              entityType: 'Complaint',
+              entityId: result.id,
+              metadata: {
+                routingDecision: aiResult.routing_decision,
+                confidenceScore: aiResult.confidence_score,
+                reasoning: aiResult.reasoning,
+              },
+            },
+          });
+        }
+      } catch (err) {
+        // Non-blocking error handler
+      }
+    });
+
     return result;
   }
 
@@ -140,6 +303,9 @@ export class ComplaintsService {
     }
     if (priority) {
       where.priority = priority;
+    }
+    if (query.needsTriage) {
+      where.departmentId = null;
     }
 
     const [total, data] = await Promise.all([
@@ -290,6 +456,31 @@ export class ComplaintsService {
         throw new ForbiddenException(
           'Access denied to complaints outside your department scope',
         );
+      }
+    }
+
+    // Attach aiSuggestion for staff convenience
+    if (
+      user.role === UserRole.ADMIN ||
+      user.role === UserRole.DEPARTMENT_HEAD ||
+      user.role === UserRole.DEPARTMENT_OFFICER
+    ) {
+      if (complaint.aiPrediction) {
+        const raw = complaint.aiPrediction.rawResponse as any;
+        (complaint as any).aiSuggestion = {
+          suggestedCategoryId: complaint.aiPrediction.suggestedCategoryId,
+          suggestedDepartmentId: complaint.aiPrediction.suggestedDepartmentId,
+          suggestedPriority: complaint.aiPrediction.suggestedPriority,
+          confidenceScore: complaint.aiPrediction.confidenceScore,
+          reasoning: raw?.reasoning || null,
+          routingDecision: raw?.routing_decision || 'MANUAL_TRIAGE',
+          needsManualTriage:
+            raw?.routing_decision === 'MANUAL_TRIAGE' || !complaint.departmentId,
+        };
+      } else {
+        (complaint as any).aiSuggestion = {
+          needsManualTriage: !complaint.departmentId,
+        };
       }
     }
 

@@ -45,4 +45,8 @@ export class ListComplaintsQueryDto {
   @IsString()
   @IsIn(['asc', 'desc'])
   sortOrder?: 'asc' | 'desc' = 'desc';
+
+  @IsOptional()
+  @Type(() => Boolean)
+  needsTriage?: boolean;
 }

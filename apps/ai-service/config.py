@@ -7,9 +7,13 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 PORT = int(os.getenv("PORT", "8000"))
 HOST = os.getenv("HOST", "0.0.0.0")
 
-# Threshold constants for Recommendation Engine
+# Threshold constants for Recommendation Engine (Evidence Verification)
 AUTO_APPROVE_CONFIDENCE_THRESHOLD = 0.85
 AUTO_FLAG_CONFIDENCE_THRESHOLD = 0.40
+
+# Threshold constants for Complaint Routing Engine
+AUTO_ROUTE_CONFIDENCE_THRESHOLD = 0.75
+SUGGEST_ONLY_CONFIDENCE_THRESHOLD = 0.40
 
 def check_gemini_api_key():
     """Verify that GEMINI_API_KEY is configured on startup."""

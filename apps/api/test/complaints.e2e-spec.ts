@@ -5,6 +5,8 @@ import { PrismaService } from '../src/database/prisma.service';
 import { ComplaintsController } from '../src/modules/complaints/complaints.controller';
 import { ComplaintsService } from '../src/modules/complaints/complaints.service';
 
+import { AiService } from '../src/modules/ai/ai.service';
+
 describe('ComplaintsModule (Module 3 E2E / Integration Tests)', () => {
   let controller: ComplaintsController;
   let service: ComplaintsService;
@@ -70,6 +72,12 @@ describe('ComplaintsModule (Module 3 E2E / Integration Tests)', () => {
         count: jest.fn(),
         update: jest.fn(),
       } as any,
+      category: {
+        findMany: jest.fn().mockResolvedValue([]),
+      } as any,
+      department: {
+        findMany: jest.fn().mockResolvedValue([]),
+      } as any,
       auditLog: {
         create: jest.fn(),
       } as any,
@@ -91,6 +99,21 @@ describe('ComplaintsModule (Module 3 E2E / Integration Tests)', () => {
         {
           provide: PrismaService,
           useValue: prismaService,
+        },
+        {
+          provide: AiService,
+          useValue: {
+            routeComplaint: jest.fn().mockResolvedValue({
+              suggested_category_id: 'cat-1',
+              suggested_department_id: 'dept-1',
+              suggested_priority: PriorityLevel.MEDIUM,
+              confidence_score: 0.8,
+              category_changed_from_citizen: false,
+              reasoning: 'Test recommendation',
+              routing_decision: 'AUTO_ROUTE',
+            }),
+            verifyEvidence: jest.fn(),
+          },
         },
       ],
     }).compile();

@@ -11,9 +11,16 @@ from config import (
     GEMINI_API_KEY,
     AUTO_APPROVE_CONFIDENCE_THRESHOLD,
     AUTO_FLAG_CONFIDENCE_THRESHOLD,
+    AUTO_ROUTE_CONFIDENCE_THRESHOLD,
+    SUGGEST_ONLY_CONFIDENCE_THRESHOLD,
     check_gemini_api_key,
 )
-from models import VerifyEvidenceRequest, VerifyEvidenceResponse
+from models import (
+    VerifyEvidenceRequest,
+    VerifyEvidenceResponse,
+    RouteComplaintRequest,
+    RouteComplaintResponse,
+)
 
 # Configure structured logging
 logging.basicConfig(
@@ -24,7 +31,7 @@ logger = logging.getLogger("ai_service")
 
 app = FastAPI(
     title="IntelliCivic AI Service",
-    description="Microservice for AI-powered photo evidence verification and complaint processing",
+    description="Microservice for AI-powered photo evidence verification and complaint routing",
     version="1.0.0",
 )
 
@@ -57,7 +64,6 @@ def fetch_image_bytes(image_url: str) -> Tuple[bytes, str]:
     """Fetch image bytes from URL or decode base64 string."""
     try:
         if image_url.startswith("data:image/"):
-            # Handle base64 data URI e.g. data:image/jpeg;base64,...
             header, encoded = image_url.split(",", 1)
             mime_type = header.split(";")[0].replace("data:", "")
             image_bytes = base64.b64decode(encoded)
@@ -69,7 +75,6 @@ def fetch_image_bytes(image_url: str) -> Tuple[bytes, str]:
             content_type = resp.headers.get("Content-Type", "image/jpeg").split(";")[0]
             return resp.content, content_type
         else:
-            # Assume raw base64 string
             image_bytes = base64.b64decode(image_url)
             return image_bytes, "image/jpeg"
     except Exception as e:
@@ -85,7 +90,7 @@ def compute_recommendation(
     confidence_score: float,
     quality_flags: list[str],
 ) -> str:
-    """Determine recommendation status based on defined threshold constants."""
+    """Determine evidence recommendation status based on defined threshold constants."""
     if (
         confidence_score >= AUTO_APPROVE_CONFIDENCE_THRESHOLD
         and is_relevant is True
@@ -133,7 +138,6 @@ Evaluate the photo and return a STRICT JSON object containing exactly these fiel
 
 Output ONLY valid raw JSON with no markdown block markers."""
 
-    # Try SDK call with retry on JSON parse failure
     for attempt in range(2):
         try:
             import google.generativeai as genai
@@ -149,7 +153,6 @@ Output ONLY valid raw JSON with no markdown block markers."""
             response = model.generate_content([prompt, image_part])
             text_resp = response.text.strip()
 
-            # Clean markdown formatting if present
             if text_resp.startswith("```json"):
                 text_resp = text_resp.replace("```json", "", 1).rsplit("```", 1)[0].strip()
             elif text_resp.startswith("```"):
@@ -160,7 +163,6 @@ Output ONLY valid raw JSON with no markdown block markers."""
         except json.JSONDecodeError as err:
             logger.warning(f"Gemini output JSON parse error on attempt {attempt + 1}: {str(err)}")
             if attempt == 1:
-                # Return safe default fallback on persistent JSON decode failure
                 return {
                     "is_relevant": None,
                     "matches_category": None,
@@ -225,4 +227,156 @@ def verify_evidence(payload: VerifyEvidenceRequest):
         quality_flags=flags,
         reasoning=reasoning,
         recommendation=rec,
+    )
+
+def route_with_gemini(
+    title: str,
+    description: str,
+    available_categories: list[dict],
+    available_departments: list[dict],
+) -> Dict[str, Any]:
+    """Call Gemini to predict category, department, and priority."""
+    if not GEMINI_API_KEY or GEMINI_API_KEY == "your_gemini_api_key_here":
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="GEMINI_API_KEY is not configured on AI service",
+        )
+
+    categories_formatted = json.dumps(available_categories, indent=2)
+    departments_formatted = json.dumps(available_departments, indent=2)
+
+    prompt = f"""You are an AI Civic Complaint Routing Engine for a Smart City Platform.
+Analyze the complaint title and description, then select the best matching category and department.
+
+Complaint Title: {title}
+Complaint Description: {description}
+
+AVAILABLE CATEGORIES:
+{categories_formatted}
+
+AVAILABLE DEPARTMENTS:
+{departments_formatted}
+
+STRICT CONSTRAINTS:
+1. "suggested_category_id": MUST be one of the category IDs listed in AVAILABLE CATEGORIES.
+2. "suggested_department_id": MUST be one of the department IDs listed in AVAILABLE DEPARTMENTS.
+3. "suggested_priority": Choose from "LOW", "MEDIUM", "HIGH", or "CRITICAL".
+4. "confidence_score": float between 0.0 and 1.0.
+5. "reasoning": 1-2 sentence explanation of your decision.
+
+Output ONLY valid JSON with no markdown markers."""
+
+    for attempt in range(2):
+        try:
+            import google.generativeai as genai
+
+            genai.configure(api_key=GEMINI_API_KEY)
+            model = genai.GenerativeModel("gemini-2.0-flash")
+
+            response = model.generate_content(prompt)
+            text_resp = response.text.strip()
+
+            if text_resp.startswith("```json"):
+                text_resp = text_resp.replace("```json", "", 1).rsplit("```", 1)[0].strip()
+            elif text_resp.startswith("```"):
+                text_resp = text_resp.replace("```", "", 1).rsplit("```", 1)[0].strip()
+
+            parsed = json.loads(text_resp)
+            return parsed
+        except json.JSONDecodeError as err:
+            logger.warning(f"Gemini routing JSON parse error on attempt {attempt + 1}: {str(err)}")
+            if attempt == 1:
+                return {
+                    "suggested_category_id": "INVALID",
+                    "suggested_department_id": "INVALID",
+                    "suggested_priority": "MEDIUM",
+                    "confidence_score": 0.0,
+                    "reasoning": "AI service received malformed response; flagged for manual triage.",
+                }
+        except Exception as e:
+            logger.error(f"Gemini API routing call error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"AI Routing service error: {str(e)}",
+            )
+
+@app.post(
+    "/ai/route-complaint",
+    response_model=RouteComplaintResponse,
+    status_code=status.HTTP_200_OK,
+)
+def route_complaint(payload: RouteComplaintRequest):
+    start_time = time.time()
+    logger.info(
+        f"Received route-complaint request for complaint_id={payload.complaint_id}, "
+        f"title='{payload.title}'"
+    )
+
+    valid_cat_ids = {c.id for c in payload.available_categories}
+    valid_dept_ids = {d.id for d in payload.available_departments}
+
+    categories_list = [{"id": c.id, "name": c.name} for c in payload.available_categories]
+    departments_list = [
+        {"id": d.id, "name": d.name, "handledCategories": d.handled_categories}
+        for d in payload.available_departments
+    ]
+
+    analysis = route_with_gemini(
+        title=payload.title,
+        description=payload.description,
+        available_categories=categories_list,
+        available_departments=departments_list,
+    )
+
+    sug_cat_id = str(analysis.get("suggested_category_id", ""))
+    sug_dept_id = str(analysis.get("suggested_department_id", ""))
+    sug_priority = str(analysis.get("suggested_priority", "MEDIUM")).upper()
+    if sug_priority not in ["LOW", "MEDIUM", "HIGH", "CRITICAL"]:
+        sug_priority = "MEDIUM"
+
+    confidence = float(analysis.get("confidence_score", 0.0))
+    reasoning = str(analysis.get("reasoning", "Complaint analyzed."))
+
+    # HARD SAFETY CHECK: Validate Gemini's suggested IDs against requested whitelist
+    is_cat_valid = sug_cat_id in valid_cat_ids
+    is_dept_valid = sug_dept_id in valid_dept_ids
+
+    if not is_cat_valid or not is_dept_valid:
+        logger.warning(
+            f"SAFETY VIOLATION: Gemini suggested hallucinated ID(s): "
+            f"cat_id='{sug_cat_id}' (valid={is_cat_valid}), dept_id='{sug_dept_id}' (valid={is_dept_valid}). "
+            f"Rejecting suggestion and falling back to MANUAL_TRIAGE."
+        )
+        sug_cat_id = payload.available_categories[0].id if payload.available_categories else ""
+        sug_dept_id = payload.available_departments[0].id if payload.available_departments else ""
+        confidence = 0.0
+        reasoning = "AI suggested an unlisted department or category ID; rejected by safety filter for manual admin triage."
+        routing_decision = "MANUAL_TRIAGE"
+    else:
+        # Determine routing decision threshold
+        if confidence >= AUTO_ROUTE_CONFIDENCE_THRESHOLD:
+            routing_decision = "AUTO_ROUTE"
+        elif confidence >= SUGGEST_ONLY_CONFIDENCE_THRESHOLD:
+            routing_decision = "SUGGEST_ONLY"
+        else:
+            routing_decision = "MANUAL_TRIAGE"
+
+    cat_changed = False
+    if payload.citizen_selected_category:
+        cat_changed = sug_cat_id != payload.citizen_selected_category
+
+    duration = round((time.time() - start_time) * 1000, 2)
+    logger.info(
+        f"Completed route-complaint for complaint_id={payload.complaint_id} in {duration}ms. "
+        f"Decision={routing_decision}, Confidence={confidence}"
+    )
+
+    return RouteComplaintResponse(
+        suggested_category_id=sug_cat_id,
+        suggested_department_id=sug_dept_id,
+        suggested_priority=sug_priority,
+        confidence_score=confidence,
+        category_changed_from_citizen=cat_changed,
+        reasoning=reasoning,
+        routing_decision=routing_decision,
     )
