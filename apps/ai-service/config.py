@@ -1,7 +1,12 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load environment variables from monorepo root .env file
+root_env = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.env"))
+if os.path.exists(root_env):
+    load_dotenv(root_env)
+else:
+    load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 PORT = int(os.getenv("PORT", "8000"))
@@ -20,5 +25,5 @@ def check_gemini_api_key():
     if not GEMINI_API_KEY:
         raise RuntimeError(
             "CRITICAL: GEMINI_API_KEY environment variable is not set. "
-            "Please set GEMINI_API_KEY in apps/ai-service/.env file."
+            "Please set GEMINI_API_KEY in the root .env file."
         )

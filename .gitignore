@@ -9,11 +9,13 @@ build/
 .next/
 *.tsbuildinfo
 
-# Environment variables
+# Environment variables (Single root .env)
 .env
+.env*.local
 .env.local
 .env.production
 !.env.example
+!**/.env.example
 
 # IDE & OS files
 .DS_Store

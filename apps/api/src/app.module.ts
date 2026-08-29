@@ -15,11 +15,17 @@ import { EvidenceModule } from './modules/evidence/evidence.module';
 import { HealthModule } from './modules/health/health.module';
 import { UsersModule } from './modules/users/users.module';
 
+import * as path from 'path';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['.env', '../../.env'],
+      envFilePath: [
+        path.resolve(process.cwd(), '../../.env'),
+        path.resolve(__dirname, '../../../.env'),
+        '../../.env',
+      ],
       load: [appConfig],
       validationSchema: envValidationSchema,
       validationOptions: {
