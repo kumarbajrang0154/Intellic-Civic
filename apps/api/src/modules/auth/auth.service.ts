@@ -1,9 +1,9 @@
 import {
   Injectable,
-  Inject,
   HttpException,
   HttpStatus,
   UnauthorizedException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -12,11 +12,12 @@ import { AuthProvider, User, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
+import { ConsoleOtpProvider } from './providers/console-otp.provider';
 import { ExchangeCodeDto } from './dto/exchange-code.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
-import { OTP_PROVIDER_TOKEN, OtpProvider } from './interfaces/otp-provider.interface';
+import { FirebaseAdminService } from './firebase-admin.service';
 
 @Injectable()
 export class AuthService {
@@ -30,60 +31,101 @@ export class AuthService {
     private readonly prismaService: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    @Inject(OTP_PROVIDER_TOKEN) private readonly otpProvider: OtpProvider,
+    private readonly firebaseAdminService: FirebaseAdminService,
+    private readonly consoleOtpProvider: ConsoleOtpProvider,
   ) {}
 
+  // ---------------------------------------------------------------------------
+  // OTP_AUTH_MODE helper
+  // ---------------------------------------------------------------------------
+  private get otpAuthMode(): 'console' | 'firebase' {
+    const mode = this.configService.get<string>('OTP_AUTH_MODE') || 'firebase';
+    return mode === 'console' ? 'console' : 'firebase';
+  }
+
+  // ---------------------------------------------------------------------------
+  // SEND OTP
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Console mode: generates a 6-digit OTP, hashes + stores in OtpRequest, logs to console.
+   * Firebase mode: returns informational message — delivery is handled client-side.
+   */
   async sendCitizenOtp(sendOtpDto: SendOtpDto) {
-    const mobileNumber = sendOtpDto.mobileNumber.trim();
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-
-    // Rate limit check: max 3 requests per 10 minutes
-    const recentRequestsCount = await this.prismaService.otpRequest.count({
-      where: {
-        mobileNumber,
-        createdAt: { gte: tenMinutesAgo },
-      },
-    });
-
-    if (recentRequestsCount >= 3) {
-      throw new HttpException(
-        {
-          statusCode: HttpStatus.TOO_MANY_REQUESTS,
-          message: 'Maximum 3 OTP requests allowed per 10 minutes for this mobile number.',
-          error: 'Too Many Requests',
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
+    if (this.otpAuthMode === 'console') {
+      return this.sendConsoleOtp(sendOtpDto.mobileNumber);
     }
 
-    // Generate 6-digit OTP code
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const hashedOtp = await bcrypt.hash(otpCode, 10);
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
-
-    // Save OTP request in DB
-    await this.prismaService.otpRequest.create({
-      data: {
-        mobileNumber,
-        otpCode: hashedOtp,
-        expiresAt,
-      },
-    });
-
-    // Send OTP via pluggable provider
-    await this.otpProvider.sendOtp(mobileNumber, otpCode);
-
+    // Firebase mode — OTP delivery is handled by Firebase Phone Auth on the client.
     return {
-      message: 'OTP sent successfully',
+      message: 'OTP delivery is now handled via Firebase Phone Auth on the client side.',
       expiresInSeconds: 300,
     };
   }
 
-  async verifyCitizenOtp(verifyOtpDto: VerifyOtpDto) {
-    const mobileNumber = verifyOtpDto.mobileNumber.trim();
+  private async sendConsoleOtp(mobileNumber: string) {
+    // Expire any existing unverified OTPs for this number before issuing a new one
+    await this.prismaService.otpRequest.updateMany({
+      where: {
+        mobileNumber,
+        isVerified: false,
+        expiresAt: { gt: new Date() },
+      },
+      data: { expiresAt: new Date() }, // expire immediately
+    });
 
-    // Fetch latest non-verified, non-expired OTP request
-    const otpRequest = await this.prismaService.otpRequest.findFirst({
+    // Generate 6-digit code
+    const otpCode = String(crypto.randomInt(100000, 999999));
+    const otpHash = await bcrypt.hash(otpCode, 10);
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+    await this.prismaService.otpRequest.create({
+      data: {
+        mobileNumber,
+        otpCode: otpHash,
+        expiresAt,
+      },
+    });
+
+    // Log to console (dev simulator)
+    await this.consoleOtpProvider.sendOtp(mobileNumber, otpCode);
+
+    return {
+      message: 'OTP sent successfully. Check server console for the code.',
+      expiresInSeconds: 300,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // VERIFY OTP
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Console mode: verifies plain OTP code against hashed value in OtpRequest.
+   * Firebase mode: verifies Firebase ID token via FirebaseAdminService.
+   * Both paths converge into find-or-create user + generateTokens.
+   */
+  async verifyCitizenOtp(verifyOtpDto: VerifyOtpDto) {
+    if (this.otpAuthMode === 'console') {
+      return this.verifyConsoleOtp(verifyOtpDto);
+    }
+    return this.verifyFirebaseOtp(verifyOtpDto);
+  }
+
+  // -- Console path --
+
+  private async verifyConsoleOtp(verifyOtpDto: VerifyOtpDto) {
+    const { mobileNumber, otp } = verifyOtpDto;
+
+    if (!mobileNumber) {
+      throw new BadRequestException('mobileNumber is required in console OTP mode.');
+    }
+    if (!otp) {
+      throw new BadRequestException('otp code is required in console OTP mode.');
+    }
+
+    // Find the latest unexpired, unverified OTP for this number
+    const otpRecord = await this.prismaService.otpRequest.findFirst({
       where: {
         mobileNumber,
         isVerified: false,
@@ -92,37 +134,70 @@ export class AuthService {
       orderBy: { createdAt: 'desc' },
     });
 
-    if (!otpRequest) {
-      throw new UnauthorizedException('OTP invalid or expired. Please request a new OTP.');
+    if (!otpRecord) {
+      throw new UnauthorizedException('OTP not found or has expired. Please request a new code.');
     }
 
-    if (otpRequest.attempts >= 5) {
-      throw new UnauthorizedException(
-        'Maximum OTP verification attempts exceeded. Please request a new OTP.',
-      );
+    // Brute-force guard: max 5 attempts
+    if (otpRecord.attempts >= 5) {
+      throw new UnauthorizedException('Too many failed attempts. Please request a new OTP.');
     }
 
-    const isMatch = await bcrypt.compare(verifyOtpDto.otp, otpRequest.otpCode);
+    const isMatch = await bcrypt.compare(otp, otpRecord.otpCode);
 
     if (!isMatch) {
-      const updated = await this.prismaService.otpRequest.update({
-        where: { id: otpRequest.id },
+      // Increment attempts on failure
+      await this.prismaService.otpRequest.update({
+        where: { id: otpRecord.id },
         data: { attempts: { increment: 1 } },
       });
-
-      const remainingAttempts = Math.max(0, 5 - updated.attempts);
-      throw new UnauthorizedException(
-        `Invalid OTP code. ${remainingAttempts} attempt(s) remaining.`,
-      );
+      throw new UnauthorizedException('Incorrect OTP. Please try again.');
     }
 
-    // Mark OTP verified
+    // Mark as verified
     await this.prismaService.otpRequest.update({
-      where: { id: otpRequest.id },
+      where: { id: otpRecord.id },
       data: { isVerified: true },
     });
 
-    // Fetch or auto-create Citizen user
+    return this.findOrCreateCitizenAndIssueTokens(mobileNumber);
+  }
+
+  // -- Firebase path --
+
+  private async verifyFirebaseOtp(verifyOtpDto: VerifyOtpDto) {
+    if (!verifyOtpDto.idToken) {
+      throw new UnauthorizedException('Firebase idToken is required for citizen verification.');
+    }
+
+    let decodedToken;
+    try {
+      decodedToken = await this.firebaseAdminService.verifyIdToken(verifyOtpDto.idToken);
+    } catch (err: any) {
+      this.logger.error(`Firebase token verification failed: ${err.message}`);
+      throw new UnauthorizedException('Invalid or expired Firebase authentication token.');
+    }
+
+    if (!decodedToken || !decodedToken.phone_number) {
+      throw new UnauthorizedException(
+        'Firebase token verification succeeded but no verified phone number was found.',
+      );
+    }
+
+    // Standardize to 10-digit mobile number for DB lookup (e.g. +919876543210 -> 9876543210)
+    const rawPhone = decodedToken.phone_number.replace(/\D/g, '');
+    const mobileNumber = rawPhone.length >= 10 ? rawPhone.slice(-10) : rawPhone;
+
+    return this.findOrCreateCitizenAndIssueTokens(mobileNumber);
+  }
+
+  // -- Shared convergence point --
+
+  /**
+   * Find or auto-create a citizen user and issue JWT + refresh token.
+   * Called by BOTH console and firebase paths after successful verification.
+   */
+  private async findOrCreateCitizenAndIssueTokens(mobileNumber: string) {
     let user = await this.prismaService.user.findUnique({
       where: { mobileNumber },
     });
@@ -152,6 +227,10 @@ export class AuthService {
       },
     };
   }
+
+  // ---------------------------------------------------------------------------
+  // GOOGLE OAUTH (unchanged)
+  // ---------------------------------------------------------------------------
 
   async handleGoogleCallback(profile: {
     email: string;
@@ -211,6 +290,10 @@ export class AuthService {
     };
   }
 
+  // ---------------------------------------------------------------------------
+  // EXCHANGE CODE (unchanged)
+  // ---------------------------------------------------------------------------
+
   /**
    * Single-use authorization code exchange for secure OAuth token retrieval without URL leakage.
    */
@@ -258,6 +341,10 @@ export class AuthService {
       },
     };
   }
+
+  // ---------------------------------------------------------------------------
+  // REFRESH / LOGOUT (unchanged)
+  // ---------------------------------------------------------------------------
 
   async refreshToken(refreshTokenDto: RefreshTokenDto) {
     const activeRefreshTokens = await this.prismaService.refreshToken.findMany({
@@ -318,6 +405,10 @@ export class AuthService {
 
     return { message: 'Logged out successfully' };
   }
+
+  // ---------------------------------------------------------------------------
+  // TOKEN GENERATION (unchanged)
+  // ---------------------------------------------------------------------------
 
   private async generateTokens(user: User) {
     const payload = {

@@ -4,7 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { OTP_PROVIDER_TOKEN } from './interfaces/otp-provider.interface';
+import { FirebaseAdminService } from './firebase-admin.service';
 import { ConsoleOtpProvider } from './providers/console-otp.provider';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -29,12 +29,10 @@ import { JwtStrategy } from './strategies/jwt.strategy';
   controllers: [AuthController],
   providers: [
     AuthService,
+    FirebaseAdminService,
+    ConsoleOtpProvider,
     JwtStrategy,
     GoogleStrategy,
-    {
-      provide: OTP_PROVIDER_TOKEN,
-      useClass: ConsoleOtpProvider,
-    },
   ],
   exports: [AuthService, JwtStrategy, PassportModule],
 })

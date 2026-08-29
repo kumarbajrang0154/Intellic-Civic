@@ -1,14 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UnauthorizedException } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { UserRole, AuthProvider } from '@prisma/client';
 import { AuthService } from '../src/modules/auth/auth.service';
+import { FirebaseAdminService } from '../src/modules/auth/firebase-admin.service';
 import { PrismaService } from '../src/database/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 
-import { OTP_PROVIDER_TOKEN } from '../src/modules/auth/interfaces/otp-provider.interface';
-
-describe('OAuth Single-Use Exchange Code Security (Task 2 Security Audit)', () => {
+describe('OAuth Single-Use Exchange Code & Firebase Auth Security', () => {
   let authService: AuthService;
 
   const mockAuthorizedStaffUser = {
@@ -21,12 +20,46 @@ describe('OAuth Single-Use Exchange Code Security (Task 2 Security Audit)', () =
     departmentId: 'dept-sanitation-1',
   };
 
+  const mockExistingCitizenUser = {
+    id: 'citizen-user-uuid-101',
+    mobileNumber: '9876543210',
+    name: 'Citizen 3210',
+    role: UserRole.CITIZEN,
+    authProvider: AuthProvider.MOBILE_OTP,
+    isAuthorized: true,
+  };
+
+  const firebaseAdminServiceMock = {
+    verifyIdToken: jest.fn().mockImplementation((token: string) => {
+      if (token === 'valid_firebase_token_existing') {
+        return Promise.resolve({ uid: 'fb_1', phone_number: '+919876543210' });
+      }
+      if (token === 'valid_firebase_token_new') {
+        return Promise.resolve({ uid: 'fb_2', phone_number: '+919999988888' });
+      }
+      if (token.startsWith('mock_fb_token_')) {
+        const num = token.replace('mock_fb_token_', '');
+        return Promise.resolve({ uid: `fb_${num}`, phone_number: `+91${num}` });
+      }
+      throw new Error('Invalid or expired Firebase ID token');
+    }),
+  };
+
   beforeEach(async () => {
     const prismaServiceMock = {
       user: {
         findFirst: jest.fn().mockResolvedValue(mockAuthorizedStaffUser),
-        findUnique: jest.fn().mockResolvedValue(mockAuthorizedStaffUser),
-        create: jest.fn(),
+        findUnique: jest.fn().mockImplementation(({ where }: any) => {
+          if (where.id === mockAuthorizedStaffUser.id) return Promise.resolve(mockAuthorizedStaffUser);
+          if (where.mobileNumber === '9876543210') return Promise.resolve(mockExistingCitizenUser);
+          return Promise.resolve(null);
+        }),
+        create: jest.fn().mockImplementation(({ data }: any) => {
+          return Promise.resolve({
+            id: 'citizen-new-uuid',
+            ...data,
+          });
+        }),
       },
       refreshToken: {
         create: jest.fn().mockResolvedValue({ id: 'rt-1' }),
@@ -39,6 +72,10 @@ describe('OAuth Single-Use Exchange Code Security (Task 2 Security Audit)', () =
         {
           provide: PrismaService,
           useValue: prismaServiceMock,
+        },
+        {
+          provide: FirebaseAdminService,
+          useValue: firebaseAdminServiceMock,
         },
         {
           provide: JwtService,
@@ -55,10 +92,6 @@ describe('OAuth Single-Use Exchange Code Security (Task 2 Security Audit)', () =
               return null;
             }),
           },
-        },
-        {
-          provide: OTP_PROVIDER_TOKEN,
-          useValue: { sendOtp: jest.fn() },
         },
       ],
     }).compile();
@@ -90,15 +123,42 @@ describe('OAuth Single-Use Exchange Code Security (Task 2 Security Audit)', () =
     const code = url.searchParams.get('code')!;
     expect(code).toBeDefined();
 
-    // First exchange attempt: SUCCEEDS
     const firstExchange = await authService.exchangeCode({ code });
     expect(firstExchange).toHaveProperty('accessToken');
     expect(firstExchange).toHaveProperty('refreshToken');
     expect(firstExchange.user.email).toBe(mockAuthorizedStaffUser.email);
 
-    // Second exchange attempt: REJECTED (Single-Use Violation)
     await expect(authService.exchangeCode({ code })).rejects.toThrow(
       UnauthorizedException,
     );
+  });
+
+  it('3. Firebase Phone Auth: Valid token for existing citizen issues JWT session', async () => {
+    const result = await authService.verifyCitizenOtp({
+      idToken: 'valid_firebase_token_existing',
+    });
+
+    expect(result).toHaveProperty('accessToken', 'mocked-jwt-access-token');
+    expect(result).toHaveProperty('refreshToken');
+    expect(result.user.mobileNumber).toBe('9876543210');
+    expect(result.user.role).toBe(UserRole.CITIZEN);
+  });
+
+  it('4. Firebase Phone Auth: Valid token for new citizen auto-creates Citizen User record', async () => {
+    const result = await authService.verifyCitizenOtp({
+      idToken: 'valid_firebase_token_new',
+    });
+
+    expect(result).toHaveProperty('accessToken', 'mocked-jwt-access-token');
+    expect(result.user.mobileNumber).toBe('9999988888');
+    expect(result.user.role).toBe(UserRole.CITIZEN);
+  });
+
+  it('5. Firebase Phone Auth: Invalid or expired Firebase ID token is rejected with UnauthorizedException', async () => {
+    await expect(
+      authService.verifyCitizenOtp({
+        idToken: 'invalid_expired_token',
+      }),
+    ).rejects.toThrow(UnauthorizedException);
   });
 });
