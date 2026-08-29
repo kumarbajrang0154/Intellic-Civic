@@ -3,6 +3,7 @@ import { UnauthorizedException } from '@nestjs/common';
 import { UserRole, AuthProvider } from '@prisma/client';
 import { AuthService } from '../src/modules/auth/auth.service';
 import { FirebaseAdminService } from '../src/modules/auth/firebase-admin.service';
+import { ConsoleOtpProvider } from '../src/modules/auth/providers/console-otp.provider';
 import { PrismaService } from '../src/database/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -69,6 +70,7 @@ describe('OAuth Single-Use Exchange Code & Firebase Auth Security', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
+        ConsoleOtpProvider,
         {
           provide: PrismaService,
           useValue: prismaServiceMock,

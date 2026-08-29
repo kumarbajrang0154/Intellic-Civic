@@ -232,6 +232,14 @@ export class AuthService {
   // GOOGLE OAUTH (unchanged)
   // ---------------------------------------------------------------------------
 
+  /**
+   * Google OAuth callback. Handles staff login.
+   *
+   * Special case — SUPER_ADMIN_BOOTSTRAP_EMAIL:
+   *   On every login by this email the user is upserted as role=ADMIN / isAuthorized=true,
+   *   bypassing the normal pending-approval gate. An audit log is written each time.
+   *   All other Google accounts follow the standard authorized / pending-approval flow.
+   */
   async handleGoogleCallback(profile: {
     email: string;
     googleId: string;
@@ -243,6 +251,17 @@ export class AuthService {
       this.configService.get<string>('app.frontendUrl') ||
       'http://localhost:3000';
 
+    // -------------------------------------------------------------------------
+    // Super Admin Bootstrap check — runs BEFORE normal flow
+    // -------------------------------------------------------------------------
+    const bootstrapEmail = this.configService.get<string>('SUPER_ADMIN_BOOTSTRAP_EMAIL');
+    if (bootstrapEmail && profile.email.toLowerCase() === bootstrapEmail.toLowerCase()) {
+      return this.handleSuperAdminBootstrap(profile, frontendUrl);
+    }
+
+    // -------------------------------------------------------------------------
+    // Standard Google OAuth flow (unchanged)
+    // -------------------------------------------------------------------------
     let user = await this.prismaService.user.findFirst({
       where: {
         OR: [{ email: profile.email }, { googleId: profile.googleId }],
@@ -287,6 +306,72 @@ export class AuthService {
     return {
       status: 'PENDING',
       redirectUrl: `${frontendUrl}/auth/pending-approval`,
+    };
+  }
+
+  /**
+   * Upserts the super admin bootstrap user as role=ADMIN / isAuthorized=true on
+   * every login. Self-corrects if the role/isAuthorized was accidentally modified.
+   * Writes a traceable SUPER_ADMIN_BOOTSTRAP_LOGIN audit log entry each time.
+   */
+  private async handleSuperAdminBootstrap(
+    profile: { email: string; googleId: string; name: string; avatarUrl?: string },
+    frontendUrl: string,
+  ) {
+    // Upsert: create on first login, update on subsequent logins — always enforces ADMIN.
+    const user = await this.prismaService.user.upsert({
+      where: { email: profile.email },
+      create: {
+        email: profile.email,
+        googleId: profile.googleId,
+        name: profile.name,
+        avatarUrl: profile.avatarUrl,
+        authProvider: AuthProvider.GOOGLE,
+        role: UserRole.ADMIN,
+        isAuthorized: true,
+      },
+      update: {
+        role: UserRole.ADMIN,
+        isAuthorized: true,
+        // Keep googleId / avatarUrl / name current in case they drifted
+        googleId: profile.googleId,
+        avatarUrl: profile.avatarUrl,
+        name: profile.name,
+      },
+    });
+
+    this.logger.warn(
+      `[SUPER_ADMIN_BOOTSTRAP] Login by bootstrap email "${profile.email}" — ` +
+        `user ${user.id} promoted/confirmed as ADMIN.`,
+    );
+
+    // Audit trail — traceable, never silent
+    await this.prismaService.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'SUPER_ADMIN_BOOTSTRAP_LOGIN',
+        entityType: 'USER',
+        entityId: user.id,
+        metadata: {
+          email: profile.email,
+          googleId: profile.googleId,
+          role: UserRole.ADMIN,
+          isAuthorized: true,
+        },
+      },
+    });
+
+    // Issue single-use auth code (same security as normal authorized flow)
+    const code = `auth_code_${crypto.randomBytes(24).toString('hex')}`;
+    this.oauthExchangeCodes.set(code, {
+      userId: user.id,
+      expiresAt: Date.now() + 60000,
+      used: false,
+    });
+
+    return {
+      status: 'AUTHORIZED',
+      redirectUrl: `${frontendUrl}/auth/callback?code=${code}`,
     };
   }
 
