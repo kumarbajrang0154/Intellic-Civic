@@ -12,13 +12,13 @@
  *  - All global config (CORS, pipes, filters, prefix) is applied via the
  *    shared configureApp() function — identical to main.ts (local dev).
  *
- * ⚠️  SERVERLESS LIMITATIONS (flagged below file)
+ * ⚠️  SERVERLESS LIMITATIONS
  */
 
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
-import serverlessExpress from '@vendia/serverless-express';
-import * as express from 'express';
+import { configure as serverlessExpress } from '@vendia/serverless-express';
+import express from 'express';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/bootstrap';
 
