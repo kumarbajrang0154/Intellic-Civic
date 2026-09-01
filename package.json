@@ -5,7 +5,10 @@
   "description": "IntelliCivic: AI Driven Civic Complaint Management and Decision Support Platform",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "dev:web": "next dev",
+    "build": "prisma generate && next build",
+    "build:web": "prisma generate && next build",
+    "postinstall": "prisma generate",
     "start": "next start",
     "lint": "next lint",
     "prisma:generate": "prisma generate",
