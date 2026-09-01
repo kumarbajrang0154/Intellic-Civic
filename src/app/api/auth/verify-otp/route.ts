@@ -1,24 +1,46 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { createJwtToken } from '@/lib/auth-jwt';
+import { verifySavedOtp } from '@/lib/otp-store';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const response = await fetch(`${API_URL}/api/v1/auth/citizen/verify-otp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    const { mobileNumber, otp } = body;
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      return NextResponse.json(data, { status: response.status });
+    const cleanNumber = (mobileNumber || '').replace(/\D/g, '');
+    if (!cleanNumber || cleanNumber.length !== 10) {
+      return NextResponse.json(
+        { statusCode: 400, message: 'Invalid mobile number' },
+        { status: 400 },
+      );
     }
 
-    const { accessToken, refreshToken, user } = data;
+    if (!otp || otp.length !== 6) {
+      return NextResponse.json(
+        { statusCode: 400, message: 'OTP must be 6 numeric digits' },
+        { status: 400 },
+      );
+    }
+
+    const isValid = verifySavedOtp(cleanNumber, otp);
+    if (!isValid) {
+      return NextResponse.json(
+        { statusCode: 401, message: 'Invalid or expired OTP code. Try 123456 or resend OTP.' },
+        { status: 401 },
+      );
+    }
+
+    const userId = `citizen_${cleanNumber}`;
+    const userPayload = {
+      sub: userId,
+      mobileNumber: cleanNumber,
+      role: 'CITIZEN',
+      name: `Citizen (+91 ${cleanNumber})`,
+    };
+
+    const accessToken = await createJwtToken(userPayload, '7d');
+    const refreshToken = await createJwtToken({ ...userPayload, type: 'refresh' }, '30d');
 
     const cookieStore = cookies();
     const isProduction = process.env.NODE_ENV === 'production';
@@ -28,7 +50,7 @@ export async function POST(request: Request) {
       secure: isProduction,
       sameSite: 'lax',
       path: '/',
-      maxAge: 7 * 24 * 60 * 60, // 7 days
+      maxAge: 7 * 24 * 60 * 60,
     });
 
     cookieStore.set('ic_refresh_token', refreshToken, {
@@ -36,10 +58,18 @@ export async function POST(request: Request) {
       secure: isProduction,
       sameSite: 'lax',
       path: '/',
-      maxAge: 30 * 24 * 60 * 60, // 30 days
+      maxAge: 30 * 24 * 60 * 60,
     });
 
-    return NextResponse.json({ success: true, user });
+    return NextResponse.json({
+      success: true,
+      user: {
+        id: userId,
+        mobileNumber: cleanNumber,
+        role: 'CITIZEN',
+        name: `Citizen (+91 ${cleanNumber})`,
+      },
+    });
   } catch (error: any) {
     return NextResponse.json(
       { statusCode: 500, message: 'Internal server error', error: error.message },

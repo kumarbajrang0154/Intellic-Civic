@@ -1,7 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { decodeJwtToken } from '@/lib/auth-jwt';
 
 export async function GET() {
   try {
@@ -12,20 +11,20 @@ export async function GET() {
       return NextResponse.json({ user: null }, { status: 401 });
     }
 
-    const response = await fetch(`${API_URL}/api/v1/auth/me`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      return NextResponse.json({ user: null }, { status: response.status });
+    const payload = decodeJwtToken(accessToken);
+    if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
+      return NextResponse.json({ user: null }, { status: 401 });
     }
 
-    const data = await response.json();
-    return NextResponse.json(data);
+    return NextResponse.json({
+      user: {
+        id: payload.sub,
+        mobileNumber: payload.mobileNumber || null,
+        email: payload.email || null,
+        name: payload.name || 'Citizen User',
+        role: payload.role || 'CITIZEN',
+      },
+    });
   } catch (error: any) {
     return NextResponse.json({ user: null }, { status: 500 });
   }

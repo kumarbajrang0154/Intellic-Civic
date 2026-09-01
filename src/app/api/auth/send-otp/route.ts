@@ -1,18 +1,27 @@
 import { NextResponse } from 'next/server';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { generateAndSaveOtp } from '@/lib/otp-store';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const response = await fetch(`${API_URL}/api/v1/auth/citizen/send-otp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    const { mobileNumber } = body;
 
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
+    const cleanNumber = (mobileNumber || '').replace(/\D/g, '');
+    if (!cleanNumber || cleanNumber.length !== 10) {
+      return NextResponse.json(
+        { statusCode: 400, message: 'Mobile number must be 10 numeric digits' },
+        { status: 400 },
+      );
+    }
+
+    const otp = generateAndSaveOtp(cleanNumber);
+
+    return NextResponse.json({
+      success: true,
+      message: 'OTP sent successfully',
+      otp,
+      mobileNumber: cleanNumber,
+    });
   } catch (error: any) {
     return NextResponse.json(
       { statusCode: 500, message: 'Internal server error', error: error.message },

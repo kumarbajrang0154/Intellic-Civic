@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Loader2, ShieldCheck, KeyRound, Check } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,30 +11,16 @@ import { Input } from '@/components/ui/input';
 import { OtpInput } from '@/components/ui/otp-input';
 import { toast } from 'sonner';
 
-// ---------------------------------------------------------------------------
-// OTP Mode flag — mirrors OTP_AUTH_MODE on the backend.
-// Switch NEXT_PUBLIC_OTP_AUTH_MODE in .env.local + restart to toggle.
-// ---------------------------------------------------------------------------
-const OTP_MODE = process.env.NEXT_PUBLIC_OTP_AUTH_MODE === 'firebase' ? 'firebase' : 'console';
-
-// ---------------------------------------------------------------------------
-// Firebase imports — only resolved at runtime when mode === 'firebase'.
-// The import is kept so the firebase build path is never deleted.
-// ---------------------------------------------------------------------------
-import type { ConfirmationResult } from 'firebase/auth';
-
 export default function CitizenLoginPage() {
   const router = useRouter();
   const [step, setStep] = React.useState<'PHONE' | 'OTP'>('PHONE');
   const [mobileNumber, setMobileNumber] = React.useState('');
   const [otp, setOtp] = React.useState('');
+  const [generatedOtp, setGeneratedOtp] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [timer, setTimer] = React.useState(60);
   const [canResend, setCanResend] = React.useState(false);
-
-  // Firebase-mode only state — unused in console mode but kept for coexistence.
-  const [confirmationResult, setConfirmationResult] = React.useState<ConfirmationResult | null>(null);
 
   // Resend cooldown timer
   React.useEffect(() => {
@@ -50,30 +36,8 @@ export default function CitizenLoginPage() {
   }, [step, timer]);
 
   // ---------------------------------------------------------------------------
-  // Firebase helpers (only used when OTP_MODE === 'firebase')
-  // ---------------------------------------------------------------------------
-  const setupRecaptcha = () => {
-    if (typeof window === 'undefined') return null;
-    if (!(window as any).recaptchaVerifier) {
-      try {
-        // Dynamic import keeps the firebase SDK out of the console-mode bundle path at runtime.
-        const { RecaptchaVerifier } = require('firebase/auth');
-        const { auth } = require('@/lib/firebase');
-        (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-          size: 'invisible',
-          callback: () => {},
-        });
-      } catch (err) {
-        console.warn('RecaptchaVerifier setup notice:', err);
-      }
-    }
-    return (window as any).recaptchaVerifier;
-  };
-
-  // ---------------------------------------------------------------------------
   // SEND OTP
   // ---------------------------------------------------------------------------
-
   const handleSendOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setError(null);
@@ -86,41 +50,26 @@ export default function CitizenLoginPage() {
 
     setLoading(true);
     try {
-      if (OTP_MODE === 'console') {
-        // ---- Console mode: POST to backend, which logs OTP to server console ----
-        const res = await fetch('/api/auth/send-otp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mobileNumber: cleanNumber }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.message || 'Failed to send OTP');
-        }
-        toast.success('OTP sent! Check the server console for the code.');
-      } else {
-        // ---- Firebase mode: client-side signInWithPhoneNumber ----
-        const { signInWithPhoneNumber } = await import('firebase/auth');
-        const { auth } = await import('@/lib/firebase');
-        const formattedPhone = `+91${cleanNumber}`;
-        const appVerifier = setupRecaptcha();
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobileNumber: cleanNumber }),
+      });
 
-        if (appVerifier) {
-          try {
-            const result = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
-            setConfirmationResult(result);
-          } catch (fbErr: any) {
-            console.warn('Firebase signInWithPhoneNumber fallback notice:', fbErr?.message);
-          }
-        }
-        toast.success('Verification code sent to your mobile number.');
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to send OTP');
       }
+
+      const receivedOtp = data.otp || '123456';
+      setGeneratedOtp(receivedOtp);
+      toast.success(`Verification OTP generated: ${receivedOtp}`);
 
       setStep('OTP');
       setTimer(60);
       setCanResend(false);
     } catch (err: any) {
-      const errMsg = err.message || 'Failed to send verification SMS. Please try again.';
+      const errMsg = err.message || 'Failed to send verification code. Please try again.';
       setError(errMsg);
       toast.error(errMsg);
     } finally {
@@ -131,7 +80,6 @@ export default function CitizenLoginPage() {
   // ---------------------------------------------------------------------------
   // VERIFY OTP
   // ---------------------------------------------------------------------------
-
   const handleVerifyOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setError(null);
@@ -144,45 +92,21 @@ export default function CitizenLoginPage() {
 
     setLoading(true);
     try {
-      let body: Record<string, string>;
-
-      if (OTP_MODE === 'console') {
-        // ---- Console mode: send mobileNumber + plain OTP code ----
-        body = {
-          mobileNumber: mobileNumber.replace(/\D/g, ''),
-          otp,
-        };
-      } else {
-        // ---- Firebase mode: confirm with Firebase, then send idToken ----
-        let idToken = `mock_fb_token_${mobileNumber.replace(/\D/g, '')}`;
-
-        if (confirmationResult) {
-          try {
-            const userCredential = await confirmationResult.confirm(otp);
-            idToken = await userCredential.user.getIdToken();
-          } catch (confErr: any) {
-            console.warn('Firebase confirmation fallback notice:', confErr?.message);
-          }
-        }
-
-        body = {
-          idToken,
-          mobileNumber: mobileNumber.replace(/\D/g, ''),
-        };
-      }
-
       const res = await fetch('/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          mobileNumber: mobileNumber.replace(/\D/g, ''),
+          otp,
+        }),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || 'Invalid or expired verification token');
+        throw new Error(data.message || 'Invalid or expired verification code');
       }
 
-      toast.success('Verification successful! Welcome back.');
+      toast.success('Verification successful! Welcome to Citizen Portal.');
       router.push('/citizen');
       router.refresh();
     } catch (err: any) {
@@ -197,12 +121,8 @@ export default function CitizenLoginPage() {
   // ---------------------------------------------------------------------------
   // RENDER
   // ---------------------------------------------------------------------------
-
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-      {/* recaptcha-container is only rendered in firebase mode to avoid a stray empty div */}
-      {OTP_MODE === 'firebase' && <div id="recaptcha-container"></div>}
-
       <div className="w-full max-w-md space-y-4">
         <Link
           href="/"
@@ -220,10 +140,8 @@ export default function CitizenLoginPage() {
             <CardTitle className="text-2xl">Citizen Verification</CardTitle>
             <CardDescription>
               {step === 'PHONE'
-                ? OTP_MODE === 'console'
-                  ? 'Enter your 10-digit mobile number to receive a verification OTP (check server console)'
-                  : 'Enter your 10-digit mobile number to receive a verification OTP via SMS'
-                : `Enter the 6-digit code sent to +91 ${mobileNumber}`}
+                ? 'Enter your 10-digit mobile number to receive a verification OTP'
+                : `Enter the 6-digit verification code for +91 ${mobileNumber}`}
             </CardDescription>
           </CardHeader>
 
@@ -263,7 +181,7 @@ export default function CitizenLoginPage() {
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Sending OTP...
+                      Sending Verification Code...
                     </>
                   ) : (
                     'Send Verification OTP'
@@ -271,7 +189,32 @@ export default function CitizenLoginPage() {
                 </Button>
               </form>
             ) : (
-              <form onSubmit={handleVerifyOtp} className="space-y-6">
+              <form onSubmit={handleVerifyOtp} className="space-y-5">
+                {/* Generated Prototype OTP Display Banner */}
+                {generatedOtp && (
+                  <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl space-y-2 text-center text-emerald-900 dark:text-emerald-200">
+                    <div className="flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                      <KeyRound className="h-4 w-4" />
+                      <span>Prototype Verification Code</span>
+                    </div>
+                    <div className="text-3xl font-extrabold font-mono tracking-widest text-emerald-600 dark:text-emerald-400 select-all py-1">
+                      {generatedOtp}
+                    </div>
+                    <div className="flex justify-center pt-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setOtp(generatedOtp)}
+                        className="text-xs h-8 px-3 border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300 gap-1.5"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        Auto-fill OTP ({generatedOtp})
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2 text-center">
                   <label className="text-sm font-medium block">Enter 6-Digit OTP</label>
                   <OtpInput
@@ -285,19 +228,20 @@ export default function CitizenLoginPage() {
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Verifying...
+                      Verifying Code...
                     </>
                   ) : (
                     'Verify & Login'
                   )}
                 </Button>
 
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
                   <button
                     type="button"
                     onClick={() => {
                       setStep('PHONE');
                       setError(null);
+                      setOtp('');
                     }}
                     className="hover:underline text-primary font-medium"
                   >
