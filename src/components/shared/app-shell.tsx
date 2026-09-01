@@ -96,25 +96,25 @@ export function AppShell({ children, user }: AppShellProps) {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Top Navbar */}
-      <header className="sticky top-0 z-40 border-b bg-card px-4 md:px-6 py-3 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
+      <header className="sticky top-0 z-40 border-b bg-card px-3 sm:px-6 py-2.5 flex items-center justify-between shadow-sm min-w-0">
+        <div className="flex items-center gap-2 min-w-0 shrink">
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden"
+            className="md:hidden shrink-0"
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label="Toggle navigation menu"
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
 
-          <Link href="/" className="flex items-center gap-2 font-bold text-lg text-primary">
-            <Shield className="h-6 w-6 text-primary" />
-            <span>IntelliCivic</span>
+          <Link href="/" className="flex items-center gap-2 font-bold text-base sm:text-lg text-primary truncate min-w-0">
+            <Shield className="h-5 w-5 sm:h-6 sm:w-6 text-primary shrink-0" />
+            <span className="truncate">IntelliCivic</span>
           </Link>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
           <div className="hidden sm:flex flex-col text-right text-xs">
             <span className="font-semibold text-foreground">{user.name || 'User'}</span>
             <span className="text-muted-foreground font-mono uppercase">{user.role}</span>
@@ -207,7 +207,7 @@ export function AppShell({ children, user }: AppShellProps) {
         )}
 
         {/* Main Content Area */}
-        <main className="flex-1 p-6 md:p-8 bg-background max-w-7xl mx-auto w-full">
+        <main className="flex-1 p-3 sm:p-6 md:p-8 bg-background max-w-7xl mx-auto w-full min-w-0">
           {children}
         </main>
       </div>

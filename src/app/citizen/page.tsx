@@ -144,29 +144,29 @@ export default function CitizenDashboardPage() {
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-5">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground break-words">
               Welcome to Citizen Portal
             </h1>
-            <p className="text-muted-foreground text-sm mt-1">
+            <p className="text-muted-foreground text-xs sm:text-sm mt-1">
               Submit complaints, track real-time resolution progress, and view ticket history.
             </p>
           </div>
-          <Link href="/citizen/complaints/new">
-            <Button className="flex items-center gap-2">
-              <PlusCircle className="h-4 w-4" />
+          <Link href="/citizen/complaints/new" className="w-full sm:w-auto">
+            <Button className="flex items-center justify-center gap-2 w-full sm:w-auto">
+              <PlusCircle className="h-4 w-4 shrink-0" />
               File New Complaint
             </Button>
           </Link>
         </div>
 
         {/* Filter Controls */}
-        <div className="flex items-center justify-between gap-4 bg-card p-4 rounded-xl border shadow-sm">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card p-3.5 sm:p-4 rounded-xl border shadow-sm">
           <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <Filter className="h-4 w-4 text-primary" />
+            <Filter className="h-4 w-4 text-primary shrink-0" />
             <span>Filter Complaints:</span>
           </div>
 
-          <div className="w-48">
+          <div className="w-full sm:w-48">
             <Select
               value={statusFilter}
               onChange={(e) => {

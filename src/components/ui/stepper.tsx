@@ -62,8 +62,8 @@ export function Stepper({ status, className }: StepperProps) {
   }
 
   return (
-    <div className={cn('w-full py-4', className)}>
-      <div className="flex items-center justify-between relative">
+    <div className={cn('w-full py-4 overflow-x-auto min-w-0', className)}>
+      <div className="flex items-center justify-between relative min-w-[320px] px-2">
         {/* Connecting Line Background */}
         <div className="absolute top-4 left-6 right-6 h-0.5 bg-muted -z-0" />
 
@@ -83,11 +83,11 @@ export function Stepper({ status, className }: StepperProps) {
           return (
             <div
               key={stage.id}
-              className="flex flex-col items-center relative z-10 space-y-2 group"
+              className="flex flex-col items-center relative z-10 space-y-1.5 group shrink-0"
             >
               <div
                 className={cn(
-                  'h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs transition-colors border-2 bg-background',
+                  'h-7 w-7 sm:h-8 sm:w-8 rounded-full flex items-center justify-center font-bold text-xs transition-colors border-2 bg-background',
                   {
                     'border-primary bg-primary text-primary-foreground': isCompleted,
                     'border-primary text-primary ring-4 ring-primary/20': isCurrent,
@@ -96,16 +96,16 @@ export function Stepper({ status, className }: StepperProps) {
                 )}
               >
                 {isCompleted ? (
-                  <Check className="h-4 w-4" />
+                  <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 ) : isCurrent ? (
-                  <Clock className="h-4 w-4 animate-pulse" />
+                  <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-pulse" />
                 ) : (
                   <span>{idx + 1}</span>
                 )}
               </div>
               <span
                 className={cn(
-                  'text-xs font-medium text-center max-w-[70px] sm:max-w-none',
+                  'text-[10px] sm:text-xs font-medium text-center max-w-[55px] sm:max-w-none leading-tight break-words',
                   {
                     'text-primary font-semibold': isCurrent,
                     'text-foreground font-medium': isCompleted,

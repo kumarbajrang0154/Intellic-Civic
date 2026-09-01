@@ -52,7 +52,7 @@ export function OtpInput({
   };
 
   return (
-    <div className="flex items-center justify-between gap-2">
+    <div className="flex items-center justify-center gap-1.5 sm:gap-2 max-w-full overflow-x-auto py-1">
       {Array.from({ length }).map((_, index) => (
         <input
           key={index}
@@ -69,7 +69,7 @@ export function OtpInput({
           onPaste={handlePaste}
           disabled={disabled}
           className={cn(
-            'h-12 w-12 rounded-md border border-input bg-background text-center text-lg font-semibold shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50',
+            'h-10 w-10 sm:h-12 sm:w-12 shrink-0 rounded-md border border-input bg-background text-center text-base sm:text-lg font-semibold shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50',
           )}
           aria-label={`Digit ${index + 1} of ${length}`}
         />

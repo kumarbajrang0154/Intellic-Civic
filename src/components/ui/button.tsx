@@ -12,7 +12,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <button
         className={cn(
-          'inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
+          'inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 leading-snug text-center',
           {
             'bg-primary text-primary-foreground hover:bg-primary/90 shadow':
               variant === 'default',
@@ -25,10 +25,10 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
               variant === 'secondary',
           },
           {
-            'h-10 px-4 py-2 text-sm': size === 'default',
-            'h-8 px-3 text-xs': size === 'sm',
-            'h-12 px-8 text-base': size === 'lg',
-            'h-10 w-10 p-0': size === 'icon',
+            'min-h-[2.5rem] h-auto px-4 py-2 text-sm': size === 'default',
+            'min-h-[2rem] h-auto px-3 py-1.5 text-xs': size === 'sm',
+            'min-h-[3rem] h-auto px-6 py-3 text-base': size === 'lg',
+            'h-10 w-10 p-0 shrink-0': size === 'icon',
           },
           className,
         )}
