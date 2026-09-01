@@ -32,9 +32,10 @@ interface Complaint {
 }
 
 export default function CitizenDashboardPage() {
-  const [user, setUser] = React.useState<{ name: string; role: 'CITIZEN' }>({
+  const [user, setUser] = React.useState<{ name: string; role: 'CITIZEN'; isProfileComplete?: boolean }>({
     name: 'Citizen',
     role: 'CITIZEN',
+    isProfileComplete: true,
   });
 
   const [complaints, setComplaints] = React.useState<Complaint[]>([]);
@@ -56,6 +57,7 @@ export default function CitizenDashboardPage() {
             setUser({
               name: data.user.name || 'Citizen User',
               role: 'CITIZEN',
+              isProfileComplete: data.user.isProfileComplete !== false,
             });
           }
         }
@@ -141,6 +143,20 @@ export default function CitizenDashboardPage() {
   return (
     <AppShell user={user}>
       <div className="space-y-6">
+        {/* Profile Completion Alert */}
+        {!user.isProfileComplete && (
+          <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 dark:text-amber-200">
+            <div>
+              <div className="font-semibold text-sm">Your Citizen Profile is Incomplete</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Please fill out your Full Name, Gmail, Address, and Profile Picture to get started.</div>
+            </div>
+            <Link href="/citizen/profile?firstTime=true">
+              <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white text-xs shrink-0">
+                Complete Profile Now
+              </Button>
+            </Link>
+          </div>
+        )}
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-5">
           <div>

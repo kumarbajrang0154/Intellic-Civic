@@ -106,8 +106,13 @@ export default function CitizenLoginPage() {
         throw new Error(data.message || 'Invalid or expired verification code');
       }
 
-      toast.success('Verification successful! Welcome to Citizen Portal.');
-      router.push('/citizen');
+      if (data.isFirstTime || !data.user?.isProfileComplete) {
+        toast.success('Welcome! Please complete your citizen profile details.');
+        router.push('/citizen/profile?firstTime=true');
+      } else {
+        toast.success('Verification successful! Welcome to Citizen Portal.');
+        router.push('/citizen');
+      }
       router.refresh();
     } catch (err: any) {
       const errMsg = err.message || 'Verification failed. Please check the code.';

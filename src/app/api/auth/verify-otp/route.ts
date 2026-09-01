@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { createJwtToken } from '@/lib/auth-jwt';
 import { verifySavedOtp } from '@/lib/otp-store';
+import { getOrCreateCitizenProfile } from '@/lib/user-store';
 
 export async function POST(request: Request) {
   try {
@@ -31,12 +32,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const userId = `citizen_${cleanNumber}`;
+    const profile = getOrCreateCitizenProfile(cleanNumber);
+    const userId = profile.id;
+
     const userPayload = {
       sub: userId,
       mobileNumber: cleanNumber,
       role: 'CITIZEN',
-      name: `Citizen (+91 ${cleanNumber})`,
+      name: profile.name || `Citizen (+91 ${cleanNumber})`,
+      email: profile.email,
+      isProfileComplete: profile.isProfileComplete,
     };
 
     const accessToken = await createJwtToken(userPayload, '7d');
@@ -63,12 +68,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      user: {
-        id: userId,
-        mobileNumber: cleanNumber,
-        role: 'CITIZEN',
-        name: `Citizen (+91 ${cleanNumber})`,
-      },
+      isFirstTime: !profile.isProfileComplete,
+      isProfileComplete: profile.isProfileComplete,
+      user: profile,
     });
   } catch (error: any) {
     return NextResponse.json(
