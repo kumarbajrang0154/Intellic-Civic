@@ -20,6 +20,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PhotoUpload } from '@/components/ui/photo-upload';
 
+import { AppShell } from '@/components/layout/app-shell';
+
 interface Category {
   id: string;
   name: string;
@@ -29,8 +31,28 @@ interface Category {
 export default function NewComplaintPage() {
   const router = useRouter();
 
+  const [user, setUser] = React.useState<{ name: string; role: 'CITIZEN' }>({
+    name: 'Citizen',
+    role: 'CITIZEN',
+  });
+
   const [categories, setCategories] = React.useState<Category[]>([]);
   const [loadingCategories, setLoadingCategories] = React.useState(true);
+
+  React.useEffect(() => {
+    async function loadUser() {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            setUser({ name: data.user.name || 'Citizen User', role: 'CITIZEN' });
+          }
+        }
+      } catch (err) {}
+    }
+    loadUser();
+  }, []);
 
   // Form state
   const [title, setTitle] = React.useState('');
@@ -240,171 +262,173 @@ export default function NewComplaintPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 sm:p-6 max-w-3xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link href="/citizen">
-          <Button variant="ghost" size="icon" aria-label="Back to Dashboard">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">File a New Complaint</h1>
-          <p className="text-xs text-muted-foreground">
-            Report municipal issues for automated AI triage and department resolution.
-          </p>
+    <AppShell user={user}>
+      <div className="max-w-3xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center gap-4 border-b pb-4">
+          <Link href="/citizen">
+            <Button variant="ghost" size="icon" aria-label="Back to Dashboard">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">File a New Complaint</h1>
+            <p className="text-xs text-muted-foreground">
+              Report municipal issues for automated AI triage and department resolution.
+            </p>
+          </div>
         </div>
-      </div>
 
-      {/* Main Form Card */}
-      <Card className="shadow-md">
-        <CardContent className="p-6 space-y-6">
-          {submitError && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>{submitError}</AlertDescription>
-            </Alert>
-          )}
+        {/* Main Form Card */}
+        <Card className="shadow-md">
+          <CardContent className="p-6 space-y-6">
+            {submitError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{submitError}</AlertDescription>
+              </Alert>
+            )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Title */}
-            <div className="space-y-2">
-              <label htmlFor="title" className="text-sm font-semibold text-foreground">
-                Complaint Title <span className="text-destructive">*</span>
-              </label>
-              <Input
-                id="title"
-                placeholder="e.g. Large pothole on Main Street near Metro station"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                maxLength={200}
-                required
-              />
-              {errors.title && <p className="text-xs text-destructive">{errors.title}</p>}
-            </div>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Title */}
+              <div className="space-y-2">
+                <label htmlFor="title" className="text-sm font-semibold text-foreground">
+                  Complaint Title <span className="text-destructive">*</span>
+                </label>
+                <Input
+                  id="title"
+                  placeholder="e.g. Large pothole on Main Street near Metro station"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  maxLength={200}
+                  required
+                />
+                {errors.title && <p className="text-xs text-destructive">{errors.title}</p>}
+              </div>
 
-            {/* Category Dropdown */}
-            <div className="space-y-2">
-              <label htmlFor="category" className="text-sm font-semibold text-foreground">
-                Category (Optional)
-              </label>
-              <Select
-                id="category"
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                disabled={loadingCategories}
-              >
-                <option value="">Select issue category (Auto-detected if left blank)</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
-                ))}
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                If omitted, our Gemini AI will analyze your description to auto-categorize.
-              </p>
-            </div>
-
-            {/* Description */}
-            <div className="space-y-2">
-              <label htmlFor="description" className="text-sm font-semibold text-foreground">
-                Detailed Description <span className="text-destructive">*</span>
-              </label>
-              <Textarea
-                id="description"
-                placeholder="Describe the issue in detail (location landmarks, severity, hazards)... min 20 characters."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={4}
-                required
-              />
-              {errors.description && (
-                <p className="text-xs text-destructive">{errors.description}</p>
-              )}
-            </div>
-
-            {/* Location Section */}
-            <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 font-semibold text-sm">
-                  <MapPin className="h-4 w-4 text-primary" />
-                  <span>Issue Location</span>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleGetCurrentLocation}
-                  disabled={gettingLocation}
-                  className="text-xs"
+              {/* Category Dropdown */}
+              <div className="space-y-2">
+                <label htmlFor="category" className="text-sm font-semibold text-foreground">
+                  Category (Optional)
+                </label>
+                <Select
+                  id="category"
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  disabled={loadingCategories}
                 >
-                  {gettingLocation ? (
+                  <option value="">Select issue category (Auto-detected if left blank)</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  If omitted, our Gemini AI will analyze your description to auto-categorize.
+                </p>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <label htmlFor="description" className="text-sm font-semibold text-foreground">
+                  Detailed Description <span className="text-destructive">*</span>
+                </label>
+                <Textarea
+                  id="description"
+                  placeholder="Describe the issue in detail (location landmarks, severity, hazards)... min 20 characters."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={4}
+                  required
+                />
+                {errors.description && (
+                  <p className="text-xs text-destructive">{errors.description}</p>
+                )}
+              </div>
+
+              {/* Location Section */}
+              <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-semibold text-sm">
+                    <MapPin className="h-4 w-4 text-primary" />
+                    <span>Issue Location</span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGetCurrentLocation}
+                    disabled={gettingLocation}
+                    className="text-xs"
+                  >
+                    {gettingLocation ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                        Locating...
+                      </>
+                    ) : (
+                      'Use My Current Location'
+                    )}
+                  </Button>
+                </div>
+
+                <Input
+                  placeholder="Street address, landmark, or area name"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                />
+
+                {locationSuccess && (
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Coordinates captured ({latitude?.toFixed(5)}, {longitude?.toFixed(5)})
+                  </p>
+                )}
+              </div>
+
+              {/* Photo Evidence Upload */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold text-foreground">
+                    Photo Evidence (Optional)
+                  </label>
+                  <span className="text-xs text-primary font-medium flex items-center gap-1">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Photos speed up AI triage
+                  </span>
+                </div>
+
+                <PhotoUpload
+                  value={evidenceUrls}
+                  onChange={setEvidenceUrls}
+                  maxFiles={5}
+                />
+              </div>
+
+              {/* Form Actions */}
+              <div className="flex items-center justify-end gap-3 pt-4">
+                <Link href="/citizen">
+                  <Button variant="outline" type="button" disabled={isSubmitting}>
+                    Cancel
+                  </Button>
+                </Link>
+                <Button type="submit" disabled={isSubmitting} className="min-w-[140px]">
+                  {isSubmitting ? (
                     <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                      Locating...
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Submitting...
                     </>
                   ) : (
-                    'Use My Current Location'
+                    'Submit Complaint'
                   )}
                 </Button>
               </div>
-
-              <Input
-                placeholder="Street address, landmark, or area name"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-              />
-
-              {locationSuccess && (
-                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Coordinates captured ({latitude?.toFixed(5)}, {longitude?.toFixed(5)})
-                </p>
-              )}
-            </div>
-
-            {/* Photo Evidence Upload */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-semibold text-foreground">
-                  Photo Evidence (Optional)
-                </label>
-                <span className="text-xs text-primary font-medium flex items-center gap-1">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Photos speed up AI triage
-                </span>
-              </div>
-
-              <PhotoUpload
-                value={evidenceUrls}
-                onChange={setEvidenceUrls}
-                maxFiles={5}
-              />
-            </div>
-
-            {/* Form Actions */}
-            <div className="flex items-center justify-end gap-3 pt-4">
-              <Link href="/citizen">
-                <Button variant="outline" type="button" disabled={isSubmitting}>
-                  Cancel
-                </Button>
-              </Link>
-              <Button type="submit" disabled={isSubmitting} className="min-w-[140px]">
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Submitting...
-                  </>
-                ) : (
-                  'Submit Complaint'
-                )}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </AppShell>
   );
 }

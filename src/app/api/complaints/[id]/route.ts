@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { decodeJwtToken } from '@/lib/auth-jwt';
+import { getComplaintById } from '@/lib/complaints-store';
 
 export async function GET(
   request: NextRequest,
@@ -15,18 +15,22 @@ export async function GET(
       return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
     }
 
+    const payload = decodeJwtToken(accessToken);
+    if (!payload) {
+      return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = params;
+    const complaint = getComplaintById(id);
 
-    const response = await fetch(`${API_URL}/api/v1/complaints/${id}`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-    });
+    if (!complaint) {
+      return NextResponse.json(
+        { statusCode: 404, message: 'Complaint ticket not found' },
+        { status: 404 },
+      );
+    }
 
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
+    return NextResponse.json(complaint);
   } catch (error: any) {
     return NextResponse.json(
       { statusCode: 500, message: 'Internal server error', error: error.message },

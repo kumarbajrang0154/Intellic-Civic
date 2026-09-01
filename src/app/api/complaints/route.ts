@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { decodeJwtToken } from '@/lib/auth-jwt';
+import { createComplaint, listComplaints } from '@/lib/complaints-store';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,20 +12,29 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const queryString = searchParams.toString();
-    const targetUrl = `${API_URL}/api/v1/complaints${queryString ? `?${queryString}` : ''}`;
+    const payload = decodeJwtToken(accessToken);
+    if (!payload) {
+      return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
+    }
 
-    const response = await fetch(targetUrl, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parseInt(searchParams.get('limit') || '10', 10);
+    const status = searchParams.get('status') || undefined;
+    const categoryId = searchParams.get('category') || undefined;
+
+    // Filter by citizenId if role is CITIZEN
+    const citizenId = payload.role === 'CITIZEN' ? payload.sub : undefined;
+
+    const result = listComplaints({
+      citizenId,
+      status,
+      categoryId,
+      page,
+      limit,
     });
 
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
+    return NextResponse.json(result);
   } catch (error: any) {
     return NextResponse.json(
       { statusCode: 500, message: 'Internal server error', error: error.message },
@@ -43,20 +52,39 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
+    const payload = decodeJwtToken(accessToken);
+    if (!payload) {
+      return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
+    }
 
-    const response = await fetch(`${API_URL}/api/v1/complaints`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify(body),
+    const body = await request.json();
+    const { title, description, categoryId, location } = body;
+
+    if (!title || !title.trim()) {
+      return NextResponse.json(
+        { statusCode: 400, message: 'Complaint title is required' },
+        { status: 400 },
+      );
+    }
+
+    if (!description || description.trim().length < 20) {
+      return NextResponse.json(
+        { statusCode: 400, message: 'Detailed description (min 20 characters) is required' },
+        { status: 400 },
+      );
+    }
+
+    const newComplaint = createComplaint({
+      title: title.trim(),
+      description: description.trim(),
+      categoryId,
+      location,
+      citizenId: payload.sub,
+      citizenName: payload.name || 'Citizen User',
+      citizenMobile: payload.mobileNumber,
     });
 
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
+    return NextResponse.json(newComplaint, { status: 201 });
   } catch (error: any) {
     return NextResponse.json(
       { statusCode: 500, message: 'Internal server error', error: error.message },
