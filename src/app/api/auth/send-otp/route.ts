@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server';
 import { generateAndSaveOtp } from '@/lib/otp-store';
+import { normalizeMobileNumber } from '@/lib/user-store';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { mobileNumber } = body;
 
-    const cleanNumber = (mobileNumber || '').replace(/\D/g, '');
+    const cleanNumber = normalizeMobileNumber(mobileNumber);
     if (!cleanNumber || cleanNumber.length !== 10) {
       return NextResponse.json(
-        { statusCode: 400, message: 'Mobile number must be 10 numeric digits' },
+        { statusCode: 400, message: 'Mobile number must be a valid 10-digit number' },
         { status: 400 },
       );
     }

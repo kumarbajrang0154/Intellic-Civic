@@ -2,17 +2,17 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { createJwtToken } from '@/lib/auth-jwt';
 import { verifySavedOtp } from '@/lib/otp-store';
-import { getOrCreateCitizenProfile } from '@/lib/user-store';
+import { getOrCreateCitizenProfile, normalizeMobileNumber } from '@/lib/user-store';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { mobileNumber, otp } = body;
 
-    const cleanNumber = (mobileNumber || '').replace(/\D/g, '');
+    const cleanNumber = normalizeMobileNumber(mobileNumber);
     if (!cleanNumber || cleanNumber.length !== 10) {
       return NextResponse.json(
-        { statusCode: 400, message: 'Invalid mobile number' },
+        { statusCode: 400, message: 'Invalid 10-digit mobile number' },
         { status: 400 },
       );
     }

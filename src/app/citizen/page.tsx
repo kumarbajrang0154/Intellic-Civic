@@ -59,7 +59,7 @@ export default function CitizenDashboardPage() {
           const data = await res.json();
           if (data.user) {
             // Check if existing profile vs first-time/incomplete profile
-            if (data.user.isProfileComplete === false || !data.user.name || data.user.name.startsWith('Citizen (+91')) {
+            if (data.user.isProfileComplete === false) {
               router.push('/citizen/profile?firstTime=true');
               return;
             }

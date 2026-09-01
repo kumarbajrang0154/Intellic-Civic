@@ -1,3 +1,6 @@
+import fs from 'fs';
+import path from 'path';
+
 export interface CitizenProfile {
   id: string;
   mobileNumber: string;
@@ -10,37 +13,80 @@ export interface CitizenProfile {
   createdAt: string;
 }
 
-const DEMO_CITIZEN: CitizenProfile = {
-  id: 'citizen_9876543210',
-  mobileNumber: '9876543210',
-  name: 'Bajrang Kumar',
-  email: 'kumarbajrang0154@gmail.com',
-  address: 'House No. 102, Civic Heights, Sector 14, Smart City',
-  avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bajrang',
-  role: 'CITIZEN',
-  isProfileComplete: true,
-  createdAt: new Date().toISOString(),
-};
+const PROFILE_FILE_PATH = path.join(process.cwd(), '.user_profiles.json');
 
-const globalForUsers = global as unknown as { userProfiles: Map<string, CitizenProfile> };
-
-export const userProfiles = globalForUsers.userProfiles || new Map<string, CitizenProfile>();
-
-// Pre-seed demo completed profile if empty
-if (!userProfiles.has('9876543210')) {
-  userProfiles.set('9876543210', DEMO_CITIZEN);
+export function normalizeMobileNumber(input: string): string {
+  if (!input) return '';
+  const digits = input.replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) {
+    return digits.slice(2);
+  }
+  if (digits.length === 11 && digits.startsWith('0')) {
+    return digits.slice(1);
+  }
+  return digits.slice(-10);
 }
 
+function loadProfilesFromDisk(): Map<string, CitizenProfile> {
+  const map = new Map<string, CitizenProfile>();
+
+  // Pre-seed demo account for 9876543210
+  map.set('9876543210', {
+    id: 'citizen_9876543210',
+    mobileNumber: '9876543210',
+    name: 'Bajrang Kumar',
+    email: 'kumarbajrang0154@gmail.com',
+    address: 'House No. 102, Civic Heights, Sector 14, Smart City',
+    avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bajrang',
+    role: 'CITIZEN',
+    isProfileComplete: true,
+    createdAt: new Date().toISOString(),
+  });
+
+  try {
+    if (fs.existsSync(PROFILE_FILE_PATH)) {
+      const fileData = fs.readFileSync(PROFILE_FILE_PATH, 'utf-8');
+      const json = JSON.parse(fileData);
+      if (Array.isArray(json)) {
+        json.forEach((p: CitizenProfile) => {
+          if (p && p.mobileNumber) {
+            const clean = normalizeMobileNumber(p.mobileNumber);
+            map.set(clean, p);
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Error loading profiles from disk:', err);
+  }
+
+  return map;
+}
+
+function saveProfilesToDisk(map: Map<string, CitizenProfile>) {
+  try {
+    const list = Array.from(map.values());
+    fs.writeFileSync(PROFILE_FILE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Error saving profiles to disk:', err);
+  }
+}
+
+const globalForUsers = global as unknown as { userProfilesMap: Map<string, CitizenProfile> };
+
+export const userProfilesMap =
+  globalForUsers.userProfilesMap || loadProfilesFromDisk();
+
 if (process.env.NODE_ENV !== 'production') {
-  globalForUsers.userProfiles = userProfiles;
+  globalForUsers.userProfilesMap = userProfilesMap;
 }
 
 export function getOrCreateCitizenProfile(mobileNumber: string): CitizenProfile {
-  const cleanNumber = mobileNumber.replace(/\D/g, '');
+  const cleanNumber = normalizeMobileNumber(mobileNumber);
   const id = `citizen_${cleanNumber}`;
 
-  if (!userProfiles.has(cleanNumber)) {
-    userProfiles.set(cleanNumber, {
+  if (!userProfilesMap.has(cleanNumber)) {
+    const newProfile: CitizenProfile = {
       id,
       mobileNumber: cleanNumber,
       name: '',
@@ -50,17 +96,19 @@ export function getOrCreateCitizenProfile(mobileNumber: string): CitizenProfile 
       role: 'CITIZEN',
       isProfileComplete: false,
       createdAt: new Date().toISOString(),
-    });
+    };
+    userProfilesMap.set(cleanNumber, newProfile);
+    saveProfilesToDisk(userProfilesMap);
   }
 
-  return userProfiles.get(cleanNumber)!;
+  return userProfilesMap.get(cleanNumber)!;
 }
 
 export function updateCitizenProfile(
   mobileNumber: string,
   updates: Partial<CitizenProfile>,
 ): CitizenProfile {
-  const cleanNumber = mobileNumber.replace(/\D/g, '');
+  const cleanNumber = normalizeMobileNumber(mobileNumber);
   const current = getOrCreateCitizenProfile(cleanNumber);
 
   const name = (updates.name !== undefined ? updates.name : current.name).trim();
@@ -79,6 +127,8 @@ export function updateCitizenProfile(
     isProfileComplete,
   };
 
-  userProfiles.set(cleanNumber, updated);
+  userProfilesMap.set(cleanNumber, updated);
+  saveProfilesToDisk(userProfilesMap);
+
   return updated;
 }
