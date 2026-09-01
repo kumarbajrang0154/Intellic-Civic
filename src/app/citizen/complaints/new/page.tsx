@@ -9,8 +9,12 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
-  FileText,
   Sparkles,
+  Mic,
+  MicOff,
+  Navigation,
+  Wand2,
+  Volume2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,8 +23,8 @@ import { Select } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PhotoUpload } from '@/components/ui/photo-upload';
-
 import { AppShell } from '@/components/layout/app-shell';
+import { toast } from 'sonner';
 
 interface Category {
   id: string;
@@ -39,6 +43,39 @@ export default function NewComplaintPage() {
   const [categories, setCategories] = React.useState<Category[]>([]);
   const [loadingCategories, setLoadingCategories] = React.useState(true);
 
+  // Form state
+  const [title, setTitle] = React.useState('');
+  const [description, setDescription] = React.useState('');
+  const [categoryId, setCategoryId] = React.useState('');
+  const [address, setAddress] = React.useState('');
+  const [latitude, setLatitude] = React.useState<number | null>(null);
+  const [longitude, setLongitude] = React.useState<number | null>(null);
+  const [evidenceUrls, setEvidenceUrls] = React.useState<string[]>([]);
+
+  // Geolocation & Landmark state
+  const [gettingLocation, setGettingLocation] = React.useState(false);
+  const [fetchingLandmark, setFetchingLandmark] = React.useState(false);
+  const [locationSuccess, setLocationSuccess] = React.useState(false);
+
+  // Voice Assistant state
+  const [speechSupported, setSpeechSupported] = React.useState(false);
+  const [listeningTarget, setListeningTarget] = React.useState<'title' | 'description' | 'address' | 'full' | null>(null);
+  const [transcriptPreview, setTranscriptPreview] = React.useState('');
+  const recognitionRef = React.useRef<any>(null);
+
+  // Submission state
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [submitError, setSubmitError] = React.useState<string | null>(null);
+  const [createdTicketId, setCreatedTicketId] = React.useState<string | null>(null);
+  const [createdComplaintId, setCreatedComplaintId] = React.useState<string | null>(null);
+  const [evidenceWarning, setEvidenceWarning] = React.useState<string | null>(null);
+
+  // Inline validation errors
+  const [errors, setErrors] = React.useState<{
+    title?: string;
+    description?: string;
+  }>({});
+
   React.useEffect(() => {
     async function loadUser() {
       try {
@@ -53,32 +90,6 @@ export default function NewComplaintPage() {
     }
     loadUser();
   }, []);
-
-  // Form state
-  const [title, setTitle] = React.useState('');
-  const [description, setDescription] = React.useState('');
-  const [categoryId, setCategoryId] = React.useState('');
-  const [address, setAddress] = React.useState('');
-  const [latitude, setLatitude] = React.useState<number | null>(null);
-  const [longitude, setLongitude] = React.useState<number | null>(null);
-  const [evidenceUrls, setEvidenceUrls] = React.useState<string[]>([]);
-
-  // Geolocation state
-  const [gettingLocation, setGettingLocation] = React.useState(false);
-  const [locationSuccess, setLocationSuccess] = React.useState(false);
-
-  // Submission state
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [submitError, setSubmitError] = React.useState<string | null>(null);
-  const [createdTicketId, setCreatedTicketId] = React.useState<string | null>(null);
-  const [createdComplaintId, setCreatedComplaintId] = React.useState<string | null>(null);
-  const [evidenceWarning, setEvidenceWarning] = React.useState<string | null>(null);
-
-  // Inline validation errors
-  const [errors, setErrors] = React.useState<{
-    title?: string;
-    description?: string;
-  }>({});
 
   React.useEffect(() => {
     async function fetchCategories() {
@@ -95,7 +106,45 @@ export default function NewComplaintPage() {
       }
     }
     fetchCategories();
+
+    // Check SpeechRecognition support in browser
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        setSpeechSupported(true);
+      }
+    }
   }, []);
+
+  // ---------------------------------------------------------------------------
+  // REVERSE GEOCODING (Auto-fetch Landmark Address from GPS)
+  // ---------------------------------------------------------------------------
+  const reverseGeocode = async (lat: number, lng: number) => {
+    setFetchingLandmark(true);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
+        {
+          headers: {
+            'Accept-Language': 'en',
+          },
+        },
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const displayAddr = data.display_name;
+        if (displayAddr) {
+          setAddress(displayAddr);
+          toast.success('Landmark address auto-fetched from GPS location!');
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to reverse geocode location', err);
+    } finally {
+      setFetchingLandmark(false);
+    }
+  };
 
   const handleGetCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -108,10 +157,16 @@ export default function NewComplaintPage() {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setLatitude(position.coords.latitude);
-        setLongitude(position.coords.longitude);
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        setLatitude(lat);
+        setLongitude(lng);
         setGettingLocation(false);
         setLocationSuccess(true);
+        toast.success('GPS coordinates captured!');
+
+        // Auto-fetch landmark name from coordinates
+        reverseGeocode(lat, lng);
       },
       (error) => {
         setGettingLocation(false);
@@ -120,6 +175,96 @@ export default function NewComplaintPage() {
     );
   };
 
+  // ---------------------------------------------------------------------------
+  // VOICE ASSISTANT & SPEECH-TO-TEXT DICTATION
+  // ---------------------------------------------------------------------------
+  const startListening = (target: 'title' | 'description' | 'address' | 'full') => {
+    if (listeningTarget === target) {
+      stopListening();
+      return;
+    }
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      toast.error('Voice dictation is not supported on this browser. Try Chrome or Edge.');
+      return;
+    }
+
+    // Stop existing instance if running
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = target === 'full' || target === 'description';
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      setListeningTarget(target);
+      setTranscriptPreview('');
+      toast.info(
+        target === 'full'
+          ? '🎙️ Smart Voice Assistant listening... Describe your issue naturally.'
+          : `🎙️ Voice dictation active... Speak into microphone.`,
+      );
+    };
+
+    recognition.onresult = (event: any) => {
+      let currentTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        currentTranscript += event.results[i][0].transcript;
+      }
+      setTranscriptPreview(currentTranscript);
+
+      if (target === 'title') {
+        setTitle(currentTranscript);
+      } else if (target === 'description') {
+        setDescription(currentTranscript);
+      } else if (target === 'address') {
+        setAddress(currentTranscript);
+      } else if (target === 'full') {
+        // Smart Voice Assistant Parsing
+        if (!title || title.length < 5) {
+          const firstSentence = currentTranscript.split('.')[0] || currentTranscript;
+          setTitle(firstSentence.slice(0, 100));
+        }
+        setDescription(currentTranscript);
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error('Speech recognition error', event.error);
+      toast.error('Voice dictation error: ' + event.error);
+      stopListening();
+    };
+
+    recognition.onend = () => {
+      setListeningTarget(null);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
+      recognitionRef.current = null;
+    }
+    setListeningTarget(null);
+    toast.success('Voice dictation stopped.');
+  };
+
+  // ---------------------------------------------------------------------------
+  // FORM VALIDATION & SUBMISSION
+  // ---------------------------------------------------------------------------
   const validateForm = () => {
     const newErrors: { title?: string; description?: string } = {};
 
@@ -144,7 +289,7 @@ export default function NewComplaintPage() {
     setEvidenceWarning(null);
 
     try {
-      // Step 1: Create Complaint via BFF
+      // Step 1: Create Complaint
       const complaintPayload: any = {
         title: title.trim(),
         description: description.trim(),
@@ -274,10 +419,66 @@ export default function NewComplaintPage() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">File a New Complaint</h1>
             <p className="text-xs text-muted-foreground">
-              Report municipal issues for automated AI triage and department resolution.
+              Report municipal issues via text typing or Voice Assistant for automated AI triage.
             </p>
           </div>
         </div>
+
+        {/* Smart Voice Assistant Banner Card */}
+        {speechSupported && (
+          <div className="p-4 rounded-xl border border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-background shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary shrink-0 mt-0.5">
+                <Wand2 className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="font-semibold text-sm flex items-center gap-2">
+                  <span>Smart AI Voice Assistant</span>
+                  <span className="text-[10px] px-2 py-0.5 bg-primary/20 text-primary font-bold rounded-full uppercase">
+                    Voice Dictation
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Click the mic to dictate your whole complaint by speaking naturally. Our AI fills out title and description automatically.
+                </p>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant={listeningTarget === 'full' ? 'destructive' : 'default'}
+              size="sm"
+              onClick={() => startListening('full')}
+              className="shrink-0 gap-2 font-semibold shadow-md w-full sm:w-auto"
+            >
+              {listeningTarget === 'full' ? (
+                <>
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+                  </span>
+                  Listening... Stop
+                </>
+              ) : (
+                <>
+                  <Mic className="h-4 w-4" />
+                  Speak Full Complaint
+                </>
+              )}
+            </Button>
+          </div>
+        )}
+
+        {/* Live Speech Dictation Transcript Box */}
+        {listeningTarget && transcriptPreview && (
+          <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg text-xs flex items-start gap-2">
+            <Volume2 className="h-4 w-4 text-primary shrink-0 mt-0.5 animate-pulse" />
+            <div>
+              <span className="font-bold text-primary block">Live Speech Transcript:</span>
+              <span className="italic text-foreground">{transcriptPreview}</span>
+            </div>
+          </div>
+        )}
 
         {/* Main Form Card */}
         <Card className="shadow-md">
@@ -291,11 +492,36 @@ export default function NewComplaintPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Title */}
+              {/* Title with Voice Dictation */}
               <div className="space-y-2">
-                <label htmlFor="title" className="text-sm font-semibold text-foreground">
-                  Complaint Title <span className="text-destructive">*</span>
-                </label>
+                <div className="flex items-center justify-between">
+                  <label htmlFor="title" className="text-sm font-semibold text-foreground">
+                    Complaint Title <span className="text-destructive">*</span>
+                  </label>
+
+                  {speechSupported && (
+                    <Button
+                      type="button"
+                      variant={listeningTarget === 'title' ? 'destructive' : 'ghost'}
+                      size="sm"
+                      onClick={() => startListening('title')}
+                      className="h-7 text-xs px-2 gap-1 text-primary hover:text-primary"
+                    >
+                      {listeningTarget === 'title' ? (
+                        <>
+                          <MicOff className="h-3.5 w-3.5" />
+                          <span>Stop</span>
+                        </>
+                      ) : (
+                        <>
+                          <Mic className="h-3.5 w-3.5" />
+                          <span>Dictate Title</span>
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+
                 <Input
                   id="title"
                   placeholder="e.g. Large pothole on Main Street near Metro station"
@@ -330,11 +556,36 @@ export default function NewComplaintPage() {
                 </p>
               </div>
 
-              {/* Description */}
+              {/* Description with Voice Dictation */}
               <div className="space-y-2">
-                <label htmlFor="description" className="text-sm font-semibold text-foreground">
-                  Detailed Description <span className="text-destructive">*</span>
-                </label>
+                <div className="flex items-center justify-between">
+                  <label htmlFor="description" className="text-sm font-semibold text-foreground">
+                    Detailed Description <span className="text-destructive">*</span>
+                  </label>
+
+                  {speechSupported && (
+                    <Button
+                      type="button"
+                      variant={listeningTarget === 'description' ? 'destructive' : 'ghost'}
+                      size="sm"
+                      onClick={() => startListening('description')}
+                      className="h-7 text-xs px-2 gap-1 text-primary hover:text-primary"
+                    >
+                      {listeningTarget === 'description' ? (
+                        <>
+                          <MicOff className="h-3.5 w-3.5" />
+                          <span>Stop</span>
+                        </>
+                      ) : (
+                        <>
+                          <Mic className="h-3.5 w-3.5" />
+                          <span>Dictate Description</span>
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+
                 <Textarea
                   id="description"
                   placeholder="Describe the issue in detail (location landmarks, severity, hazards)... min 20 characters."
@@ -348,34 +599,53 @@ export default function NewComplaintPage() {
                 )}
               </div>
 
-              {/* Location Section */}
+              {/* Location Section with Auto-Fetch Landmark & GPS */}
               <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2 font-semibold text-sm">
-                    <MapPin className="h-4 w-4 text-primary" />
-                    <span>Issue Location</span>
+                    <MapPin className="h-4 w-4 text-primary shrink-0" />
+                    <span>Issue Location / Landmark</span>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleGetCurrentLocation}
-                    disabled={gettingLocation}
-                    className="text-xs"
-                  >
-                    {gettingLocation ? (
-                      <>
-                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                        Locating...
-                      </>
-                    ) : (
-                      'Use My Current Location'
+
+                  <div className="flex items-center gap-2">
+                    {speechSupported && (
+                      <Button
+                        type="button"
+                        variant={listeningTarget === 'address' ? 'destructive' : 'outline'}
+                        size="sm"
+                        onClick={() => startListening('address')}
+                        className="text-xs gap-1 h-8"
+                      >
+                        <Mic className="h-3.5 w-3.5" />
+                        <span>Dictate Landmark</span>
+                      </Button>
                     )}
-                  </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleGetCurrentLocation}
+                      disabled={gettingLocation || fetchingLandmark}
+                      className="text-xs gap-1.5 h-8"
+                    >
+                      {gettingLocation || fetchingLandmark ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <span>Auto-Fetching Landmark...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Navigation className="h-3.5 w-3.5 text-primary" />
+                          <span>Use My Location & Fetch Landmark</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
 
                 <Input
-                  placeholder="Street address, landmark, or area name"
+                  placeholder="Street address, landmark, or area name (Auto-fetched from GPS or type manually)"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                 />
@@ -383,7 +653,7 @@ export default function NewComplaintPage() {
                 {locationSuccess && (
                   <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    Coordinates captured ({latitude?.toFixed(5)}, {longitude?.toFixed(5)})
+                    GPS Coordinates captured ({latitude?.toFixed(5)}, {longitude?.toFixed(5)})
                   </p>
                 )}
               </div>
