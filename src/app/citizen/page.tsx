@@ -19,6 +19,8 @@ import { Badge } from '@/components/ui/badge';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 
+import { useRouter } from 'next/navigation';
+
 interface Complaint {
   id: string;
   ticketId: string;
@@ -32,6 +34,8 @@ interface Complaint {
 }
 
 export default function CitizenDashboardPage() {
+  const router = useRouter();
+
   const [user, setUser] = React.useState<{ name: string; role: 'CITIZEN'; isProfileComplete?: boolean }>({
     name: 'Citizen',
     role: 'CITIZEN',
@@ -54,10 +58,15 @@ export default function CitizenDashboardPage() {
         if (res.ok) {
           const data = await res.json();
           if (data.user) {
+            // Check if existing profile vs first-time/incomplete profile
+            if (data.user.isProfileComplete === false || !data.user.name || data.user.name.startsWith('Citizen (+91')) {
+              router.push('/citizen/profile?firstTime=true');
+              return;
+            }
             setUser({
-              name: data.user.name || 'Citizen User',
+              name: data.user.name,
               role: 'CITIZEN',
-              isProfileComplete: data.user.isProfileComplete !== false,
+              isProfileComplete: true,
             });
           }
         }
@@ -66,7 +75,7 @@ export default function CitizenDashboardPage() {
       }
     }
     loadUser();
-  }, []);
+  }, [router]);
 
   const fetchComplaints = React.useCallback(async () => {
     setLoading(true);

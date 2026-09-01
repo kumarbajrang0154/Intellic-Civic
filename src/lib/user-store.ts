@@ -10,9 +10,26 @@ export interface CitizenProfile {
   createdAt: string;
 }
 
+const DEMO_CITIZEN: CitizenProfile = {
+  id: 'citizen_9876543210',
+  mobileNumber: '9876543210',
+  name: 'Bajrang Kumar',
+  email: 'kumarbajrang0154@gmail.com',
+  address: 'House No. 102, Civic Heights, Sector 14, Smart City',
+  avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bajrang',
+  role: 'CITIZEN',
+  isProfileComplete: true,
+  createdAt: new Date().toISOString(),
+};
+
 const globalForUsers = global as unknown as { userProfiles: Map<string, CitizenProfile> };
 
 export const userProfiles = globalForUsers.userProfiles || new Map<string, CitizenProfile>();
+
+// Pre-seed demo completed profile if empty
+if (!userProfiles.has('9876543210')) {
+  userProfiles.set('9876543210', DEMO_CITIZEN);
+}
 
 if (process.env.NODE_ENV !== 'production') {
   globalForUsers.userProfiles = userProfiles;
