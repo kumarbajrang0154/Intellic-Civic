@@ -60,7 +60,7 @@ export default function CitizenDashboardPage() {
           if (data.user) {
             // Check if existing profile vs first-time/incomplete profile
             if (data.user.isProfileComplete === false) {
-              router.push('/citizen/profile?firstTime=true');
+              window.location.href = '/citizen/profile?firstTime=true';
               return;
             }
             setUser({

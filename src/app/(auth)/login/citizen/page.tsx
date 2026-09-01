@@ -108,12 +108,11 @@ export default function CitizenLoginPage() {
 
       if (data.isFirstTime || !data.user?.isProfileComplete) {
         toast.success('Welcome! Please complete your citizen profile details.');
-        router.push('/citizen/profile?firstTime=true');
+        window.location.href = '/citizen/profile?firstTime=true';
       } else {
-        toast.success('Verification successful! Welcome to Citizen Portal.');
-        router.push('/citizen');
+        toast.success(`Verification successful! Welcome back, ${data.user?.name || 'Citizen'}.`);
+        window.location.href = '/citizen';
       }
-      router.refresh();
     } catch (err: any) {
       const errMsg = err.message || 'Verification failed. Please check the code.';
       setError(errMsg);
