@@ -15,6 +15,10 @@ import {
   Navigation,
   Wand2,
   Volume2,
+  Copy,
+  ExternalLink,
+  ShieldAlert,
+  ArrowRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +34,16 @@ interface Category {
   id: string;
   name: string;
   description?: string;
+}
+
+interface PotentialDuplicate {
+  id: string;
+  ticketId: string;
+  title: string;
+  description: string;
+  address?: string;
+  similarityScore: number;
+  createdAt: string;
 }
 
 export default function NewComplaintPage() {
@@ -61,7 +75,13 @@ export default function NewComplaintPage() {
   const [speechSupported, setSpeechSupported] = React.useState(false);
   const [listeningTarget, setListeningTarget] = React.useState<'title' | 'description' | 'address' | 'full' | null>(null);
   const [transcriptPreview, setTranscriptPreview] = React.useState('');
+  const [usedVoiceInput, setUsedVoiceInput] = React.useState(false);
   const recognitionRef = React.useRef<any>(null);
+
+  // Duplicate Check State
+  const [duplicateWarning, setDuplicateWarning] = React.useState<PotentialDuplicate[] | null>(null);
+  const [checkingDuplicates, setCheckingDuplicates] = React.useState(false);
+  const [bypassDuplicateCheck, setBypassDuplicateCheck] = React.useState(false);
 
   // Submission state
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -107,7 +127,6 @@ export default function NewComplaintPage() {
     }
     fetchCategories();
 
-    // Check SpeechRecognition support in browser
     if (typeof window !== 'undefined') {
       const SpeechRecognition =
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -125,11 +144,7 @@ export default function NewComplaintPage() {
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
-        {
-          headers: {
-            'Accept-Language': 'en',
-          },
-        },
+        { headers: { 'Accept-Language': 'en' } },
       );
       if (res.ok) {
         const data = await res.json();
@@ -165,7 +180,6 @@ export default function NewComplaintPage() {
         setLocationSuccess(true);
         toast.success('GPS coordinates captured!');
 
-        // Auto-fetch landmark name from coordinates
         reverseGeocode(lat, lng);
       },
       (error) => {
@@ -192,11 +206,8 @@ export default function NewComplaintPage() {
       return;
     }
 
-    // Stop existing instance if running
     if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {}
+      try { recognitionRef.current.stop(); } catch (e) {}
     }
 
     const recognition = new SpeechRecognition();
@@ -206,6 +217,7 @@ export default function NewComplaintPage() {
 
     recognition.onstart = () => {
       setListeningTarget(target);
+      setUsedVoiceInput(true);
       setTranscriptPreview('');
       toast.info(
         target === 'full'
@@ -228,7 +240,6 @@ export default function NewComplaintPage() {
       } else if (target === 'address') {
         setAddress(currentTranscript);
       } else if (target === 'full') {
-        // Smart Voice Assistant Parsing
         if (!title || title.length < 5) {
           const firstSentence = currentTranscript.split('.')[0] || currentTranscript;
           setTitle(firstSentence.slice(0, 100));
@@ -253,9 +264,7 @@ export default function NewComplaintPage() {
 
   const stopListening = () => {
     if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {}
+      try { recognitionRef.current.stop(); } catch (e) {}
       recognitionRef.current = null;
     }
     setListeningTarget(null);
@@ -280,19 +289,17 @@ export default function NewComplaintPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateForm()) return;
-
+  const executeFinalSubmit = async () => {
     setIsSubmitting(true);
     setSubmitError(null);
     setEvidenceWarning(null);
 
     try {
-      // Step 1: Create Complaint
       const complaintPayload: any = {
         title: title.trim(),
         description: description.trim(),
+        isVoiceInput: usedVoiceInput || transcriptPreview !== '',
+        voiceTranscript: transcriptPreview || undefined,
       };
 
       if (categoryId) {
@@ -325,7 +332,7 @@ export default function NewComplaintPage() {
       setCreatedComplaintId(complaintId);
       setCreatedTicketId(ticketId);
 
-      // Step 2: Attach evidence photos if uploaded
+      // Attach evidence photos if uploaded
       if (evidenceUrls.length > 0) {
         let uploadFailedCount = 0;
 
@@ -334,10 +341,7 @@ export default function NewComplaintPage() {
             const evRes = await fetch(`/api/complaints/${complaintId}/evidence`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                imageUrl,
-                stage: 'BEFORE',
-              }),
+              body: JSON.stringify({ imageUrl, stage: 'BEFORE' }),
             });
 
             if (!evRes.ok) uploadFailedCount++;
@@ -357,6 +361,44 @@ export default function NewComplaintPage() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    // Check for duplicates first unless bypassed
+    if (!bypassDuplicateCheck) {
+      setCheckingDuplicates(true);
+      setSubmitError(null);
+      try {
+        const dupRes = await fetch('/api/complaints/check-duplicate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: title.trim(),
+            description: description.trim(),
+            latitude,
+            longitude,
+          }),
+        });
+
+        if (dupRes.ok) {
+          const dupData = await dupRes.json();
+          if (dupData.matched && dupData.potentialDuplicates?.length > 0) {
+            setDuplicateWarning(dupData.potentialDuplicates);
+            setCheckingDuplicates(false);
+            return; // Show warning UI to user
+          }
+        }
+      } catch (err) {
+        console.warn('Duplicate check failed, proceeding to submit', err);
+      } finally {
+        setCheckingDuplicates(false);
+      }
+    }
+
+    await executeFinalSubmit();
   };
 
   if (createdTicketId && createdComplaintId) {
@@ -423,6 +465,71 @@ export default function NewComplaintPage() {
             </p>
           </div>
         </div>
+
+        {/* BATCH B — Duplicate Complaint Warning Modal Card */}
+        {duplicateWarning && duplicateWarning.length > 0 && (
+          <Card className="border-2 border-amber-500/60 bg-amber-500/10 shadow-lg">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
+                <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0" />
+                <CardTitle className="text-base font-bold">
+                  Similar Complaint Already Reported Nearby
+                </CardTitle>
+              </div>
+              <CardDescription className="text-xs text-amber-900/80 dark:text-amber-200">
+                Our system detected potential duplicate complaints matching your issue and location:
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {duplicateWarning.map((dup) => (
+                <div
+                  key={dup.id}
+                  className="p-3 bg-background border rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs"
+                >
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-primary">{dup.ticketId}</span>
+                      <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200">
+                        {Math.round(dup.similarityScore * 100)}% Match
+                      </span>
+                    </div>
+                    <div className="font-semibold text-foreground truncate">{dup.title}</div>
+                    {dup.address && <div className="text-muted-foreground truncate">{dup.address}</div>}
+                  </div>
+                  <Link href={`/citizen/complaints/${dup.id}`} target="_blank">
+                    <Button variant="outline" size="sm" className="text-xs gap-1 shrink-0">
+                      View Ticket <ExternalLink className="h-3 w-3" />
+                    </Button>
+                  </Link>
+                </div>
+              ))}
+
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-end gap-3 border-t border-amber-500/20">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDuplicateWarning(null)}
+                  className="w-full sm:w-auto text-xs"
+                >
+                  Edit My Complaint
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    setBypassDuplicateCheck(true);
+                    setDuplicateWarning(null);
+                    executeFinalSubmit();
+                  }}
+                  className="w-full sm:w-auto text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1.5"
+                >
+                  This is Different, Submit Anyway <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Smart Voice Assistant Banner Card */}
         {speechSupported && (
@@ -680,12 +787,17 @@ export default function NewComplaintPage() {
               {/* Form Actions */}
               <div className="flex items-center justify-end gap-3 pt-4">
                 <Link href="/citizen">
-                  <Button variant="outline" type="button" disabled={isSubmitting}>
+                  <Button variant="outline" type="button" disabled={isSubmitting || checkingDuplicates}>
                     Cancel
                   </Button>
                 </Link>
-                <Button type="submit" disabled={isSubmitting} className="min-w-[140px]">
-                  {isSubmitting ? (
+                <Button type="submit" disabled={isSubmitting || checkingDuplicates} className="min-w-[140px]">
+                  {checkingDuplicates ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Checking Duplicates...
+                    </>
+                  ) : isSubmitting ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
                       Submitting...

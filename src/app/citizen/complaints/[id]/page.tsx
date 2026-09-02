@@ -14,12 +14,28 @@ import {
   ImageIcon,
   Loader2,
   FileQuestion,
+  Star,
+  RefreshCw,
+  RotateCcw,
+  ThumbsUp,
+  MessageSquare,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Stepper } from '@/components/ui/stepper';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { toast } from 'sonner';
 
 interface ComplaintDetail {
   id: string;
@@ -29,9 +45,11 @@ interface ComplaintDetail {
   status: string;
   priority?: string;
   createdAt: string;
+  updatedAt: string;
   resolvedAt?: string;
   closedAt?: string;
   category?: { id: string; name: string } | null;
+  originalCategory?: { id: string; name: string } | null;
   department?: { id: string; name: string } | null;
   location?: { address?: string; latitude?: number; longitude?: number } | null;
   evidence?: { id: string; imageUrl: string; stage: string; uploadedAt: string }[];
@@ -41,12 +59,23 @@ interface ComplaintDetail {
     toStatus: string;
     changedAt: string;
     changedByUser?: { name: string };
+    notes?: string;
   }[];
   aiPrediction?: {
     rawResponse?: {
       recommendation?: string;
       statusMessage?: string;
     };
+  };
+  reopenCount?: number;
+  reopenedAt?: string;
+  reopenReason?: string;
+  resolutionNotes?: string;
+  feedback?: {
+    id: string;
+    rating: number;
+    comment?: string;
+    createdAt: string;
   };
 }
 
@@ -59,11 +88,24 @@ export default function CitizenComplaintDetailPage() {
   const [loading, setLoading] = React.useState(true);
   const [notFound, setNotFound] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    async function fetchDetail() {
+  // Post-resolution action states
+  const [actionLoading, setActionLoading] = React.useState(false);
+  const [reopenModalOpen, setReopenModalOpen] = React.useState(false);
+  const [reopenReason, setReopenReason] = React.useState('');
+  const [reopenError, setReopenError] = React.useState('');
+
+  // Feedback form state
+  const [feedbackRating, setFeedbackRating] = React.useState<number>(5);
+  const [feedbackComment, setFeedbackComment] = React.useState('');
+  const [submittingFeedback, setSubmittingFeedback] = React.useState(false);
+  const [feedbackError, setFeedbackError] = React.useState('');
+
+  const fetchDetail = React.useCallback(
+    async (isBackground = false) => {
       if (!id) return;
-      setLoading(true);
+      if (!isBackground) setLoading(true);
       setNotFound(false);
 
       try {
@@ -80,15 +122,108 @@ export default function CitizenComplaintDetailPage() {
 
         const data = await res.json();
         setComplaint(data);
+        setLastUpdated(new Date().toLocaleTimeString());
       } catch (err: any) {
-        setError(err.message || 'An error occurred loading complaint details');
+        if (!isBackground) setError(err.message || 'An error occurred loading complaint details');
       } finally {
-        setLoading(false);
+        if (!isBackground) setLoading(false);
       }
+    },
+    [id],
+  );
+
+  React.useEffect(() => {
+    fetchDetail();
+  }, [fetchDetail]);
+
+  // Batch D — 30-Second Polling Fallback for Status Updates
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      fetchDetail(true);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [fetchDetail]);
+
+  // ---------------------------------------------------------------------------
+  // BATCH A — POST RESOLUTION HANDLERS
+  // ---------------------------------------------------------------------------
+  const handleMarkSatisfactory = async () => {
+    if (!complaint) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/complaints/${complaint.id}/mark-satisfactory`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to mark as satisfactory');
+      }
+      toast.success('Complaint closed as satisfactory. Thank you for your feedback!');
+      fetchDetail();
+    } catch (err: any) {
+      toast.error(err.message || 'Error updating complaint status');
+    } fontally: {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReopenComplaint = async () => {
+    if (!complaint) return;
+    if (!reopenReason.trim() || reopenReason.trim().length < 10) {
+      setReopenError('Reopen reason must be at least 10 characters.');
+      return;
     }
 
-    fetchDetail();
-  }, [id]);
+    setActionLoading(true);
+    setReopenError('');
+    try {
+      const res = await fetch(`/api/complaints/${complaint.id}/reopen`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reopenReason.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to reopen complaint');
+      }
+      toast.success('Complaint reopened and routed back to handling department.');
+      setReopenModalOpen(false);
+      setReopenReason('');
+      fetchDetail();
+    } catch (err: any) {
+      setReopenError(err.message || 'Error reopening complaint');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSubmitFeedback = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!complaint) return;
+    setSubmittingFeedback(true);
+    setFeedbackError('');
+
+    try {
+      const res = await fetch(`/api/complaints/${complaint.id}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rating: feedbackRating,
+          comment: feedbackComment.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to submit feedback');
+      }
+      toast.success('Thank you! Your rating and comments have been recorded.');
+      fetchDetail();
+    } catch (err: any) {
+      setFeedbackError(err.message || 'Error submitting feedback');
+    } finally {
+      setSubmittingFeedback(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -143,10 +278,21 @@ export default function CitizenComplaintDetailPage() {
   const sanitizedAiStatus =
     complaint.aiPrediction?.rawResponse?.statusMessage || 'Evidence submitted for staff review';
 
+  // Batch C: AI category override detection
+  const isCategoryOverridden =
+    complaint.originalCategory &&
+    complaint.category &&
+    complaint.originalCategory.id !== complaint.category.id;
+
+  // Latest resolution note or staff reason
+  const latestReasonNote =
+    complaint.resolutionNotes ||
+    complaint.statusHistory?.find((h) => h.notes && h.notes.length > 0)?.notes;
+
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
       {/* Header Bar */}
-      <div className="flex items-center justify-between border-b pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div className="flex items-center gap-3">
           <Link href="/citizen">
             <Button variant="ghost" size="icon" aria-label="Back to Dashboard">
@@ -154,7 +300,7 @@ export default function CitizenComplaintDetailPage() {
             </Button>
           </Link>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono text-sm font-bold text-primary">
                 {complaint.ticketId}
               </span>
@@ -169,6 +315,12 @@ export default function CitizenComplaintDetailPage() {
             </h1>
           </div>
         </div>
+
+        {/* Live Auto-Refresh Status Pill */}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground self-end sm:self-center">
+          <RefreshCw className="h-3.5 w-3.5 text-primary animate-spin" />
+          <span>Auto-polling (Updated {lastUpdated})</span>
+        </div>
       </div>
 
       {/* Progress Stepper Card */}
@@ -176,8 +328,160 @@ export default function CitizenComplaintDetailPage() {
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold">Resolution Progress</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <Stepper status={complaint.status} />
+
+          {/* Batch C: Rejection / Duplicate Specific Staff Reason Display */}
+          {(complaint.status === 'REJECTED' || complaint.status === 'DUPLICATE') && latestReasonNote && (
+            <Alert variant={complaint.status === 'REJECTED' ? 'destructive' : 'default'} className="mt-3">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle className="font-bold text-sm">
+                Official Municipal Note ({complaint.status.replace('_', ' ')})
+              </AlertTitle>
+              <AlertDescription className="text-xs mt-1 leading-relaxed">
+                {latestReasonNote}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Batch C: Category Override Badge Notice */}
+          {isCategoryOverridden && (
+            <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg text-xs flex items-center gap-2 text-foreground">
+              <Sparkles className="h-4 w-4 text-primary shrink-0" />
+              <span>
+                <strong>Category Reclassified:</strong> Originally filed under{' '}
+                <span className="underline">{complaint.originalCategory?.name}</span>, reclassified by AI/Staff to{' '}
+                <span className="font-bold text-primary">{complaint.category?.name}</span> for faster resolution.
+              </span>
+            </div>
+          )}
+
+          {/* Batch A: Post-Resolution Decision Bar (Shown when RESOLVED) */}
+          {complaint.status === 'RESOLVED' && (
+            <div className="p-4 bg-emerald-500/10 border-2 border-emerald-500/30 rounded-xl space-y-3">
+              <div className="flex items-center gap-2 text-emerald-900 dark:text-emerald-200 font-bold text-sm">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                <span>Department Marked This Complaint as Resolved!</span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Please verify the work done. If satisfied, mark it satisfactory to close the ticket. If the issue persists, you may reopen this ticket.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center gap-3 pt-1">
+                <Button
+                  onClick={handleMarkSatisfactory}
+                  disabled={actionLoading}
+                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5"
+                >
+                  <ThumbsUp className="h-4 w-4" />
+                  {actionLoading ? 'Closing Ticket...' : 'Mark as Satisfactory & Close'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setReopenModalOpen(true)}
+                  disabled={actionLoading}
+                  className="w-full sm:w-auto border-amber-500 text-amber-700 hover:bg-amber-50 dark:text-amber-300 font-bold text-xs gap-1.5"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Reopen Complaint
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Batch A: Feedback Rating Form (Shown when RESOLVED or CLOSED) */}
+          {['RESOLVED', 'CLOSED'].includes(complaint.status) && (
+            <Card className="border shadow-sm bg-muted/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
+                  <span>Resolution Experience Feedback</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {complaint.feedback ? (
+                  /* Read-Only Submitted Feedback */
+                  <div className="p-3 bg-background border rounded-lg text-xs space-y-1.5">
+                    <div className="flex items-center gap-1">
+                      <span className="font-bold text-foreground">Your Rating:</span>
+                      <div className="flex items-center text-amber-500">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`h-3.5 w-3.5 ${
+                              star <= complaint.feedback!.rating
+                                ? 'fill-amber-500 text-amber-500'
+                                : 'text-slate-300'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <span className="font-bold ml-1">({complaint.feedback.rating}/5)</span>
+                    </div>
+                    {complaint.feedback.comment && (
+                      <p className="text-muted-foreground italic">"{complaint.feedback.comment}"</p>
+                    )}
+                    <span className="text-[10px] text-muted-foreground block pt-1">
+                      Submitted on {new Date(complaint.feedback.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                ) : (
+                  /* Submit Feedback Form */
+                  <form onSubmit={handleSubmitFeedback} className="space-y-3 text-xs">
+                    {feedbackError && (
+                      <Alert variant="destructive" className="text-xs">
+                        <AlertDescription>{feedbackError}</AlertDescription>
+                      </Alert>
+                    )}
+                    <div className="space-y-1">
+                      <label className="font-semibold block">Rate overall resolution quality:</label>
+                      <div className="flex items-center gap-2 py-1">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => setFeedbackRating(star)}
+                            className="p-1 hover:scale-110 transition-transform focus:outline-none"
+                          >
+                            <Star
+                              className={`h-6 w-6 ${
+                                star <= feedbackRating
+                                  ? 'fill-amber-500 text-amber-500'
+                                  : 'text-slate-300'
+                              }`}
+                            />
+                          </button>
+                        ))}
+                        <span className="font-bold text-sm text-amber-600 ml-2">
+                          {feedbackRating} / 5 Stars
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label htmlFor="comment" className="font-semibold block">Comments / Review (Optional):</label>
+                      <Textarea
+                        id="comment"
+                        rows={2}
+                        placeholder="Share your thoughts on the promptness and quality of municipal work..."
+                        value={feedbackComment}
+                        onChange={(e) => setFeedbackComment(e.target.value)}
+                        className="text-xs"
+                      />
+                    </div>
+
+                    <Button
+                      type="submit"
+                      disabled={submittingFeedback}
+                      size="sm"
+                      className="bg-primary text-xs font-semibold"
+                    >
+                      {submittingFeedback ? 'Submitting...' : 'Submit Feedback'}
+                    </Button>
+                  </form>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </CardContent>
       </Card>
 
@@ -276,6 +580,11 @@ export default function CitizenComplaintDetailPage() {
                           Updated by {item.changedByUser.name}
                         </p>
                       )}
+                      {item.notes && (
+                        <p className="text-xs text-slate-600 bg-muted/50 p-2 rounded border mt-1 font-mono">
+                          {item.notes}
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -328,6 +637,12 @@ export default function CitizenComplaintDetailPage() {
                   {complaint.category?.name || 'General'}
                 </span>
               </div>
+              {complaint.reopenCount && complaint.reopenCount > 0 ? (
+                <div className="flex justify-between border-b pb-2 text-amber-700 font-bold">
+                  <span>Reopen Bounces</span>
+                  <span>{complaint.reopenCount} time(s)</span>
+                </div>
+              ) : null}
               {complaint.priority && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Priority Level</span>
@@ -338,6 +653,53 @@ export default function CitizenComplaintDetailPage() {
           </Card>
         </div>
       </div>
+
+      {/* Reopen Modal Dialog */}
+      <Dialog open={reopenModalOpen} onOpenChange={setReopenModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-amber-700 flex items-center gap-2">
+              <RotateCcw className="h-5 w-5" />
+              Reopen Resolved Complaint
+            </DialogTitle>
+            <DialogDescription>
+              If the municipal issue is not completely resolved or has recurred, describe why below. The ticket will be routed back to the department.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            {reopenError && (
+              <Alert variant="destructive" className="text-xs">
+                <AlertDescription>{reopenError}</AlertDescription>
+              </Alert>
+            )}
+            <div className="space-y-1">
+              <label htmlFor="reopenReason" className="text-xs font-semibold text-foreground">
+                Detailed Reason for Reopening <span className="text-destructive">*</span>
+              </label>
+              <Textarea
+                id="reopenReason"
+                rows={4}
+                placeholder="Explain why the resolution is incomplete or unsatisfactory (min 10 characters)..."
+                value={reopenReason}
+                onChange={(e) => setReopenReason(e.target.value)}
+                className="text-xs"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReopenModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleReopenComplaint}
+              disabled={actionLoading}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
+            >
+              {actionLoading ? 'Reopening...' : 'Confirm & Reopen Ticket'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -22,6 +22,9 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10', 10);
     const status = searchParams.get('status') || undefined;
     const categoryId = searchParams.get('category') || undefined;
+    const search = searchParams.get('search') || undefined;
+    const fromDate = searchParams.get('fromDate') || undefined;
+    const toDate = searchParams.get('toDate') || undefined;
 
     // Filter by citizenId if role is CITIZEN
     const citizenId = payload.role === 'CITIZEN' ? payload.sub : undefined;
@@ -30,6 +33,9 @@ export async function GET(request: NextRequest) {
       citizenId,
       status,
       categoryId,
+      search,
+      fromDate,
+      toDate,
       page,
       limit,
     });
@@ -58,7 +64,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, description, categoryId, location } = body;
+    const { title, description, categoryId, location, isVoiceInput, voiceTranscript } = body;
 
     if (!title || !title.trim()) {
       return NextResponse.json(
@@ -82,6 +88,8 @@ export async function POST(request: NextRequest) {
       citizenId: payload.sub,
       citizenName: payload.name || 'Citizen User',
       citizenMobile: payload.mobileNumber,
+      isVoiceInput: Boolean(isVoiceInput),
+      voiceTranscript: voiceTranscript || undefined,
     });
 
     return NextResponse.json(newComplaint, { status: 201 });

@@ -166,6 +166,11 @@ model Complaint {
   aiRecommendedDepartmentId String?
   isVoiceInput               Boolean         @default(false)
   voiceTranscript            String?         @db.Text
+  reopenCount                Int             @default(0)
+  reopenedAt                 DateTime?
+  reopenReason               String?         @db.Text
+  resolutionNotes            String?         @db.Text
+  originalCategoryId         String?
   createdAt                  DateTime        @default(now())
   updatedAt                  DateTime        @updatedAt
   resolvedAt                 DateTime?

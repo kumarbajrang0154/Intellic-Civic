@@ -10,15 +10,17 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
-  ImageIcon,
+  Search,
+  RefreshCw,
+  X,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-
 import { useRouter } from 'next/navigation';
 
 interface Complaint {
@@ -45,11 +47,26 @@ export default function CitizenDashboardPage() {
   const [complaints, setComplaints] = React.useState<Complaint[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = React.useState<string | null>(null);
 
   // Pagination & Filter state
   const [page, setPage] = React.useState(1);
   const [totalPages, setTotalPages] = React.useState(1);
   const [statusFilter, setStatusFilter] = React.useState<string>('ALL');
+
+  // Batch D — Search & Date Range Filters
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [debouncedSearch, setDebouncedSearch] = React.useState('');
+  const [fromDate, setFromDate] = React.useState('');
+  const [toDate, setToDate] = React.useState('');
+
+  // Debounce search query input (300ms)
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   React.useEffect(() => {
     async function loadUser() {
@@ -58,7 +75,6 @@ export default function CitizenDashboardPage() {
         if (res.ok) {
           const data = await res.json();
           if (data.user) {
-            // Check if existing profile vs first-time/incomplete profile
             if (data.user.isProfileComplete === false) {
               window.location.href = '/citizen/profile?firstTime=true';
               return;
@@ -70,61 +86,67 @@ export default function CitizenDashboardPage() {
             });
           }
         }
-      } catch (err) {
-        // Fallback to default
-      }
+      } catch (err) {}
     }
     loadUser();
   }, [router]);
 
-  const fetchComplaints = React.useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const fetchComplaints = React.useCallback(
+    async (isBackground = false) => {
+      if (!isBackground) setLoading(true);
+      setError(null);
 
-    try {
-      let queryUrl = `/api/complaints?page=${page}&limit=10`;
-      if (statusFilter !== 'ALL') {
-        if (statusFilter === 'ACTIVE') {
-          // Client or backend query: for active, we filter client-side or fetch all
-        } else if (statusFilter === 'RESOLVED') {
-          queryUrl += `&status=RESOLVED`;
+      try {
+        const params = new URLSearchParams({
+          page: String(page),
+          limit: '10',
+          ...(statusFilter !== 'ALL' && { status: statusFilter }),
+          ...(debouncedSearch.trim() && { search: debouncedSearch.trim() }),
+          ...(fromDate && { fromDate }),
+          ...(toDate && { toDate }),
+        });
+
+        const res = await fetch(`/api/complaints?${params.toString()}`);
+        if (!res.ok) {
+          throw new Error('Failed to load complaints');
         }
+
+        const responseData = await res.json();
+        const rawData: Complaint[] = responseData.data || [];
+        const meta = responseData.meta || { totalPages: 1 };
+
+        setComplaints(rawData);
+        setTotalPages(meta.totalPages || 1);
+        setLastUpdated(new Date().toLocaleTimeString());
+      } catch (err: any) {
+        if (!isBackground) setError(err.message || 'Error loading complaints');
+      } finally {
+        if (!isBackground) setLoading(false);
       }
-
-      const res = await fetch(queryUrl);
-      if (!res.ok) {
-        throw new Error('Failed to load complaints');
-      }
-
-      const responseData = await res.json();
-      const rawData: Complaint[] = responseData.data || [];
-      const meta = responseData.meta || { totalPages: 1 };
-
-      setComplaints(rawData);
-      setTotalPages(meta.totalPages || 1);
-    } catch (err: any) {
-      setError(err.message || 'Error loading complaints');
-    } finally {
-      setLoading(false);
-    }
-  }, [page, statusFilter]);
+    },
+    [page, statusFilter, debouncedSearch, fromDate, toDate],
+  );
 
   React.useEffect(() => {
     fetchComplaints();
   }, [fetchComplaints]);
 
-  // Client-side status filtering helper
-  const filteredComplaints = React.useMemo(() => {
-    if (statusFilter === 'ACTIVE') {
-      return complaints.filter(
-        (c) => !['RESOLVED', 'CLOSED', 'REJECTED', 'DUPLICATE'].includes(c.status),
-      );
-    }
-    if (statusFilter === 'RESOLVED') {
-      return complaints.filter((c) => ['RESOLVED', 'CLOSED'].includes(c.status));
-    }
-    return complaints;
-  }, [complaints, statusFilter]);
+  // Batch D — 30-Second Polling Fallback for Dashboard Status Updates
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      fetchComplaints(true);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [fetchComplaints]);
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setDebouncedSearch('');
+    setFromDate('');
+    setToDate('');
+    setStatusFilter('ALL');
+    setPage(1);
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -166,6 +188,7 @@ export default function CitizenDashboardPage() {
             </Link>
           </div>
         )}
+
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-5">
           <div>
@@ -184,28 +207,102 @@ export default function CitizenDashboardPage() {
           </Link>
         </div>
 
-        {/* Filter Controls */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card p-3.5 sm:p-4 rounded-xl border shadow-sm">
-          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <Filter className="h-4 w-4 text-primary shrink-0" />
-            <span>Filter Complaints:</span>
-          </div>
+        {/* Batch D — Filter & Search Controls Card */}
+        <Card className="border shadow-sm">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                <Filter className="h-4 w-4 text-primary" />
+                <span>Search &amp; Filter Complaints</span>
+              </div>
 
-          <div className="w-full sm:w-48">
-            <Select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setPage(1);
-              }}
-              className="text-xs"
-            >
-              <option value="ALL">All Complaints</option>
-              <option value="ACTIVE">Active / In Progress</option>
-              <option value="RESOLVED">Resolved / Closed</option>
-            </Select>
-          </div>
-        </div>
+              {lastUpdated && (
+                <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <RefreshCw className="h-3 w-3 text-primary animate-spin" />
+                  Live (Updated {lastUpdated})
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* Search Keyword Input */}
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search title or ID..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setPage(1);
+                  }}
+                  className="pl-9 text-xs"
+                />
+              </div>
+
+              {/* Status Select */}
+              <Select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="text-xs"
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="SUBMITTED">Submitted</option>
+                <option value="PENDING_DEPT_REVIEW">Under Review</option>
+                <option value="ASSIGNED">Assigned</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="RESOLVED">Resolved</option>
+                <option value="CLOSED">Closed</option>
+                <option value="REJECTED">Rejected</option>
+                <option value="DUPLICATE">Duplicate</option>
+              </Select>
+
+              {/* From Date Picker */}
+              <div className="space-y-0.5">
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase">From Date</label>
+                <Input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => {
+                    setFromDate(e.target.value);
+                    setPage(1);
+                  }}
+                  className="text-xs h-9"
+                />
+              </div>
+
+              {/* To Date Picker */}
+              <div className="space-y-0.5">
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase">To Date</label>
+                <Input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => {
+                    setToDate(e.target.value);
+                    setPage(1);
+                  }}
+                  className="text-xs h-9"
+                />
+              </div>
+            </div>
+
+            {(searchQuery || fromDate || toDate || statusFilter !== 'ALL') && (
+              <div className="flex justify-end pt-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="text-xs text-muted-foreground hover:text-foreground h-7 gap-1"
+                >
+                  <X className="h-3 w-3" />
+                  Clear All Filters
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Content Area */}
         {loading ? (
@@ -221,11 +318,11 @@ export default function CitizenDashboardPage() {
         ) : error ? (
           <Card className="p-6 text-center border-destructive/20 bg-destructive/5">
             <CardDescription className="text-destructive font-medium">{error}</CardDescription>
-            <Button variant="outline" size="sm" onClick={fetchComplaints} className="mt-4">
+            <Button variant="outline" size="sm" onClick={() => fetchComplaints()} className="mt-4">
               Retry
             </Button>
           </Card>
-        ) : filteredComplaints.length === 0 ? (
+        ) : complaints.length === 0 ? (
           /* Empty State */
           <Card className="border-dashed py-12 text-center">
             <CardContent className="flex flex-col items-center justify-center space-y-4">
@@ -235,9 +332,9 @@ export default function CitizenDashboardPage() {
               <div className="space-y-1 max-w-sm">
                 <CardTitle className="text-xl">No Complaints Found</CardTitle>
                 <CardDescription>
-                  {statusFilter === 'ALL'
-                    ? "You haven't submitted any civic complaints yet. Click below to file your first report."
-                    : 'No complaints match the selected status filter.'}
+                  {searchQuery || fromDate || toDate || statusFilter !== 'ALL'
+                    ? 'No complaints match your active filter criteria. Try clearing search parameters.'
+                    : "You haven't submitted any civic complaints yet. Click below to file your first report."}
                 </CardDescription>
               </div>
               <Link href="/citizen/complaints/new">
@@ -249,9 +346,7 @@ export default function CitizenDashboardPage() {
           /* Complaint Cards Grid */
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredComplaints.map((complaint) => {
-                const firstImage = complaint.evidence?.[0]?.imageUrl;
-
+              {complaints.map((complaint) => {
                 return (
                   <Link
                     key={complaint.id}
