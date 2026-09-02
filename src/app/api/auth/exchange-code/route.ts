@@ -1,28 +1,46 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { createJwtToken } from '@/lib/auth-jwt';
-import { ensureSuperAdminUser, getUserByEmail } from '@/lib/staff-dept-store';
+import { addUser, ensureSuperAdminUser, getUserByEmail } from '@/lib/staff-dept-store';
 
 export async function POST(request: Request) {
   try {
-    const { code } = await request.json();
+    const body = await request.json();
+    const { code, email } = body;
 
-    if (!code) {
+    let userEmail = email || 'kumarbajrang325@gmail.com';
+
+    // Extract email from code string if passed like `code_email@domain.com`
+    if (code && typeof code === 'string' && code.includes('_')) {
+      const parts = code.split('_');
+      const potentialEmail = parts[parts.length - 1];
+      if (potentialEmail && potentialEmail.includes('@')) {
+        userEmail = potentialEmail;
+      }
+    }
+
+    const SUPER_ADMIN_EMAIL = 'kumarbajrang325@gmail.com';
+    let user;
+
+    if (userEmail.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) {
+      user = ensureSuperAdminUser(userEmail, 'Bajrang Kumar (Super Admin)');
+    } else {
+      user = getUserByEmail(userEmail);
+    }
+
+    if (!user || !user.isAuthorized || user.isSuspended) {
       return NextResponse.json(
-        { statusCode: 400, message: 'Authorization code is required' },
-        { status: 400 },
+        { statusCode: 403, message: 'Account is not authorized or suspended' },
+        { status: 403 },
       );
     }
 
-    // Default Google Super Admin OAuth bootstrap for kumarbajrang325@gmail.com
-    const superAdminEmail = 'kumarbajrang325@gmail.com';
-    const superAdmin = ensureSuperAdminUser(superAdminEmail, 'Bajrang Kumar (Super Admin)');
-
     const userPayload = {
-      sub: superAdmin.id,
-      email: superAdmin.email,
-      name: superAdmin.name,
-      role: 'ADMIN',
+      sub: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      departmentId: user.departmentId,
       isAuthorized: true,
     };
 
@@ -48,7 +66,7 @@ export async function POST(request: Request) {
       maxAge: 30 * 24 * 60 * 60,
     });
 
-    return NextResponse.json({ success: true, user: superAdmin });
+    return NextResponse.json({ success: true, user });
   } catch (error: any) {
     return NextResponse.json(
       { statusCode: 500, message: 'Internal server error', error: error.message },

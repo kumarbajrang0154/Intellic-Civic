@@ -1,0 +1,139 @@
+import { cookies } from 'next/headers';
+import { NextRequest, NextResponse } from 'next/server';
+import { createJwtToken } from '@/lib/auth-jwt';
+import { addUser, ensureSuperAdminUser, getUserByEmail } from '@/lib/staff-dept-store';
+
+function getPortalRouteForRole(role?: string | null): string {
+  switch (role) {
+    case 'ADMIN':
+      return '/admin';
+    case 'DEPARTMENT_HEAD':
+      return '/dept-head';
+    case 'DEPARTMENT_OFFICER':
+      return '/officer';
+    case 'FIELD_WORKER':
+      return '/field-worker';
+    case 'CITIZEN':
+      return '/citizen';
+    default:
+      return '/pending-approval';
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const email = (body.email || '').trim().toLowerCase();
+    const googleName = (body.name || '').trim();
+
+    if (!email) {
+      return NextResponse.json(
+        { statusCode: 400, message: 'Google account email is required' },
+        { status: 400 },
+      );
+    }
+
+    const SUPER_ADMIN_EMAIL = 'kumarbajrang325@gmail.com';
+    let user;
+
+    // 1. Special case: Super Admin Google Account
+    if (email === SUPER_ADMIN_EMAIL.toLowerCase()) {
+      user = ensureSuperAdminUser(email, googleName || 'Bajrang Kumar (Super Admin)');
+    } else {
+      user = getUserByEmail(email);
+    }
+
+    // 2. If user does NOT exist in database, register as pending staff account
+    if (!user) {
+      user = addUser({
+        name: googleName || email.split('@')[0],
+        email: email,
+        role: null,
+        departmentId: null,
+        isAuthorized: false,
+      });
+
+      return NextResponse.json({
+        success: false,
+        status: 'PENDING',
+        message: 'Your Google staff account has been registered and is awaiting approval by Super Admin.',
+        redirectUrl: '/pending-approval',
+      });
+    }
+
+    // 3. Check if account is suspended
+    if (user.isSuspended) {
+      return NextResponse.json(
+        {
+          success: false,
+          status: 'SUSPENDED',
+          message: 'Your staff account has been suspended. Contact Super Admin.',
+          redirectUrl: '/denied',
+        },
+        { status: 403 },
+      );
+    }
+
+    // 4. Check if account is authorized
+    if (!user.isAuthorized) {
+      return NextResponse.json({
+        success: false,
+        status: 'PENDING',
+        message: 'Your staff account is awaiting authorization and role assignment by Super Admin.',
+        redirectUrl: '/pending-approval',
+      });
+    }
+
+    // 5. Authorized Staff/Admin Login — Generate JWT & Set Cookies
+    const userPayload = {
+      sub: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      departmentId: user.departmentId,
+      isAuthorized: true,
+    };
+
+    const accessToken = await createJwtToken(userPayload, '7d');
+    const refreshToken = await createJwtToken({ ...userPayload, type: 'refresh' }, '30d');
+
+    const cookieStore = cookies();
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    cookieStore.set('ic_access_token', accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60,
+    });
+
+    cookieStore.set('ic_refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 30 * 24 * 60 * 60,
+    });
+
+    const targetPortal = getPortalRouteForRole(user.role);
+
+    return NextResponse.json({
+      success: true,
+      status: 'AUTHORIZED',
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        departmentId: user.departmentId,
+      },
+      redirectUrl: targetPortal,
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      { statusCode: 500, message: 'Google authentication failed', error: error.message },
+      { status: 500 },
+    );
+  }
+}
