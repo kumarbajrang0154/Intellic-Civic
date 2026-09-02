@@ -21,12 +21,12 @@ export async function POST(
       return NextResponse.json({ statusCode: 401, message: 'Unauthorized session' }, { status: 401 });
     }
 
-    const result = markComplaintSatisfactory(params.id, payload.sub);
+    const result = await markComplaintSatisfactory(params.id, payload.sub);
     if (!result.ok) {
       return NextResponse.json({ statusCode: result.status, message: result.message }, { status: result.status });
     }
 
-    addAuditLog({
+    await addAuditLog({
       actorId: payload.sub,
       actorName: payload.name || 'Citizen User',
       action: 'COMPLAINT_MARKED_SATISFACTORY',

@@ -6,7 +6,7 @@ export async function PATCH(
   { params }: { params: { id: string } },
 ) {
   try {
-    const success = rejectUser(params.id);
+    const success = await rejectUser(params.id);
     if (!success) {
       return NextResponse.json({ message: 'User not found' }, { status: 404 });
     }

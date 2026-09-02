@@ -6,7 +6,7 @@ export async function GET(
   { params }: { params: { id: string } },
 ) {
   try {
-    const user = getUser(params.id);
+    const user = await getUser(params.id);
     if (!user) {
       return NextResponse.json({ message: 'User not found' }, { status: 404 });
     }
@@ -25,7 +25,7 @@ export async function PATCH(
 ) {
   try {
     const body = await req.json();
-    const updated = updateUser(params.id, body);
+    const updated = await updateUser(params.id, body);
 
     if (!updated) {
       return NextResponse.json({ message: 'User not found' }, { status: 404 });
@@ -45,7 +45,7 @@ export async function DELETE(
   { params }: { params: { id: string } },
 ) {
   try {
-    const deleted = deleteUser(params.id);
+    const deleted = await deleteUser(params.id);
     if (!deleted) {
       return NextResponse.json(
         { message: 'Failed to delete user or Super Admin protected' },

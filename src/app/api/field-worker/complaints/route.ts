@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10', 10);
     const status = searchParams.get('status') || 'ACTIVE';
 
-    const result = getAssignedComplaints({
+    const result = await getAssignedComplaints({
       fieldWorkerId: payload.sub,
       status,
       page,

@@ -38,14 +38,14 @@ export async function POST(req: NextRequest) {
 
     // 1. Special case: Super Admin Google Account
     if (email === SUPER_ADMIN_EMAIL.toLowerCase()) {
-      user = ensureSuperAdminUser(email, googleName || 'Bajrang Kumar (Super Admin)');
+      user = await ensureSuperAdminUser(email, googleName || 'Bajrang Kumar (Super Admin)');
     } else {
-      user = getUserByEmail(email);
+      user = await getUserByEmail(email);
     }
 
     // 2. If user does NOT exist in database, register as pending staff account
     if (!user) {
-      user = addUser({
+      user = await addUser({
         name: googleName || email.split('@')[0],
         email: email,
         role: null,

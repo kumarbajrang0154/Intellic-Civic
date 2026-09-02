@@ -4,7 +4,7 @@ import { reassignStaff, type StaffRole } from '@/services/staffService';
 
 // PATCH /api/admin/staff/[id]/reassign
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = requireAdmin();
+  const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 
   let body: { newRole?: string; newDepartmentId?: string | null };
@@ -18,7 +18,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ message: 'At least one of newRole or newDepartmentId is required.' }, { status: 400 });
   }
 
-  const result = reassignStaff(
+  const result = await reassignStaff(
     params.id,
     { newRole: body.newRole as StaffRole | undefined, newDepartmentId: body.newDepartmentId },
     auth.admin,

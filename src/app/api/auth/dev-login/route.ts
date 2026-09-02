@@ -1,43 +1,86 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { createJwtToken } from '@/lib/auth-jwt';
-import { ensureSuperAdminUser, getUserByEmail } from '@/lib/staff-dept-store';
+import { getUser, getUserByEmail } from '@/lib/staff-dept-store';
+
+const ALLOWED_DEV_USER_IDS = new Set([
+  'usr_super_admin',
+  'usr_dept_head_roads',
+  'usr_officer_roads_1',
+  'fw-demo-1',
+  'citizen_9876543210',
+  'd86d46dc-0d8b-4726-a151-bd7ab4e13ead',
+]);
+
+const ALLOWED_DEV_EMAILS = new Set([
+  'kumarbajrang325@gmail.com',
+  'head.roads@smartcity.gov.in',
+  'officer.roads@smartcity.gov.in',
+  'fieldworker@intellicivic.gov.in',
+  'kumarbajrang0154@gmail.com',
+]);
 
 export async function POST(req: NextRequest) {
-  // Only allow in non-production environments
-  const nodeEnv: string = process.env.NODE_ENV ?? 'development';
-  if (nodeEnv === 'production') {
-    return NextResponse.json({ message: 'Not available in production.' }, { status: 403 });
+  // 1. Gate: 404 response unless in non-production AND ENABLE_DEV_LOGIN is explicitly 'true'
+  const isDevMode = process.env.NODE_ENV !== 'production';
+  const isDevLoginEnabled = process.env.ENABLE_DEV_LOGIN === 'true';
+
+  if (!isDevMode || !isDevLoginEnabled) {
+    return NextResponse.json({ message: 'Not Found' }, { status: 404 });
   }
 
   try {
     const body = await req.json().catch(() => ({}));
-    const email = body.email || 'kumarbajrang325@gmail.com';
-    const requestedRole = body.role;
+    const requestedId = typeof body.id === 'string' ? body.id.trim() : undefined;
+    const requestedEmail = typeof body.email === 'string' ? body.email.trim().toLowerCase() : undefined;
 
-    let userPayload;
+    let targetUser: any = null;
 
-    if (!requestedRole || requestedRole === 'ADMIN') {
-      const superAdmin = ensureSuperAdminUser(email);
-      userPayload = {
-        sub: superAdmin.id,
-        email: superAdmin.email,
-        name: superAdmin.name,
-        role: 'ADMIN',
-        isAuthorized: true,
-      };
+    // Resolve user by ID if provided, or by email, or default to Super Admin
+    if (requestedId) {
+      targetUser = await getUser(requestedId);
+      if (!targetUser && requestedId === 'usr_super_admin') {
+        targetUser = await getUserByEmail('kumarbajrang325@gmail.com');
+      }
+    } else if (requestedEmail) {
+      targetUser = await getUserByEmail(requestedEmail);
     } else {
-      // Look up staff member or create a minimal token for testing
-      const staffUser = getUserByEmail(email);
-      userPayload = {
-        sub: body.id ?? staffUser?.id ?? `test_${Date.now()}`,
-        email: staffUser?.email ?? email,
-        name: staffUser?.name ?? 'Test User',
-        role: requestedRole,
-        isAuthorized: true,
-        departmentId: staffUser?.departmentId ?? null,
-      };
+      targetUser = (await getUser('usr_super_admin')) || (await getUserByEmail('kumarbajrang325@gmail.com'));
     }
+
+    // 2. Allowlist Gate: Reject non-allowlisted or nonexistent users with 400 Bad Request
+    const isAllowedId = targetUser && ALLOWED_DEV_USER_IDS.has(targetUser.id);
+    const isAllowedEmail = targetUser?.email && ALLOWED_DEV_EMAILS.has(targetUser.email.toLowerCase());
+
+    if (!targetUser || (!isAllowedId && !isAllowedEmail)) {
+      return NextResponse.json(
+        { statusCode: 400, message: 'Invalid or unauthorized dev user ID.' },
+        { status: 400 },
+      );
+    }
+
+    // 3. DB Role Enforcement: ALWAYS use the user's actual database role, NEVER trust body.role
+    const actualRole = targetUser.role || 'CITIZEN';
+
+    if (body.role && body.role !== actualRole) {
+      console.warn(
+        `[DEV-LOGIN WARNING] Requested role "${body.role}" ignored for user "${targetUser.id}"; enforced actual DB role "${actualRole}".`,
+      );
+    }
+
+    // 4. Usage Warning Logging
+    console.warn(
+      `[DEV-LOGIN WARNING] Dev authentication bypass used for user ID "${targetUser.id}" (${actualRole}) at ${new Date().toISOString()}`,
+    );
+
+    const userPayload = {
+      sub: targetUser.id,
+      email: targetUser.email,
+      name: targetUser.name,
+      role: actualRole,
+      isAuthorized: true,
+      departmentId: targetUser.departmentId ?? null,
+    };
 
     const accessToken = await createJwtToken(userPayload, '7d');
     const refreshToken = await createJwtToken({ ...userPayload, type: 'refresh' }, '30d');
@@ -61,10 +104,16 @@ export async function POST(req: NextRequest) {
       maxAge: 30 * 24 * 60 * 60,
     });
 
+    let redirectUrl = '/citizen';
+    if (actualRole === 'ADMIN') redirectUrl = '/admin';
+    else if (actualRole === 'DEPARTMENT_HEAD') redirectUrl = '/dept-head';
+    else if (actualRole === 'DEPARTMENT_OFFICER') redirectUrl = '/officer';
+    else if (actualRole === 'FIELD_WORKER') redirectUrl = '/field-worker';
+
     return NextResponse.json({
       success: true,
       user: userPayload,
-      redirectUrl: userPayload.role === 'ADMIN' ? '/admin' : '/officer',
+      redirectUrl,
     });
   } catch (error: any) {
     return NextResponse.json(

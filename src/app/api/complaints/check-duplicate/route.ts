@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ statusCode: 400, message: validation.error }, { status: 400 });
     }
 
-    const result = checkDuplicateComplaints(validation.data!);
+    const result = await checkDuplicateComplaints(validation.data!);
     return NextResponse.json(result);
   } catch (error: any) {
     return NextResponse.json(

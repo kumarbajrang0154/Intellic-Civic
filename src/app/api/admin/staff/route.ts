@@ -4,11 +4,11 @@ import { createStaff, listStaff, type StaffRole } from '@/services/staffService'
 
 // GET /api/admin/staff — list staff with filters + pagination
 export async function GET(req: NextRequest) {
-  const auth = requireAdmin();
+  const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 
   const { searchParams } = new URL(req.url);
-  const result = listStaff({
+  const result = await listStaff({
     search: searchParams.get('search') ?? undefined,
     role: searchParams.get('role') ?? undefined,
     departmentId: searchParams.get('departmentId') ?? undefined,
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/admin/staff — create a new staff account
 export async function POST(req: NextRequest) {
-  const auth = requireAdmin();
+  const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 
   let body: { name?: string; email?: string; role?: string; departmentId?: string | null };
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: 'name, email, and role are required.' }, { status: 400 });
   }
 
-  const result = createStaff(
+  const result = await createStaff(
     { name, email, role: role as StaffRole, departmentId },
     auth.admin,
   );

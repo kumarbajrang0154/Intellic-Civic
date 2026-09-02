@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import prisma from '@/lib/prisma';
+import { UserRole, AuthProvider } from '@prisma/client';
 
 export interface DepartmentItem {
   id: string;
@@ -24,451 +24,294 @@ export interface UserItem {
   updatedAt: string;
 }
 
-const STORE_FILE_PATH = path.join(process.cwd(), '.staff_dept_store.json');
-
-const INITIAL_DEPARTMENTS: DepartmentItem[] = [
-  {
-    id: 'dept_roads_infra',
-    name: 'Roads & Infrastructure',
-    description: 'Maintenance of municipal roads, bridges, flyovers, potholes, stormwater drains, and traffic corridors.',
-    headOfficeAddress: 'Civic Centre, Floor 3, Block A, Central City Avenue',
-    isSuspended: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'dept_water_sanitation',
-    name: 'Water Supply & Sanitation',
-    description: 'Potable water pipelines, sewage treatment, drainage clearance, and water quality control.',
-    headOfficeAddress: 'Jal Bhawan, Sector 12, Smart City Corridor',
-    isSuspended: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'dept_solid_waste',
-    name: 'Solid Waste Management',
-    description: 'Garbage collection, community dumpsters, recycling plants, street sweeping, and hazardous waste disposal.',
-    headOfficeAddress: 'Swachh Tower, Ring Road Complex, North Zone',
-    isSuspended: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'dept_electricity_lights',
-    name: 'Electricity & Streetlights',
-    description: 'Public streetlight networks, electrical poles, transformer maintenance, and solar grid infrastructure.',
-    headOfficeAddress: 'Urja Bhawan, Power Grid Road, East District',
-    isSuspended: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'dept_health_sanitation',
-    name: 'Health & Public Sanitation',
-    description: 'Vector control, public toilets hygiene, food safety inspections, and stray animal management.',
-    headOfficeAddress: 'Health Headquarters, Civic Hospital Campus, West Ward',
-    isSuspended: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'dept_urban_planning',
-    name: 'Urban Planning & Encroachment',
-    description: 'Zoning enforcement, anti-encroachment drives, illegal construction checks, and public park maintenance.',
-    headOfficeAddress: 'Vikas Bhawan, Master Plan Enclave, South Zone',
-    isSuspended: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
-
 const SUPER_ADMIN_EMAIL = 'kumarbajrang325@gmail.com';
 
-const INITIAL_USERS: UserItem[] = [
-  {
-    id: 'usr_super_admin',
-    name: 'Bajrang Kumar (Super Admin)',
-    email: SUPER_ADMIN_EMAIL,
-    role: 'ADMIN',
-    departmentId: null,
-    isAuthorized: true,
-    isSuspended: false,
-    lastLoginAt: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'usr_dept_head_roads',
-    name: 'Rajesh Sharma',
-    email: 'head.roads@smartcity.gov.in',
-    role: 'DEPARTMENT_HEAD',
-    departmentId: 'dept_roads_infra',
-    isAuthorized: true,
-    isSuspended: false,
-    lastLoginAt: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'usr_officer_roads_1',
-    name: 'Amit Patel',
-    email: 'officer.roads@smartcity.gov.in',
-    role: 'DEPARTMENT_OFFICER',
-    departmentId: 'dept_roads_infra',
-    isAuthorized: true,
-    isSuspended: false,
-    lastLoginAt: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'fw-demo-1',
-    name: 'Ramesh Kumar',
-    email: 'fieldworker@intellicivic.gov.in',
-    role: 'FIELD_WORKER',
-    departmentId: 'dept_roads_infra',
-    isAuthorized: true,
-    isSuspended: false,
-    lastLoginAt: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'usr_dept_head_water',
-    name: 'Priya Verma',
-    email: 'head.water@smartcity.gov.in',
-    role: 'DEPARTMENT_HEAD',
-    departmentId: 'dept_water_sanitation',
-    isAuthorized: true,
-    isSuspended: false,
-    lastLoginAt: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'usr_officer_water_1',
-    name: 'Suresh Kumar',
-    email: 'officer.water@smartcity.gov.in',
-    role: 'DEPARTMENT_OFFICER',
-    departmentId: 'dept_water_sanitation',
-    isAuthorized: true,
-    isSuspended: false,
-    lastLoginAt: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'usr_pending_1',
-    name: 'Vikram Singh',
-    email: 'vikram.singh@gmail.com',
-    role: null,
-    departmentId: null,
-    isAuthorized: false,
-    isSuspended: false,
-    lastLoginAt: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
-
-interface StoreData {
-  departments: DepartmentItem[];
-  users: UserItem[];
-}
-
-function loadStoreFromDisk(): StoreData {
-  try {
-    if (fs.existsSync(STORE_FILE_PATH)) {
-      const fileData = fs.readFileSync(STORE_FILE_PATH, 'utf-8');
-      const json = JSON.parse(fileData);
-      if (json && Array.isArray(json.departments) && Array.isArray(json.users)) {
-        // Ensure Super Admin exists & remains ADMIN
-        const adminIndex = json.users.findIndex(
-          (u: UserItem) => u.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase(),
-        );
-        if (adminIndex === -1) {
-          json.users.unshift(INITIAL_USERS[0]);
-        } else {
-          json.users[adminIndex].role = 'ADMIN';
-          json.users[adminIndex].isAuthorized = true;
-          json.users[adminIndex].isSuspended = false;
-        }
-        return json;
-      }
-    }
-  } catch (err) {
-    console.error('Error loading staff & dept store from disk:', err);
-  }
-
+function formatDepartmentItem(dept: any): DepartmentItem {
   return {
-    departments: [...INITIAL_DEPARTMENTS],
-    users: [...INITIAL_USERS],
+    id: dept.id,
+    name: dept.name,
+    description: dept.description,
+    headOfficeAddress: dept.headOfficeAddress || 'Civic Center Complex, Main City Sector',
+    isSuspended: Boolean(dept.isSuspended),
+    createdAt: dept.createdAt instanceof Date ? dept.createdAt.toISOString() : new Date(dept.createdAt || Date.now()).toISOString(),
+    updatedAt: dept.updatedAt instanceof Date ? dept.updatedAt.toISOString() : new Date(dept.updatedAt || Date.now()).toISOString(),
   };
 }
 
-function saveStoreToDisk(data: StoreData) {
-  try {
-    fs.writeFileSync(STORE_FILE_PATH, JSON.stringify(data, null, 2), 'utf-8');
-  } catch (err) {
-    console.error('Error saving staff & dept store to disk:', err);
-  }
-}
-
-const globalForStore = global as unknown as { staffDeptStore: StoreData };
-
-export const staffDeptStore = globalForStore.staffDeptStore || loadStoreFromDisk();
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForStore.staffDeptStore = staffDeptStore;
+function formatUserItem(user: any): UserItem {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email || '',
+    role: (user.role as UserItem['role']) || null,
+    departmentId: user.departmentId || null,
+    isAuthorized: Boolean(user.isAuthorized),
+    isSuspended: Boolean(user.isSuspended),
+    lastLoginAt: user.lastLoginAt ? (user.lastLoginAt instanceof Date ? user.lastLoginAt.toISOString() : new Date(user.lastLoginAt).toISOString()) : null,
+    createdAt: user.createdAt instanceof Date ? user.createdAt.toISOString() : new Date(user.createdAt || Date.now()).toISOString(),
+    updatedAt: user.updatedAt instanceof Date ? user.updatedAt.toISOString() : new Date(user.updatedAt || Date.now()).toISOString(),
+  };
 }
 
 // -----------------------------------------------------------------------------
 // Department Management Helpers
 // -----------------------------------------------------------------------------
 
-export function listDepartments(): DepartmentItem[] {
-  return [...staffDeptStore.departments];
+export async function listDepartments(): Promise<DepartmentItem[]> {
+  const depts = await prisma.department.findMany({
+    orderBy: { createdAt: 'asc' },
+  });
+  return depts.map(formatDepartmentItem);
 }
 
-export function getDepartment(id: string): DepartmentItem | undefined {
-  return staffDeptStore.departments.find((d) => d.id === id);
+export async function getDepartment(id: string): Promise<DepartmentItem | undefined> {
+  const dept = await prisma.department.findUnique({ where: { id } });
+  return dept ? formatDepartmentItem(dept) : undefined;
 }
 
-export function addDepartment(input: {
+export async function addDepartment(input: {
   name: string;
   description: string;
   headOfficeAddress?: string;
-}): DepartmentItem {
-  const newDept: DepartmentItem = {
-    id: `dept_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-    name: input.name.trim(),
-    description: input.description.trim(),
-    headOfficeAddress: input.headOfficeAddress?.trim() || 'Civic Center Complex, Main City Sector',
-    isSuspended: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-  staffDeptStore.departments.push(newDept);
-  saveStoreToDisk(staffDeptStore);
-  return newDept;
+}): Promise<DepartmentItem> {
+  const dept = await prisma.department.create({
+    data: {
+      name: input.name.trim(),
+      description: input.description.trim(),
+      headOfficeAddress: input.headOfficeAddress?.trim() || 'Civic Center Complex, Main City Sector',
+      isSuspended: false,
+    },
+  });
+  return formatDepartmentItem(dept);
 }
 
-export function updateDepartment(
+export async function updateDepartment(
   id: string,
   updates: Partial<Pick<DepartmentItem, 'name' | 'description' | 'headOfficeAddress' | 'isSuspended'>>,
-): DepartmentItem | null {
-  const index = staffDeptStore.departments.findIndex((d) => d.id === id);
-  if (index === -1) return null;
-
-  const current = staffDeptStore.departments[index];
-  const updated: DepartmentItem = {
-    ...current,
-    name: updates.name !== undefined ? updates.name.trim() : current.name,
-    description: updates.description !== undefined ? updates.description.trim() : current.description,
-    headOfficeAddress:
-      updates.headOfficeAddress !== undefined ? updates.headOfficeAddress.trim() : current.headOfficeAddress,
-    isSuspended: updates.isSuspended !== undefined ? updates.isSuspended : current.isSuspended,
-    updatedAt: new Date().toISOString(),
-  };
-
-  staffDeptStore.departments[index] = updated;
-  saveStoreToDisk(staffDeptStore);
-  return updated;
+): Promise<DepartmentItem | null> {
+  try {
+    const dept = await prisma.department.update({
+      where: { id },
+      data: {
+        name: updates.name !== undefined ? updates.name.trim() : undefined,
+        description: updates.description !== undefined ? updates.description.trim() : undefined,
+        headOfficeAddress: updates.headOfficeAddress !== undefined ? updates.headOfficeAddress.trim() : undefined,
+        isSuspended: updates.isSuspended !== undefined ? updates.isSuspended : undefined,
+      },
+    });
+    return formatDepartmentItem(dept);
+  } catch {
+    return null;
+  }
 }
 
-export function suspendDepartment(id: string, isSuspended: boolean): DepartmentItem | null {
+export async function suspendDepartment(id: string, isSuspended: boolean): Promise<DepartmentItem | null> {
   return updateDepartment(id, { isSuspended });
 }
 
-export function deleteDepartment(id: string): boolean {
-  const initialLen = staffDeptStore.departments.length;
-  staffDeptStore.departments = staffDeptStore.departments.filter((d) => d.id !== id);
+export async function deleteDepartment(id: string): Promise<boolean> {
+  try {
+    await prisma.user.updateMany({
+      where: { departmentId: id },
+      data: { departmentId: null },
+    });
 
-  // Unassign users belonging to deleted department
-  staffDeptStore.users.forEach((u) => {
-    if (u.departmentId === id) {
-      u.departmentId = null;
-    }
-  });
-
-  if (staffDeptStore.departments.length !== initialLen) {
-    saveStoreToDisk(staffDeptStore);
+    await prisma.department.delete({ where: { id } });
     return true;
+  } catch {
+    return false;
   }
-  return false;
 }
 
 // -----------------------------------------------------------------------------
 // User / Officer Management Helpers
 // -----------------------------------------------------------------------------
 
-export function listUsers(filters?: {
+export async function listUsers(filters?: {
   role?: string;
   departmentId?: string;
   pendingOnly?: boolean;
   search?: string;
-}): UserItem[] {
-  let list = [...staffDeptStore.users];
+}): Promise<UserItem[]> {
+  const where: any = {};
 
   if (filters?.pendingOnly) {
-    list = list.filter((u) => !u.isAuthorized && u.role !== 'ADMIN');
+    where.isAuthorized = false;
+    where.role = { not: UserRole.ADMIN };
   }
 
   if (filters?.role && filters.role !== 'ALL') {
-    list = list.filter((u) => u.role === filters.role);
+    where.role = filters.role as UserRole;
   }
 
   if (filters?.departmentId && filters.departmentId !== 'ALL') {
-    list = list.filter((u) => u.departmentId === filters.departmentId);
+    where.departmentId = filters.departmentId;
   }
 
   if (filters?.search) {
-    const q = filters.search.toLowerCase();
-    list = list.filter(
-      (u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q),
-    );
+    const q = filters.search.trim();
+    where.OR = [
+      { name: { contains: q, mode: 'insensitive' } },
+      { email: { contains: q, mode: 'insensitive' } },
+    ];
   }
 
-  return list;
+  const users = await prisma.user.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return users.map(formatUserItem);
 }
 
-export function getUser(id: string): UserItem | undefined {
-  return staffDeptStore.users.find((u) => u.id === id);
+export async function getUser(id: string): Promise<UserItem | undefined> {
+  const user = await prisma.user.findUnique({ where: { id } });
+  return user ? formatUserItem(user) : undefined;
 }
 
-export function getUserByEmail(email: string): UserItem | undefined {
-  return staffDeptStore.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+export async function getUserByEmail(email: string): Promise<UserItem | undefined> {
+  if (!email) return undefined;
+  const user = await prisma.user.findFirst({
+    where: { email: { equals: email.trim(), mode: 'insensitive' } },
+  });
+  return user ? formatUserItem(user) : undefined;
 }
 
-export function ensureSuperAdminUser(email: string = SUPER_ADMIN_EMAIL, name: string = 'Bajrang Kumar (Super Admin)'): UserItem {
-  let admin = getUserByEmail(email);
+export async function ensureSuperAdminUser(
+  email: string = SUPER_ADMIN_EMAIL,
+  name: string = 'Bajrang Kumar (Super Admin)',
+): Promise<UserItem> {
+  const cleanEmail = email.toLowerCase().trim();
+
+  let admin = await prisma.user.findFirst({
+    where: { email: cleanEmail },
+  });
 
   if (admin) {
-    admin.role = 'ADMIN';
-    admin.isAuthorized = true;
-    admin.isSuspended = false;
-    admin.name = admin.name || name;
+    admin = await prisma.user.update({
+      where: { id: admin.id },
+      data: {
+        role: UserRole.ADMIN,
+        isAuthorized: true,
+        isSuspended: false,
+        name: admin.name || name,
+      },
+    });
   } else {
-    admin = {
-      id: 'usr_super_admin',
-      name,
-      email: email.toLowerCase(),
-      role: 'ADMIN',
-      departmentId: null,
-      isAuthorized: true,
-      isSuspended: false,
-      lastLoginAt: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    staffDeptStore.users.unshift(admin);
+    admin = await prisma.user.create({
+      data: {
+        id: 'usr_super_admin',
+        name,
+        email: cleanEmail,
+        role: UserRole.ADMIN,
+        authProvider: AuthProvider.GOOGLE,
+        departmentId: null,
+        isAuthorized: true,
+        isSuspended: false,
+      },
+    });
   }
 
-  saveStoreToDisk(staffDeptStore);
-  return admin;
+  return formatUserItem(admin);
 }
 
-export function addUser(input: {
+export async function addUser(input: {
   name: string;
   email: string;
   role: UserItem['role'];
   departmentId?: string | null;
   isAuthorized?: boolean;
-}): UserItem {
-  const existing = getUserByEmail(input.email);
+}): Promise<UserItem> {
+  const cleanEmail = input.email.trim().toLowerCase();
+  const existing = await getUserByEmail(cleanEmail);
+
   if (existing) {
-    return updateUser(existing.id, {
+    const updated = await updateUser(existing.id, {
       name: input.name,
       role: input.role,
       departmentId: input.departmentId,
       isAuthorized: input.isAuthorized ?? true,
       isSuspended: false,
-    })!;
+    });
+    return updated!;
   }
 
-  const newUser: UserItem = {
-    id: `usr_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-    name: input.name.trim(),
-    email: input.email.trim().toLowerCase(),
-    role: input.role,
-    departmentId: input.departmentId || null,
-    isAuthorized: input.isAuthorized ?? true,
-    isSuspended: false,
-    lastLoginAt: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+  const newUser = await prisma.user.create({
+    data: {
+      name: input.name.trim(),
+      email: cleanEmail,
+      role: input.role as UserRole,
+      departmentId: input.departmentId || null,
+      isAuthorized: input.isAuthorized ?? true,
+      isSuspended: false,
+      authProvider: AuthProvider.GOOGLE,
+    },
+  });
 
-  staffDeptStore.users.push(newUser);
-  saveStoreToDisk(staffDeptStore);
-  return newUser;
+  return formatUserItem(newUser);
 }
 
-export function updateUser(
+export async function updateUser(
   id: string,
   updates: Partial<Pick<UserItem, 'name' | 'email' | 'role' | 'departmentId' | 'isAuthorized' | 'isSuspended'>>,
-): UserItem | null {
-  const index = staffDeptStore.users.findIndex((u) => u.id === id);
-  if (index === -1) return null;
+): Promise<UserItem | null> {
+  try {
+    const current = await prisma.user.findUnique({ where: { id } });
+    if (!current) return null;
 
-  const current = staffDeptStore.users[index];
+    let updatedRole = updates.role !== undefined ? (updates.role as UserRole) : current.role;
+    let updatedAuthorized = updates.isAuthorized !== undefined ? updates.isAuthorized : current.isAuthorized;
+    let updatedSuspended = updates.isSuspended !== undefined ? updates.isSuspended : current.isSuspended;
 
-  // Prevent revoking Super Admin role from kumarbajrang325@gmail.com
-  let updatedRole = updates.role !== undefined ? updates.role : current.role;
-  let updatedAuthorized = updates.isAuthorized !== undefined ? updates.isAuthorized : current.isAuthorized;
-  let updatedSuspended = updates.isSuspended !== undefined ? updates.isSuspended : current.isSuspended;
+    if (current.email && current.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) {
+      updatedRole = UserRole.ADMIN;
+      updatedAuthorized = true;
+      updatedSuspended = false;
+    }
 
-  if (current.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) {
-    updatedRole = 'ADMIN';
-    updatedAuthorized = true;
-    updatedSuspended = false;
+    const updated = await prisma.user.update({
+      where: { id },
+      data: {
+        name: updates.name !== undefined ? updates.name.trim() : undefined,
+        email: updates.email !== undefined ? updates.email.trim().toLowerCase() : undefined,
+        role: updatedRole,
+        departmentId: updates.departmentId !== undefined ? updates.departmentId : undefined,
+        isAuthorized: updatedAuthorized,
+        isSuspended: updatedSuspended,
+      },
+    });
+
+    return formatUserItem(updated);
+  } catch {
+    return null;
   }
-
-  const updated: UserItem = {
-    ...current,
-    name: updates.name !== undefined ? updates.name.trim() : current.name,
-    email: updates.email !== undefined ? updates.email.trim().toLowerCase() : current.email,
-    role: updatedRole,
-    departmentId: updates.departmentId !== undefined ? updates.departmentId : current.departmentId,
-    isAuthorized: updatedAuthorized,
-    isSuspended: updatedSuspended,
-    updatedAt: new Date().toISOString(),
-  };
-
-  staffDeptStore.users[index] = updated;
-  saveStoreToDisk(staffDeptStore);
-  return updated;
 }
 
-export function suspendUser(id: string, isSuspended: boolean): UserItem | null {
+export async function suspendUser(id: string, isSuspended: boolean): Promise<UserItem | null> {
   return updateUser(id, { isSuspended });
 }
 
-export function deleteUser(id: string): boolean {
-  const user = getUser(id);
-  if (!user) return false;
+export async function deleteUser(id: string): Promise<boolean> {
+  try {
+    const user = await getUser(id);
+    if (!user) return false;
 
-  // Protect Super Admin from deletion
-  if (user.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) {
+    if (user.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) {
+      return false;
+    }
+
+    await prisma.user.delete({ where: { id } });
+    return true;
+  } catch {
     return false;
   }
-
-  const initialLen = staffDeptStore.users.length;
-  staffDeptStore.users = staffDeptStore.users.filter((u) => u.id !== id);
-
-  if (staffDeptStore.users.length !== initialLen) {
-    saveStoreToDisk(staffDeptStore);
-    return true;
-  }
-  return false;
 }
 
-export function approveUser(
+export async function approveUser(
   id: string,
   role: UserItem['role'],
   departmentId?: string | null,
-): UserItem | null {
+): Promise<UserItem | null> {
   return updateUser(id, {
     role,
     departmentId: role === 'ADMIN' ? null : departmentId,
@@ -477,18 +320,18 @@ export function approveUser(
   });
 }
 
-export function rejectUser(id: string): boolean {
+export async function rejectUser(id: string): Promise<boolean> {
   return deleteUser(id);
 }
 
-export function updateLastLogin(id: string): UserItem | null {
-  const index = staffDeptStore.users.findIndex((u) => u.id === id);
-  if (index === -1) return null;
-  staffDeptStore.users[index] = {
-    ...staffDeptStore.users[index],
-    lastLoginAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-  saveStoreToDisk(staffDeptStore);
-  return staffDeptStore.users[index];
+export async function updateLastLogin(id: string): Promise<UserItem | null> {
+  try {
+    const updated = await prisma.user.update({
+      where: { id },
+      data: { lastLoginAt: new Date() },
+    });
+    return formatUserItem(updated);
+  } catch {
+    return null;
+  }
 }

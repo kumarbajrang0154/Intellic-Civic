@@ -6,7 +6,6 @@
 import { addAuditLog, listAuditLogs } from '@/lib/audit-store';
 import {
   addUser,
-  approveUser,
   deleteUser,
   getDepartment,
   getUser,
@@ -76,8 +75,8 @@ export type ServiceResult<T> =
 // Helpers
 // ---------------------------------------------------------------------------
 
-function userToSummary(u: UserItem): StaffSummary {
-  const dept = u.departmentId ? getDepartment(u.departmentId) : undefined;
+async function userToSummary(u: UserItem): Promise<StaffSummary> {
+  const dept = u.departmentId ? await getDepartment(u.departmentId) : undefined;
   return {
     id: u.id,
     name: u.name,
@@ -100,18 +99,18 @@ function requiresDepartment(role: StaffRole): boolean {
 // List Staff
 // ---------------------------------------------------------------------------
 
-export function listStaff(filters: StaffListFilters): ServiceResult<StaffListResult> {
+export async function listStaff(filters: StaffListFilters): Promise<ServiceResult<StaffListResult>> {
   const page = Math.max(1, filters.page ?? 1);
   const limit = Math.min(100, Math.max(1, filters.limit ?? 20));
 
-  // Exclude citizens by default — only staff roles
-  let allUsers = listUsers({
+  let fetchedUsers = await listUsers({
     role: filters.role && filters.role !== 'ALL' ? filters.role : undefined,
     departmentId: filters.departmentId && filters.departmentId !== 'ALL' ? filters.departmentId : undefined,
     search: filters.search,
-  }).filter((u) => u.role !== 'CITIZEN' && u.role !== null);
+  });
 
-  // Status filter
+  let allUsers = fetchedUsers.filter((u) => u.role !== 'CITIZEN' && u.role !== null);
+
   if (filters.status === 'active') {
     allUsers = allUsers.filter((u) => !u.isSuspended);
   } else if (filters.status === 'inactive') {
@@ -120,7 +119,8 @@ export function listStaff(filters: StaffListFilters): ServiceResult<StaffListRes
 
   const total = allUsers.length;
   const offset = (page - 1) * limit;
-  const items = allUsers.slice(offset, offset + limit).map(userToSummary);
+  const pageItems = allUsers.slice(offset, offset + limit);
+  const items = await Promise.all(pageItems.map(userToSummary));
 
   return {
     ok: true,
@@ -138,28 +138,26 @@ export function listStaff(filters: StaffListFilters): ServiceResult<StaffListRes
 // Get single staff member
 // ---------------------------------------------------------------------------
 
-export function getStaffMember(id: string): ServiceResult<StaffSummary> {
-  const user = getUser(id);
+export async function getStaffMember(id: string): Promise<ServiceResult<StaffSummary>> {
+  const user = await getUser(id);
   if (!user || user.role === 'CITIZEN') {
     return { ok: false, status: 404, message: 'Staff member not found.' };
   }
-  return { ok: true, data: userToSummary(user) };
+  return { ok: true, data: await userToSummary(user) };
 }
 
 // ---------------------------------------------------------------------------
 // Create Staff
 // ---------------------------------------------------------------------------
 
-export function createStaff(
+export async function createStaff(
   input: CreateStaffInput,
   actor: { id: string; name: string },
-): ServiceResult<StaffSummary> {
-  // Validate role
+): Promise<ServiceResult<StaffSummary>> {
   if (!STAFF_ROLES.includes(input.role)) {
     return { ok: false, status: 400, message: `Invalid role: ${input.role}. Must be one of ${STAFF_ROLES.join(', ')}.` };
   }
 
-  // Validate email format
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!input.email || !emailRegex.test(input.email.trim())) {
     return { ok: false, status: 400, message: 'A valid email address is required.' };
@@ -169,18 +167,16 @@ export function createStaff(
     return { ok: false, status: 400, message: 'Name must be at least 2 characters.' };
   }
 
-  // Check email uniqueness
-  const existing = getUserByEmail(input.email.trim());
+  const existing = await getUserByEmail(input.email.trim());
   if (existing) {
     return { ok: false, status: 409, message: `A user with email ${input.email} already exists.` };
   }
 
-  // Department validation
   if (requiresDepartment(input.role)) {
     if (!input.departmentId) {
       return { ok: false, status: 400, message: `Role ${input.role} requires a department assignment.` };
     }
-    const dept = getDepartment(input.departmentId);
+    const dept = await getDepartment(input.departmentId);
     if (!dept) {
       return { ok: false, status: 400, message: 'Selected department does not exist.' };
     }
@@ -189,7 +185,7 @@ export function createStaff(
     }
   }
 
-  const created = addUser({
+  const created = await addUser({
     name: input.name.trim(),
     email: input.email.trim().toLowerCase(),
     role: input.role,
@@ -197,7 +193,7 @@ export function createStaff(
     isAuthorized: true,
   });
 
-  addAuditLog({
+  await addAuditLog({
     actorId: actor.id,
     actorName: actor.name,
     action: 'STAFF_CREATED',
@@ -207,22 +203,22 @@ export function createStaff(
     metadata: { email: created.email, role: created.role, departmentId: created.departmentId },
   });
 
-  return { ok: true, data: userToSummary(created) };
+  return { ok: true, data: await userToSummary(created) };
 }
 
 // ---------------------------------------------------------------------------
 // Deactivate Staff
 // ---------------------------------------------------------------------------
 
-export function deactivateStaff(
+export async function deactivateStaff(
   targetId: string,
   actor: { id: string; name: string },
-): ServiceResult<StaffSummary> {
+): Promise<ServiceResult<StaffSummary>> {
   if (targetId === actor.id) {
     return { ok: false, status: 400, message: 'You cannot deactivate your own account.' };
   }
 
-  const user = getUser(targetId);
+  const user = await getUser(targetId);
   if (!user || user.role === 'CITIZEN') {
     return { ok: false, status: 404, message: 'Staff member not found.' };
   }
@@ -231,12 +227,12 @@ export function deactivateStaff(
     return { ok: false, status: 400, message: 'Staff member is already inactive.' };
   }
 
-  const updated = suspendUser(targetId, true);
+  const updated = await suspendUser(targetId, true);
   if (!updated) {
     return { ok: false, status: 500, message: 'Failed to deactivate staff member.' };
   }
 
-  addAuditLog({
+  await addAuditLog({
     actorId: actor.id,
     actorName: actor.name,
     action: 'STAFF_DEACTIVATED',
@@ -246,18 +242,18 @@ export function deactivateStaff(
     metadata: { email: updated.email, role: updated.role },
   });
 
-  return { ok: true, data: userToSummary(updated) };
+  return { ok: true, data: await userToSummary(updated) };
 }
 
 // ---------------------------------------------------------------------------
 // Reactivate Staff
 // ---------------------------------------------------------------------------
 
-export function reactivateStaff(
+export async function reactivateStaff(
   targetId: string,
   actor: { id: string; name: string },
-): ServiceResult<StaffSummary> {
-  const user = getUser(targetId);
+): Promise<ServiceResult<StaffSummary>> {
+  const user = await getUser(targetId);
   if (!user || user.role === 'CITIZEN') {
     return { ok: false, status: 404, message: 'Staff member not found.' };
   }
@@ -266,12 +262,12 @@ export function reactivateStaff(
     return { ok: false, status: 400, message: 'Staff member is already active.' };
   }
 
-  const updated = suspendUser(targetId, false);
+  const updated = await suspendUser(targetId, false);
   if (!updated) {
     return { ok: false, status: 500, message: 'Failed to reactivate staff member.' };
   }
 
-  addAuditLog({
+  await addAuditLog({
     actorId: actor.id,
     actorName: actor.name,
     action: 'STAFF_REACTIVATED',
@@ -281,19 +277,19 @@ export function reactivateStaff(
     metadata: { email: updated.email, role: updated.role },
   });
 
-  return { ok: true, data: userToSummary(updated) };
+  return { ok: true, data: await userToSummary(updated) };
 }
 
 // ---------------------------------------------------------------------------
 // Reassign Staff
 // ---------------------------------------------------------------------------
 
-export function reassignStaff(
+export async function reassignStaff(
   targetId: string,
   input: ReassignInput,
   actor: { id: string; name: string },
-): ServiceResult<StaffSummary> {
-  const user = getUser(targetId);
+): Promise<ServiceResult<StaffSummary>> {
+  const user = await getUser(targetId);
   if (!user || user.role === 'CITIZEN') {
     return { ok: false, status: 404, message: 'Staff member not found.' };
   }
@@ -309,7 +305,7 @@ export function reassignStaff(
     if (!newDepartmentId) {
       return { ok: false, status: 400, message: `Role ${newRole} requires a department assignment.` };
     }
-    const dept = getDepartment(newDepartmentId);
+    const dept = await getDepartment(newDepartmentId);
     if (!dept) {
       return { ok: false, status: 400, message: 'Target department does not exist.' };
     }
@@ -321,7 +317,7 @@ export function reassignStaff(
   const oldRole = user.role;
   const oldDepartmentId = user.departmentId;
 
-  const updated = updateUser(targetId, {
+  const updated = await updateUser(targetId, {
     role: newRole,
     departmentId: requiresDepartment(newRole) ? newDepartmentId : null,
   });
@@ -330,7 +326,7 @@ export function reassignStaff(
     return { ok: false, status: 500, message: 'Failed to reassign staff member.' };
   }
 
-  addAuditLog({
+  await addAuditLog({
     actorId: actor.id,
     actorName: actor.name,
     action: 'STAFF_REASSIGNED',
@@ -340,32 +336,32 @@ export function reassignStaff(
     metadata: { oldRole, newRole, oldDepartmentId, newDepartmentId },
   });
 
-  return { ok: true, data: userToSummary(updated) };
+  return { ok: true, data: await userToSummary(updated) };
 }
 
 // ---------------------------------------------------------------------------
 // Delete Staff
 // ---------------------------------------------------------------------------
 
-export function removeStaff(
+export async function removeStaff(
   targetId: string,
   actor: { id: string; name: string },
-): ServiceResult<{ deleted: boolean }> {
+): Promise<ServiceResult<{ deleted: boolean }>> {
   if (targetId === actor.id) {
     return { ok: false, status: 400, message: 'You cannot delete your own account.' };
   }
 
-  const user = getUser(targetId);
+  const user = await getUser(targetId);
   if (!user) {
     return { ok: false, status: 404, message: 'Staff member not found.' };
   }
 
-  const deleted = deleteUser(targetId);
+  const deleted = await deleteUser(targetId);
   if (!deleted) {
     return { ok: false, status: 403, message: 'Cannot delete this account (Super Admin is protected).' };
   }
 
-  addAuditLog({
+  await addAuditLog({
     actorId: actor.id,
     actorName: actor.name,
     action: 'STAFF_DELETED',
@@ -393,20 +389,18 @@ export interface ActivityEntry {
   createdAt: string;
 }
 
-export function getStaffActivity(
+export async function getStaffActivity(
   targetId: string,
   limit = 50,
-): ServiceResult<ActivityEntry[]> {
-  const user = getUser(targetId);
+): Promise<ServiceResult<ActivityEntry[]>> {
+  const user = await getUser(targetId);
   if (!user) {
     return { ok: false, status: 404, message: 'Staff member not found.' };
   }
 
-  // Get all audit events where this user is the target OR the actor
-  const asTarget = listAuditLogs({ targetId, limit });
-  const asActor = listAuditLogs({ actorId: targetId, limit });
+  const asTarget = await listAuditLogs({ targetId, limit });
+  const asActor = await listAuditLogs({ actorId: targetId, limit });
 
-  // Merge, dedupe, sort by createdAt desc
   const seen = new Set<string>();
   const combined: ActivityEntry[] = [];
 
@@ -445,9 +439,10 @@ export interface DeptWorkload {
   inactiveStaff: number;
 }
 
-export function getWorkloadSummary(): ServiceResult<DeptWorkload[]> {
-  const departments = listDepartments();
-  const allStaff = listUsers().filter((u) => u.role !== 'CITIZEN' && u.role !== null);
+export async function getWorkloadSummary(): Promise<ServiceResult<DeptWorkload[]>> {
+  const departments = await listDepartments();
+  const allUsers = await listUsers();
+  const allStaff = allUsers.filter((u) => u.role !== 'CITIZEN' && u.role !== null);
 
   const summary: DeptWorkload[] = departments.map((dept) => {
     const deptStaff = allStaff.filter((u) => u.departmentId === dept.id);

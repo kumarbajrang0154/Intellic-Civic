@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     // Filter by citizenId if role is CITIZEN
     const citizenId = payload.role === 'CITIZEN' ? payload.sub : undefined;
 
-    const result = listComplaints({
+    const result = await listComplaints({
       citizenId,
       status,
       categoryId,
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const newComplaint = createComplaint({
+    const newComplaint = await createComplaint({
       title: title.trim(),
       description: description.trim(),
       categoryId,

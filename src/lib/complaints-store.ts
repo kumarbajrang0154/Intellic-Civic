@@ -1,20 +1,24 @@
+import prisma from '@/lib/prisma';
+import { ComplaintStatus, PriorityLevel, EvidenceStage, UserRole } from '@prisma/client';
+
 export interface ComplaintCategory {
   id: string;
   name: string;
-  description?: string;
-  departmentId?: string;
+  description: string;
+  departmentId: string;
+  icon?: string;
 }
 
 export interface ComplaintLocation {
   address?: string;
-  latitude?: number;
-  longitude?: number;
+  latitude: number;
+  longitude: number;
 }
 
 export interface ComplaintEvidence {
   id: string;
   imageUrl: string;
-  stage: 'BEFORE' | 'DURING' | 'AFTER';
+  stage?: 'BEFORE' | 'DURING' | 'AFTER';
   uploadedAt: string;
 }
 
@@ -23,7 +27,9 @@ export interface StatusHistoryItem {
   fromStatus?: string;
   toStatus: string;
   changedAt: string;
-  changedByUser?: { name: string };
+  changedByUser?: {
+    name: string;
+  };
   notes?: string;
 }
 
@@ -49,16 +55,7 @@ export interface Complaint {
   ticketId: string;
   title: string;
   description: string;
-  status:
-    | 'SUBMITTED'
-    | 'AI_PROCESSING'
-    | 'PENDING_DEPT_REVIEW'
-    | 'ASSIGNED'
-    | 'IN_PROGRESS'
-    | 'RESOLVED'
-    | 'CLOSED'
-    | 'REJECTED'
-    | 'DUPLICATE';
+  status: 'SUBMITTED' | 'AI_PROCESSING' | 'PENDING_DEPT_REVIEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED' | 'REJECTED' | 'DUPLICATE';
   priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   categoryId?: string;
   category?: ComplaintCategory | null;
@@ -66,26 +63,29 @@ export interface Complaint {
   originalCategory?: ComplaintCategory | null;
   departmentId?: string;
   department?: { id: string; name: string } | null;
+  aiRecommendedDepartmentId?: string;
+  aiRecommendedDepartment?: { id: string; name: string } | null;
   location?: ComplaintLocation | null;
   evidence: ComplaintEvidence[];
   statusHistory: StatusHistoryItem[];
+  feedback?: ComplaintFeedback | null;
   citizenId: string;
   citizenName?: string;
   citizenMobile?: string;
+  assignedFieldWorkerId?: string | null;
+  assignedFieldWorker?: { id: string; name: string } | null;
+  readyForReview?: boolean;
+  fieldWorkerRemarks?: string;
   isVoiceInput?: boolean;
   voiceTranscript?: string;
   reopenCount?: number;
   reopenedAt?: string;
   reopenReason?: string;
   resolutionNotes?: string;
-  feedback?: ComplaintFeedback;
-  assignedFieldWorkerId?: string;
-  assignedFieldWorker?: { id: string; name: string; email?: string; mobileNumber?: string } | null;
-  readyForReview?: boolean;
-  fieldWorkerRemarks?: string;
-  assignedAt?: string;
   createdAt: string;
   updatedAt: string;
+  resolvedAt?: string;
+  closedAt?: string;
   aiPrediction?: {
     rawResponse?: {
       recommendation?: string;
@@ -97,214 +97,44 @@ export interface Complaint {
 export const DEFAULT_CATEGORIES: ComplaintCategory[] = [
   {
     id: 'cat-sanitation',
-    name: 'Sanitation & Waste Management',
-    description: 'Uncollected garbage, overflow bins, public littering',
-    departmentId: 'dept-sanitation',
+    name: 'Sanitation & Solid Waste',
+    description: 'Garbage collection, street cleaning, overflow dumpsters, waste disposal.',
+    departmentId: 'dept_solid_waste',
+    icon: 'Trash2',
   },
   {
     id: 'cat-roads',
     name: 'Roads & Infrastructure',
-    description: 'Potholes, broken asphalt, damaged footpaths, open manholes',
-    departmentId: 'dept-roads',
+    description: 'Potholes, broken footpaths, damaged bridges, missing manhole covers.',
+    departmentId: 'dept_roads_infra',
+    icon: 'Construction',
   },
   {
     id: 'cat-water',
-    name: 'Water Supply & Sewerage',
-    description: 'Water pipe leaks, low pressure, dirty water, sewer overflow',
-    departmentId: 'dept-water',
+    name: 'Water Supply & Sanitation',
+    description: 'Pipeline leaks, contaminated water supply, low pressure, drainage blockage.',
+    departmentId: 'dept_water_sanitation',
+    icon: 'Droplets',
   },
   {
     id: 'cat-electricity',
-    name: 'Electricity & Street Lighting',
-    description: 'Faulty streetlights, hanging wires, transformer sparks',
-    departmentId: 'dept-electrical',
-  },
-  {
-    id: 'cat-health',
-    name: 'Public Health & Stray Animals',
-    description: 'Stagnant water breeding mosquitoes, stray animal control',
-    departmentId: 'dept-health',
-  },
-  {
-    id: 'cat-safety',
-    name: 'Traffic & Public Safety',
-    description: 'Broken traffic signals, illegal parking, hazard barriers',
-    departmentId: 'dept-traffic',
+    name: 'Electricity & Streetlights',
+    description: 'Non-functional streetlights, dangerous loose wiring, transformer spark.',
+    departmentId: 'dept_electricity_lights',
+    icon: 'Zap',
   },
 ];
 
-const INITIAL_COMPLAINTS: Complaint[] = [
-  {
-    id: 'cmp-sample-1',
-    ticketId: 'INC-2026-0901-1001',
-    title: 'Severe pothole causing traffic congestion near Central Metro',
-    description: 'A deep 2-foot pothole has opened up on Main Arterial Road near Metro Gate 3. Vehicles are swerving into oncoming traffic to avoid it, causing hazards.',
-    status: 'IN_PROGRESS',
-    priority: 'HIGH',
-    categoryId: 'cat-roads',
-    category: DEFAULT_CATEGORIES[1],
-    originalCategoryId: 'cat-roads',
-    originalCategory: DEFAULT_CATEGORIES[1],
-    department: { id: 'dept-roads', name: 'Roads & Infrastructure Department' },
-    location: {
-      address: 'Main Arterial Road, Near Central Metro Gate 3',
-      latitude: 28.6139,
-      longitude: 77.209,
-    },
-    evidence: [
-      {
-        id: 'ev-1',
-        imageUrl: 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=600',
-        stage: 'BEFORE',
-        uploadedAt: new Date(Date.now() - 86400000).toISOString(),
-      },
-    ],
-    statusHistory: [
-      {
-        id: 'sh-1',
-        toStatus: 'SUBMITTED',
-        changedAt: new Date(Date.now() - 86400000).toISOString(),
-      },
-      {
-        id: 'sh-2',
-        fromStatus: 'SUBMITTED',
-        toStatus: 'ASSIGNED',
-        changedAt: new Date(Date.now() - 43200000).toISOString(),
-        changedByUser: { name: 'Super Admin' },
-      },
-      {
-        id: 'sh-3',
-        fromStatus: 'ASSIGNED',
-        toStatus: 'IN_PROGRESS',
-        changedAt: new Date(Date.now() - 21600000).toISOString(),
-        changedByUser: { name: 'Officer Sharma' },
-      },
-    ],
-    citizenId: 'citizen_9876543210',
-    citizenName: 'Bajrang Kumar',
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 21600000).toISOString(),
-    aiPrediction: {
-      rawResponse: {
-        recommendation: 'Categorized under Roads & Infrastructure. High priority due to traffic safety hazard.',
-        statusMessage: 'AI Triage completed. Assigned to Roads Department.',
-      },
-    },
-  },
-  {
-    id: 'cmp-resolved-demo',
-    ticketId: 'INC-2026-0902-8821',
-    title: 'Water Pipe Leakage Fixed on Sector 14 Main Road',
-    description: 'Clean drinking water was overflowing onto the footpath near Civic Hospital entrance.',
-    status: 'RESOLVED',
-    priority: 'MEDIUM',
-    categoryId: 'cat-water',
-    category: DEFAULT_CATEGORIES[2],
-    originalCategoryId: 'cat-water',
-    originalCategory: DEFAULT_CATEGORIES[2],
-    department: { id: 'dept-water', name: 'Water Supply & Sewerage Department' },
-    location: { address: 'Sector 14 Main Road, near Civic Hospital', latitude: 28.614, longitude: 77.21 },
-    evidence: [],
-    statusHistory: [
-      { id: 'sh-res-1', toStatus: 'SUBMITTED', changedAt: new Date(Date.now() - 172800000).toISOString() },
-      { id: 'sh-res-2', fromStatus: 'SUBMITTED', toStatus: 'RESOLVED', changedAt: new Date(Date.now() - 3600000).toISOString(), changedByUser: { name: 'Officer Verma' }, notes: 'Pipe patch repaired and pressure tested.' },
-    ],
-    citizenId: 'citizen_9876543210',
-    citizenName: 'Bajrang Kumar',
-    createdAt: new Date(Date.now() - 172800000).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000).toISOString(),
-  },
-  {
-    id: 'cmp-rejected-demo',
-    ticketId: 'INC-2026-0902-9904',
-    title: 'Garbage Dumped in Private Residential Compound',
-    description: 'Requesting municipal staff to clean garbage dumped inside private building courtyard.',
-    status: 'REJECTED',
-    priority: 'LOW',
-    categoryId: 'cat-sanitation',
-    category: DEFAULT_CATEGORIES[0],
-    originalCategoryId: 'cat-roads',
-    originalCategory: DEFAULT_CATEGORIES[1],
-    department: { id: 'dept-sanitation', name: 'Sanitation & Waste Management Department' },
-    location: { address: 'Plot 42, Private Colony, Sector 14', latitude: 28.615, longitude: 77.211 },
-    evidence: [],
-    statusHistory: [
-      { id: 'sh-rej-1', toStatus: 'SUBMITTED', changedAt: new Date(Date.now() - 259200000).toISOString() },
-      { id: 'sh-rej-2', fromStatus: 'SUBMITTED', toStatus: 'REJECTED', changedAt: new Date(Date.now() - 86400000).toISOString(), changedByUser: { name: 'Dept Head Sharma' }, notes: 'Municipal sanitation services only cover public property. Private courtyard maintenance is the responsibility of the building society.' },
-    ],
-    resolutionNotes: 'Municipal sanitation services cover public roads and municipal bins only. Private residential property cleanup must be handled by private management.',
-    citizenId: 'citizen_9876543210',
-    citizenName: 'Bajrang Kumar',
-    createdAt: new Date(Date.now() - 259200000).toISOString(),
-    updatedAt: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    id: 'cmp-field-assigned',
-    ticketId: 'INC-2026-0902-7711',
-    title: 'Broken Traffic Light Wiring at Ring Road Crossing',
-    description: 'Traffic signal control box door damaged. Wires exposed causing traffic light disruption.',
-    status: 'ASSIGNED',
-    priority: 'HIGH',
-    categoryId: 'cat-safety',
-    category: DEFAULT_CATEGORIES[3],
-    department: { id: 'dept-traffic', name: 'Traffic & Public Safety Department' },
-    location: { address: 'Ring Road Crossing, Near Gate 4', latitude: 28.616, longitude: 77.212 },
-    evidence: [
-      { id: 'ev-fw-1', imageUrl: 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=600', stage: 'BEFORE', uploadedAt: new Date(Date.now() - 43200000).toISOString() }
-    ],
-    statusHistory: [
-      { id: 'sh-fw-1', toStatus: 'SUBMITTED', changedAt: new Date(Date.now() - 86400000).toISOString() },
-      { id: 'sh-fw-2', fromStatus: 'SUBMITTED', toStatus: 'ASSIGNED', changedAt: new Date(Date.now() - 43200000).toISOString(), changedByUser: { name: 'Officer Sharma' } }
-    ],
-    assignedFieldWorkerId: 'fw-demo-1',
-    assignedFieldWorker: { id: 'fw-demo-1', name: 'Ramesh Kumar' },
-    citizenId: 'citizen_9876543210',
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 43200000).toISOString(),
-  },
-  {
-    id: 'cmp-field-review-ready',
-    ticketId: 'INC-2026-0902-7722',
-    title: 'Severe Asphalt Pothole Repair on Central Flyover',
-    description: 'Large 3-foot pothole on northbound lane repaired by field crew with cold-mix asphalt.',
-    status: 'IN_PROGRESS',
-    priority: 'CRITICAL',
-    categoryId: 'cat-roads',
-    category: DEFAULT_CATEGORIES[1],
-    department: { id: 'dept-roads', name: 'Roads & Infrastructure Department' },
-    location: { address: 'Central Flyover Northbound Lane', latitude: 28.617, longitude: 77.213 },
-    evidence: [
-      { id: 'ev-fw-b1', imageUrl: 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=600', stage: 'BEFORE', uploadedAt: new Date(Date.now() - 86400000).toISOString() },
-      { id: 'ev-fw-a1', imageUrl: 'https://images.unsplash.com/photo-1584467735871-8e85353a8413?w=600', stage: 'AFTER', uploadedAt: new Date(Date.now() - 7200000).toISOString() }
-    ],
-    statusHistory: [
-      { id: 'sh-fw-r1', toStatus: 'SUBMITTED', changedAt: new Date(Date.now() - 172800000).toISOString() },
-      { id: 'sh-fw-r2', fromStatus: 'SUBMITTED', toStatus: 'IN_PROGRESS', changedAt: new Date(Date.now() - 86400000).toISOString(), changedByUser: { name: 'Officer Sharma' } }
-    ],
-    assignedFieldWorkerId: 'fw-demo-1',
-    assignedFieldWorker: { id: 'fw-demo-1', name: 'Ramesh Kumar' },
-    readyForReview: true,
-    fieldWorkerRemarks: 'Pothole patch sealed with cold-mix asphalt and steam roller compacted. Traffic lane reopened safely.',
-    citizenId: 'citizen_9876543210',
-    createdAt: new Date(Date.now() - 172800000).toISOString(),
-    updatedAt: new Date(Date.now() - 7200000).toISOString(),
-  },
-];
-
-const globalForComplaints = global as unknown as {
-  complaintsStore: Complaint[];
-  categoriesStore: ComplaintCategory[];
-};
-
-export const complaintsStore: Complaint[] =
-  globalForComplaints.complaintsStore || [...INITIAL_COMPLAINTS];
-
-export const categoriesStore: ComplaintCategory[] =
-  globalForComplaints.categoriesStore || [...DEFAULT_CATEGORIES];
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForComplaints.complaintsStore = complaintsStore;
-  globalForComplaints.categoriesStore = categoriesStore;
+export async function listCategories(): Promise<ComplaintCategory[]> {
+  const cats = await prisma.category.findMany();
+  if (cats.length === 0) return DEFAULT_CATEGORIES;
+  return cats.map((c) => ({
+    id: c.id,
+    name: c.name,
+    description: c.description,
+    departmentId: c.departmentId,
+    icon: DEFAULT_CATEGORIES.find((d) => d.id === c.id)?.icon || 'FileText',
+  }));
 }
 
 export function generateTicketId(): string {
@@ -313,12 +143,147 @@ export function generateTicketId(): string {
   return `INC-${dateStr}-${randomNum}`;
 }
 
+const DEFAULT_INCLUDE = {
+  citizen: true,
+  category: true,
+  department: true,
+  aiRecommendedDepartment: true,
+  assignedFieldWorker: true,
+  location: true,
+  images: true,
+  evidence: true,
+  statusHistory: {
+    include: {
+      changedByUser: true,
+    },
+    orderBy: { changedAt: 'asc' as const },
+  },
+  feedback: true,
+  aiPrediction: true,
+};
+
+function formatComplaint(raw: any): Complaint {
+  const evidenceList: ComplaintEvidence[] = [];
+
+  // Include images uploaded by citizen
+  if (Array.isArray(raw.images)) {
+    raw.images.forEach((img: any) => {
+      evidenceList.push({
+        id: img.id,
+        imageUrl: img.imageUrl,
+        stage: 'BEFORE',
+        uploadedAt: img.uploadedAt instanceof Date ? img.uploadedAt.toISOString() : new Date(img.uploadedAt).toISOString(),
+      });
+    });
+  }
+
+  // Include repair evidence uploaded by field worker
+  if (Array.isArray(raw.evidence)) {
+    raw.evidence.forEach((ev: any) => {
+      evidenceList.push({
+        id: ev.id,
+        imageUrl: ev.imageUrl,
+        stage: ev.stage,
+        uploadedAt: ev.uploadedAt instanceof Date ? ev.uploadedAt.toISOString() : new Date(ev.uploadedAt).toISOString(),
+      });
+    });
+  }
+
+  const statusHistory: StatusHistoryItem[] = Array.isArray(raw.statusHistory)
+    ? raw.statusHistory.map((sh: any) => ({
+        id: sh.id,
+        fromStatus: sh.fromStatus || undefined,
+        toStatus: sh.toStatus,
+        changedAt: sh.changedAt instanceof Date ? sh.changedAt.toISOString() : new Date(sh.changedAt).toISOString(),
+        changedByUser: sh.changedByUser ? { name: sh.changedByUser.name } : undefined,
+        notes: sh.notes || undefined,
+      }))
+    : [];
+
+  const feedback: ComplaintFeedback | null = raw.feedback
+    ? {
+        id: raw.feedback.id,
+        rating: raw.feedback.rating,
+        comment: raw.feedback.comment || undefined,
+        createdAt: raw.feedback.createdAt instanceof Date ? raw.feedback.createdAt.toISOString() : new Date(raw.feedback.createdAt).toISOString(),
+      }
+    : null;
+
+  return {
+    id: raw.id,
+    ticketId: raw.ticketId,
+    title: raw.title,
+    description: raw.description,
+    status: raw.status,
+    priority: raw.priority || 'MEDIUM',
+    categoryId: raw.categoryId || undefined,
+    category: raw.category
+      ? {
+          id: raw.category.id,
+          name: raw.category.name,
+          description: raw.category.description,
+          departmentId: raw.category.departmentId,
+          icon: DEFAULT_CATEGORIES.find((d) => d.id === raw.category.id)?.icon || 'FileText',
+        }
+      : null,
+    originalCategoryId: raw.originalCategoryId || undefined,
+    originalCategory: raw.originalCategoryId
+      ? DEFAULT_CATEGORIES.find((d) => d.id === raw.originalCategoryId) || null
+      : null,
+    departmentId: raw.departmentId || undefined,
+    department: raw.department ? { id: raw.department.id, name: raw.department.name } : null,
+    aiRecommendedDepartmentId: raw.aiRecommendedDepartmentId || undefined,
+    aiRecommendedDepartment: raw.aiRecommendedDepartment
+      ? { id: raw.aiRecommendedDepartment.id, name: raw.aiRecommendedDepartment.name }
+      : null,
+    location: raw.location
+      ? {
+          latitude: raw.location.latitude,
+          longitude: raw.location.longitude,
+          address: raw.location.address || undefined,
+        }
+      : null,
+    evidence: evidenceList,
+    statusHistory,
+    feedback,
+    citizenId: raw.citizenId,
+    citizenName: raw.citizen?.name || 'Citizen User',
+    citizenMobile: raw.citizen?.mobileNumber || undefined,
+    assignedFieldWorkerId: raw.assignedFieldWorkerId || null,
+    assignedFieldWorker: raw.assignedFieldWorker
+      ? { id: raw.assignedFieldWorker.id, name: raw.assignedFieldWorker.name }
+      : null,
+    readyForReview: Boolean(raw.readyForReview),
+    fieldWorkerRemarks: raw.fieldWorkerRemarks || undefined,
+    isVoiceInput: Boolean(raw.isVoiceInput),
+    voiceTranscript: raw.voiceTranscript || undefined,
+    reopenCount: raw.reopenCount || 0,
+    reopenedAt: raw.reopenedAt ? (raw.reopenedAt instanceof Date ? raw.reopenedAt.toISOString() : new Date(raw.reopenedAt).toISOString()) : undefined,
+    reopenReason: raw.reopenReason || undefined,
+    resolutionNotes: raw.resolutionNotes || undefined,
+    createdAt: raw.createdAt instanceof Date ? raw.createdAt.toISOString() : new Date(raw.createdAt).toISOString(),
+    updatedAt: raw.updatedAt instanceof Date ? raw.updatedAt.toISOString() : new Date(raw.updatedAt).toISOString(),
+    resolvedAt: raw.resolvedAt ? (raw.resolvedAt instanceof Date ? raw.resolvedAt.toISOString() : new Date(raw.resolvedAt).toISOString()) : undefined,
+    closedAt: raw.closedAt ? (raw.closedAt instanceof Date ? raw.closedAt.toISOString() : new Date(raw.closedAt).toISOString()) : undefined,
+    aiPrediction: raw.aiPrediction
+      ? {
+          rawResponse: raw.aiPrediction.rawResponse as any,
+        }
+      : {
+          rawResponse: {
+            recommendation: `Automated AI Triage assigned issue. Priority evaluated as ${raw.priority || 'MEDIUM'}.`,
+            statusMessage: 'AI Triage completed successfully.',
+          },
+        },
+  };
+}
+
 // -----------------------------------------------------------------------------
-// DUPLICATE DETECTION (Haversine distance + Jaccard text similarity)
+// DUPLICATE DETECTION
 // -----------------------------------------------------------------------------
 
 function calculateHaversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371; // Earth radius in km
+  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
   const a =
@@ -351,16 +316,19 @@ function calculateTextSimilarity(text1: string, text2: string): number {
   return union === 0 ? 0 : intersection / union;
 }
 
-export function checkDuplicateComplaints(input: {
+export async function checkDuplicateComplaints(input: {
   title: string;
   description: string;
   latitude?: number | null;
   longitude?: number | null;
-}): { matched: boolean; potentialDuplicates: PotentialDuplicate[] } {
+}): Promise<{ matched: boolean; potentialDuplicates: PotentialDuplicate[] }> {
   const potentialDuplicates: PotentialDuplicate[] = [];
-  const activeComplaints = complaintsStore.filter(
-    (c) => !['CLOSED', 'REJECTED', 'RESOLVED'].includes(c.status),
-  );
+  const activeComplaints = await prisma.complaint.findMany({
+    where: {
+      status: { notIn: [ComplaintStatus.CLOSED, ComplaintStatus.REJECTED, ComplaintStatus.RESOLVED] },
+    },
+    include: { location: true },
+  });
 
   for (const comp of activeComplaints) {
     const textSim = calculateTextSimilarity(
@@ -383,9 +351,6 @@ export function checkDuplicateComplaints(input: {
       );
     }
 
-    // Similarity threshold rules:
-    // 1) Text similarity >= 0.35 AND GPS distance <= 0.5 km (500 meters)
-    // 2) OR High text similarity >= 0.65 anywhere
     const isGeoNear = geoDistanceKm !== null && geoDistanceKm <= 0.5;
     let score = 0;
 
@@ -403,17 +368,16 @@ export function checkDuplicateComplaints(input: {
         description: comp.description,
         address: comp.location?.address ?? undefined,
         similarityScore: Math.round(score * 100) / 100,
-        createdAt: comp.createdAt,
+        createdAt: comp.createdAt.toISOString(),
       });
     }
   }
 
-  // Sort by highest similarity score
   potentialDuplicates.sort((a, b) => b.similarityScore - a.similarityScore);
 
   return {
     matched: potentialDuplicates.length > 0,
-    potentialDuplicates: potentialDuplicates.slice(0, 3), // Return top 3 matches
+    potentialDuplicates: potentialDuplicates.slice(0, 3),
   };
 }
 
@@ -421,7 +385,7 @@ export function checkDuplicateComplaints(input: {
 // CREATE COMPLAINT
 // -----------------------------------------------------------------------------
 
-export function createComplaint(data: {
+export async function createComplaint(data: {
   title: string;
   description: string;
   categoryId?: string;
@@ -431,92 +395,116 @@ export function createComplaint(data: {
   citizenMobile?: string;
   isVoiceInput?: boolean;
   voiceTranscript?: string;
-}): Complaint {
-  const id = `cmp-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+}): Promise<Complaint> {
   const ticketId = generateTicketId();
 
-  // Determine category
-  let category: ComplaintCategory | null = null;
-  if (data.categoryId) {
-    category = categoriesStore.find((c) => c.id === data.categoryId) || null;
-  }
-
-  // Gemini AI Auto Triage Rule (Fallback heuristic if category omitted)
-  if (!category) {
+  let categoryId = data.categoryId;
+  if (!categoryId) {
     const text = (data.title + ' ' + data.description).toLowerCase();
     if (text.includes('garbage') || text.includes('waste') || text.includes('clean') || text.includes('trash')) {
-      category = categoriesStore.find((c) => c.id === 'cat-sanitation') || DEFAULT_CATEGORIES[0];
+      categoryId = 'cat-sanitation';
     } else if (text.includes('road') || text.includes('pothole') || text.includes('path') || text.includes('bridge')) {
-      category = categoriesStore.find((c) => c.id === 'cat-roads') || DEFAULT_CATEGORIES[1];
+      categoryId = 'cat-roads';
     } else if (text.includes('water') || text.includes('leak') || text.includes('sewer') || text.includes('drain')) {
-      category = categoriesStore.find((c) => c.id === 'cat-water') || DEFAULT_CATEGORIES[2];
+      categoryId = 'cat-water';
     } else if (text.includes('light') || text.includes('wire') || text.includes('electric') || text.includes('power')) {
-      category = categoriesStore.find((c) => c.id === 'cat-electricity') || DEFAULT_CATEGORIES[3];
+      categoryId = 'cat-electricity';
     } else {
-      category = DEFAULT_CATEGORIES[0];
+      categoryId = 'cat-sanitation';
     }
   }
 
+  // Ensure category exists
+  const targetCategory = await prisma.category.findUnique({ where: { id: categoryId } });
+  const finalCategoryId = targetCategory ? targetCategory.id : (await prisma.category.findFirst())?.id || null;
+
   // AI Priority Heuristic
   const descLower = data.description.toLowerCase();
-  let priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' = 'MEDIUM';
+  let priority: PriorityLevel = PriorityLevel.MEDIUM;
   if (descLower.includes('danger') || descLower.includes('hazard') || descLower.includes('emergency') || descLower.includes('fire')) {
-    priority = 'CRITICAL';
+    priority = PriorityLevel.CRITICAL;
   } else if (descLower.includes('severe') || descLower.includes('urgent') || descLower.includes('block')) {
-    priority = 'HIGH';
+    priority = PriorityLevel.HIGH;
   }
 
-  const now = new Date().toISOString();
-
-  const newComplaint: Complaint = {
-    id,
-    ticketId,
-    title: data.title,
-    description: data.description,
-    status: 'SUBMITTED',
-    priority,
-    categoryId: category?.id,
-    category,
-    originalCategoryId: data.categoryId || category?.id,
-    originalCategory: category,
-    location: data.location || null,
-    evidence: [],
-    statusHistory: [
-      {
-        id: `sh-${Date.now()}`,
-        toStatus: 'SUBMITTED',
-        changedAt: now,
+  // Ensure citizen user exists
+  let citizen = await prisma.user.findUnique({ where: { id: data.citizenId } });
+  if (!citizen) {
+    citizen = await prisma.user.create({
+      data: {
+        id: data.citizenId,
+        name: data.citizenName || 'Citizen User',
+        mobileNumber: data.citizenMobile || undefined,
+        role: UserRole.CITIZEN,
+        authProvider: 'MOBILE_OTP',
+        isAuthorized: true,
       },
-    ],
-    citizenId: data.citizenId,
-    citizenName: data.citizenName || 'Citizen User',
-    citizenMobile: data.citizenMobile,
-    isVoiceInput: Boolean(data.isVoiceInput),
-    voiceTranscript: data.voiceTranscript || undefined,
-    reopenCount: 0,
-    createdAt: now,
-    updatedAt: now,
-    aiPrediction: {
-      rawResponse: {
-        recommendation: `Automated AI Triage assigned issue to ${category?.name || 'Municipal Services'}. Priority evaluated as ${priority}.`,
-        statusMessage: 'AI Triage completed successfully.',
+    });
+  }
+
+  const created = await prisma.complaint.create({
+    data: {
+      ticketId,
+      title: data.title,
+      description: data.description,
+      status: ComplaintStatus.SUBMITTED,
+      priority,
+      citizenId: citizen.id,
+      categoryId: finalCategoryId,
+      originalCategoryId: finalCategoryId,
+      departmentId: targetCategory?.departmentId || undefined,
+      isVoiceInput: Boolean(data.isVoiceInput),
+      voiceTranscript: data.voiceTranscript || undefined,
+      location: data.location
+        ? {
+            create: {
+              latitude: data.location.latitude,
+              longitude: data.location.longitude,
+              address: data.location.address || undefined,
+            },
+          }
+        : undefined,
+      statusHistory: {
+        create: {
+          toStatus: ComplaintStatus.SUBMITTED,
+          changedByUserId: citizen.id,
+        },
+      },
+      aiPrediction: {
+        create: {
+          suggestedCategoryId: finalCategoryId || undefined,
+          suggestedDepartmentId: targetCategory?.departmentId || undefined,
+          suggestedPriority: priority,
+          confidenceScore: 0.92,
+          rawResponse: {
+            recommendation: `Automated AI Triage assigned issue. Priority evaluated as ${priority}.`,
+            statusMessage: 'AI Triage completed successfully.',
+          },
+        },
       },
     },
-  };
+    include: DEFAULT_INCLUDE,
+  });
 
-  complaintsStore.unshift(newComplaint);
-  return newComplaint;
+  return formatComplaint(created);
 }
 
-export function getComplaintById(id: string): Complaint | null {
-  return complaintsStore.find((c) => c.id === id || c.ticketId === id) || null;
+export async function getComplaintById(id: string): Promise<Complaint | null> {
+  const raw = await prisma.complaint.findFirst({
+    where: {
+      OR: [{ id }, { ticketId: id }],
+    },
+    include: DEFAULT_INCLUDE,
+  });
+
+  return raw ? formatComplaint(raw) : null;
 }
 
 // -----------------------------------------------------------------------------
-// LIST COMPLAINTS (with Search + Date Range Filters)
+// LIST COMPLAINTS
 // -----------------------------------------------------------------------------
 
-export function listComplaints(filters?: {
+export async function listComplaints(filters?: {
   citizenId?: string;
   status?: string;
   categoryId?: string;
@@ -525,56 +513,59 @@ export function listComplaints(filters?: {
   toDate?: string;
   page?: number;
   limit?: number;
-}): { data: Complaint[]; meta: { total: number; page: number; limit: number; totalPages: number } } {
-  let list = [...complaintsStore];
+}): Promise<{ data: Complaint[]; meta: { total: number; page: number; limit: number; totalPages: number } }> {
+  const where: any = {};
 
   if (filters?.citizenId) {
-    list = list.filter((c) => c.citizenId === filters.citizenId);
+    where.citizenId = filters.citizenId;
   }
 
   if (filters?.status && filters.status !== 'ALL') {
-    list = list.filter((c) => c.status === filters.status);
+    where.status = filters.status as ComplaintStatus;
   }
 
   if (filters?.categoryId) {
-    list = list.filter((c) => c.categoryId === filters.categoryId);
+    where.categoryId = filters.categoryId;
   }
 
   if (filters?.search) {
-    const q = filters.search.toLowerCase();
-    list = list.filter(
-      (c) =>
-        c.title.toLowerCase().includes(q) ||
-        c.description.toLowerCase().includes(q) ||
-        c.ticketId.toLowerCase().includes(q),
-    );
+    const q = filters.search.trim();
+    where.OR = [
+      { title: { contains: q, mode: 'insensitive' } },
+      { description: { contains: q, mode: 'insensitive' } },
+      { ticketId: { contains: q, mode: 'insensitive' } },
+    ];
   }
 
-  if (filters?.fromDate) {
-    const fromTime = new Date(filters.fromDate).getTime();
-    if (!isNaN(fromTime)) {
-      list = list.filter((c) => new Date(c.createdAt).getTime() >= fromTime);
+  if (filters?.fromDate || filters?.toDate) {
+    where.createdAt = {};
+    if (filters.fromDate) {
+      where.createdAt.gte = new Date(filters.fromDate);
     }
-  }
-
-  if (filters?.toDate) {
-    // End of selected day
-    const toTime = new Date(filters.toDate).setHours(23, 59, 59, 999);
-    if (!isNaN(toTime)) {
-      list = list.filter((c) => new Date(c.createdAt).getTime() <= toTime);
+    if (filters.toDate) {
+      where.createdAt.lte = new Date(new Date(filters.toDate).setHours(23, 59, 59, 999));
     }
   }
 
   const page = filters?.page || 1;
   const limit = filters?.limit || 10;
-  const total = list.length;
+  const skip = (page - 1) * limit;
+
+  const [total, rawList] = await Promise.all([
+    prisma.complaint.count({ where }),
+    prisma.complaint.findMany({
+      where,
+      include: DEFAULT_INCLUDE,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    }),
+  ]);
+
   const totalPages = Math.ceil(total / limit) || 1;
 
-  const start = (page - 1) * limit;
-  const paginatedData = list.slice(start, start + limit);
-
   return {
-    data: paginatedData,
+    data: rawList.map(formatComplaint),
     meta: {
       total,
       page,
@@ -584,34 +575,39 @@ export function listComplaints(filters?: {
   };
 }
 
-export function addEvidenceToComplaint(
+export async function addEvidenceToComplaint(
   complaintId: string,
   evidenceData: { imageUrl: string; stage?: 'BEFORE' | 'DURING' | 'AFTER' },
-): ComplaintEvidence | null {
-  const complaint = getComplaintById(complaintId);
+): Promise<ComplaintEvidence | null> {
+  const complaint = await getComplaintById(complaintId);
   if (!complaint) return null;
 
-  const newEv: ComplaintEvidence = {
-    id: `ev-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-    imageUrl: evidenceData.imageUrl,
-    stage: evidenceData.stage || 'BEFORE',
-    uploadedAt: new Date().toISOString(),
-  };
+  const newEv = await prisma.evidence.create({
+    data: {
+      complaintId: complaint.id,
+      stage: (evidenceData.stage as EvidenceStage) || EvidenceStage.BEFORE,
+      imageUrl: evidenceData.imageUrl,
+      uploadedByUserId: complaint.citizenId,
+    },
+  });
 
-  complaint.evidence.push(newEv);
-  complaint.updatedAt = new Date().toISOString();
-  return newEv;
+  return {
+    id: newEv.id,
+    imageUrl: newEv.imageUrl,
+    stage: newEv.stage,
+    uploadedAt: newEv.uploadedAt.toISOString(),
+  };
 }
 
 // -----------------------------------------------------------------------------
-// POST-RESOLUTION ACTIONS (Mark Satisfactory, Reopen, Feedback)
+// POST-RESOLUTION ACTIONS
 // -----------------------------------------------------------------------------
 
-export function markComplaintSatisfactory(
+export async function markComplaintSatisfactory(
   id: string,
   citizenId: string,
-): { ok: boolean; status: number; message: string; complaint?: Complaint } {
-  const complaint = getComplaintById(id);
+): Promise<{ ok: boolean; status: number; message: string; complaint?: Complaint }> {
+  const complaint = await getComplaintById(id);
   if (!complaint) {
     return { ok: false, status: 404, message: 'Complaint ticket not found.' };
   }
@@ -624,28 +620,32 @@ export function markComplaintSatisfactory(
     return { ok: false, status: 400, message: 'Only RESOLVED complaints can be marked satisfactory.' };
   }
 
-  const now = new Date().toISOString();
-  complaint.status = 'CLOSED';
-  complaint.updatedAt = now;
-
-  complaint.statusHistory.push({
-    id: `sh-${Date.now()}`,
-    fromStatus: 'RESOLVED',
-    toStatus: 'CLOSED',
-    changedAt: now,
-    changedByUser: { name: 'Citizen (Satisfactory Resolution)' },
-    notes: 'Citizen confirmed resolution is satisfactory.',
+  const updated = await prisma.complaint.update({
+    where: { id: complaint.id },
+    data: {
+      status: ComplaintStatus.CLOSED,
+      closedAt: new Date(),
+      statusHistory: {
+        create: {
+          fromStatus: ComplaintStatus.RESOLVED,
+          toStatus: ComplaintStatus.CLOSED,
+          changedByUserId: citizenId,
+          notes: 'Citizen confirmed resolution is satisfactory.',
+        },
+      },
+    },
+    include: DEFAULT_INCLUDE,
   });
 
-  return { ok: true, status: 200, message: 'Complaint closed successfully.', complaint };
+  return { ok: true, status: 200, message: 'Complaint closed successfully.', complaint: formatComplaint(updated) };
 }
 
-export function reopenComplaint(
+export async function reopenComplaint(
   id: string,
   citizenId: string,
   reason: string,
-): { ok: boolean; status: number; message: string; complaint?: Complaint } {
-  const complaint = getComplaintById(id);
+): Promise<{ ok: boolean; status: number; message: string; complaint?: Complaint }> {
+  const complaint = await getComplaintById(id);
   if (!complaint) {
     return { ok: false, status: 404, message: 'Complaint ticket not found.' };
   }
@@ -662,34 +662,37 @@ export function reopenComplaint(
     return { ok: false, status: 400, message: 'A detailed reason (min 10 characters) is required to reopen.' };
   }
 
-  const now = new Date().toISOString();
-  const nextStatus = complaint.department ? 'IN_PROGRESS' : 'PENDING_DEPT_REVIEW';
+  const nextStatus = complaint.departmentId ? ComplaintStatus.IN_PROGRESS : ComplaintStatus.PENDING_DEPT_REVIEW;
 
-  complaint.status = nextStatus;
-  complaint.reopenCount = (complaint.reopenCount || 0) + 1;
-  complaint.reopenedAt = now;
-  complaint.reopenReason = reason.trim();
-  complaint.updatedAt = now;
-
-  complaint.statusHistory.push({
-    id: `sh-${Date.now()}`,
-    fromStatus: 'RESOLVED',
-    toStatus: nextStatus,
-    changedAt: now,
-    changedByUser: { name: 'Citizen (Reopened Ticket)' },
-    notes: `Citizen disputed resolution: "${reason.trim()}"`,
+  const updated = await prisma.complaint.update({
+    where: { id: complaint.id },
+    data: {
+      status: nextStatus,
+      reopenCount: { increment: 1 },
+      reopenedAt: new Date(),
+      reopenReason: reason.trim(),
+      statusHistory: {
+        create: {
+          fromStatus: ComplaintStatus.RESOLVED,
+          toStatus: nextStatus,
+          changedByUserId: citizenId,
+          notes: `Citizen disputed resolution: "${reason.trim()}"`,
+        },
+      },
+    },
+    include: DEFAULT_INCLUDE,
   });
 
-  return { ok: true, status: 200, message: 'Complaint reopened successfully.', complaint };
+  return { ok: true, status: 200, message: 'Complaint reopened successfully.', complaint: formatComplaint(updated) };
 }
 
-export function addFeedbackToComplaint(
+export async function addFeedbackToComplaint(
   id: string,
   citizenId: string,
   rating: number,
   comment?: string,
-): { ok: boolean; status: number; message: string; feedback?: ComplaintFeedback } {
-  const complaint = getComplaintById(id);
+): Promise<{ ok: boolean; status: number; message: string; feedback?: ComplaintFeedback }> {
+  const complaint = await getComplaintById(id);
   if (!complaint) {
     return { ok: false, status: 404, message: 'Complaint ticket not found.' };
   }
@@ -710,65 +713,81 @@ export function addFeedbackToComplaint(
     return { ok: false, status: 400, message: 'Rating must be an integer between 1 and 5.' };
   }
 
-  const newFeedback: ComplaintFeedback = {
-    id: `fb-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-    rating: Math.round(rating),
-    comment: comment?.trim() || undefined,
-    createdAt: new Date().toISOString(),
+  const created = await prisma.feedback.create({
+    data: {
+      complaintId: complaint.id,
+      citizenId,
+      rating: Math.round(rating),
+      comment: comment?.trim() || undefined,
+    },
+  });
+
+  return {
+    ok: true,
+    status: 200,
+    message: 'Feedback submitted successfully.',
+    feedback: {
+      id: created.id,
+      rating: created.rating,
+      comment: created.comment || undefined,
+      createdAt: created.createdAt.toISOString(),
+    },
   };
-
-  complaint.feedback = newFeedback;
-  complaint.updatedAt = new Date().toISOString();
-
-  return { ok: true, status: 200, message: 'Feedback submitted successfully.', feedback: newFeedback };
 }
 
 // -----------------------------------------------------------------------------
-// FIELD WORKER PORTAL STORE FUNCTIONS
+// FIELD WORKER STORE FUNCTIONS
 // -----------------------------------------------------------------------------
 
-export function listFieldWorkerComplaints(params: {
+export async function listFieldWorkerComplaints(params: {
   fieldWorkerId: string;
   status?: string;
   page?: number;
   limit?: number;
-}): {
+}): Promise<{
   data: Complaint[];
   meta: { total: number; page: number; limit: number; totalPages: number };
-} {
+}> {
   const { fieldWorkerId, status, page = 1, limit = 10 } = params;
 
-  let filtered = complaintsStore.filter(
-    (c) => c.assignedFieldWorkerId === fieldWorkerId,
-  );
+  const where: any = {
+    assignedFieldWorkerId: fieldWorkerId,
+  };
 
   if (status) {
     if (status === 'ACTIVE') {
-      filtered = filtered.filter((c) => ['ASSIGNED', 'IN_PROGRESS'].includes(c.status));
+      where.status = { in: [ComplaintStatus.ASSIGNED, ComplaintStatus.IN_PROGRESS] };
     } else {
-      filtered = filtered.filter((c) => c.status === status);
+      where.status = status as ComplaintStatus;
     }
   }
 
-  // Sort: ASSIGNED/IN_PROGRESS first, then newest created
-  filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const skip = (page - 1) * limit;
 
-  const total = filtered.length;
+  const [total, rawList] = await Promise.all([
+    prisma.complaint.count({ where }),
+    prisma.complaint.findMany({
+      where,
+      include: DEFAULT_INCLUDE,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    }),
+  ]);
+
   const totalPages = Math.ceil(total / limit) || 1;
-  const startIndex = (page - 1) * limit;
-  const paginatedData = filtered.slice(startIndex, startIndex + limit);
 
   return {
-    data: paginatedData,
+    data: rawList.map(formatComplaint),
     meta: { total, page, limit, totalPages },
   };
 }
 
-export function startFieldWorkerTask(
+export async function startFieldWorkerTask(
   complaintId: string,
   fieldWorkerId: string,
-): { ok: boolean; status: number; message: string; complaint?: Complaint } {
-  const complaint = getComplaintById(complaintId);
+): Promise<{ ok: boolean; status: number; message: string; complaint?: Complaint }> {
+  const complaint = await getComplaintById(complaintId);
   if (!complaint) {
     return { ok: false, status: 404, message: 'Complaint ticket not found.' };
   }
@@ -785,31 +804,33 @@ export function startFieldWorkerTask(
     };
   }
 
-  const now = new Date().toISOString();
-  const prevStatus = complaint.status;
-  complaint.status = 'IN_PROGRESS';
-  complaint.updatedAt = now;
-
-  complaint.statusHistory.push({
-    id: `sh-${Date.now()}`,
-    fromStatus: prevStatus,
-    toStatus: 'IN_PROGRESS',
-    changedAt: now,
-    changedByUser: { name: 'Field Worker' },
-    notes: 'Field worker initiated repair work on site.',
+  const updated = await prisma.complaint.update({
+    where: { id: complaint.id },
+    data: {
+      status: ComplaintStatus.IN_PROGRESS,
+      statusHistory: {
+        create: {
+          fromStatus: ComplaintStatus.ASSIGNED,
+          toStatus: ComplaintStatus.IN_PROGRESS,
+          changedByUserId: fieldWorkerId,
+          notes: 'Field worker initiated repair work on site.',
+        },
+      },
+    },
+    include: DEFAULT_INCLUDE,
   });
 
-  return { ok: true, status: 200, message: 'Work started successfully.', complaint };
+  return { ok: true, status: 200, message: 'Work started successfully.', complaint: formatComplaint(updated) };
 }
 
-export function addFieldWorkerEvidenceToComplaint(
+export async function addFieldWorkerEvidenceToComplaint(
   complaintId: string,
   fieldWorkerId: string,
   stage: 'BEFORE' | 'DURING' | 'AFTER',
   imageUrl: string,
   notes?: string,
-): { ok: boolean; status: number; message: string; evidence?: ComplaintEvidence } {
-  const complaint = getComplaintById(complaintId);
+): Promise<{ ok: boolean; status: number; message: string; evidence?: ComplaintEvidence }> {
+  const complaint = await getComplaintById(complaintId);
   if (!complaint) {
     return { ok: false, status: 404, message: 'Complaint ticket not found.' };
   }
@@ -822,7 +843,6 @@ export function addFieldWorkerEvidenceToComplaint(
     return { ok: false, status: 400, message: 'Image URL is required.' };
   }
 
-  // Sequence Guard: Cannot upload AFTER photo until at least one BEFORE photo exists
   if (stage === 'AFTER') {
     const hasBeforePhoto = complaint.evidence.some((e) => e.stage === 'BEFORE');
     if (!hasBeforePhoto) {
@@ -834,25 +854,35 @@ export function addFieldWorkerEvidenceToComplaint(
     }
   }
 
-  const newEvidence: ComplaintEvidence = {
-    id: `ev-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-    imageUrl: imageUrl.trim(),
-    stage,
-    uploadedAt: new Date().toISOString(),
+  const newEv = await prisma.evidence.create({
+    data: {
+      complaintId: complaint.id,
+      stage: stage as EvidenceStage,
+      imageUrl: imageUrl.trim(),
+      uploadedByUserId: fieldWorkerId,
+      notes: notes || undefined,
+    },
+  });
+
+  return {
+    ok: true,
+    status: 201,
+    message: `${stage} photo evidence uploaded successfully.`,
+    evidence: {
+      id: newEv.id,
+      imageUrl: newEv.imageUrl,
+      stage: newEv.stage,
+      uploadedAt: newEv.uploadedAt.toISOString(),
+    },
   };
-
-  complaint.evidence.push(newEvidence);
-  complaint.updatedAt = new Date().toISOString();
-
-  return { ok: true, status: 201, message: `${stage} photo evidence uploaded successfully.`, evidence: newEvidence };
 }
 
-export function submitFieldWorkerForReview(
+export async function submitFieldWorkerForReview(
   complaintId: string,
   fieldWorkerId: string,
   remarks: string,
-): { ok: boolean; status: number; message: string; complaint?: Complaint } {
-  const complaint = getComplaintById(complaintId);
+): Promise<{ ok: boolean; status: number; message: string; complaint?: Complaint }> {
+  const complaint = await getComplaintById(complaintId);
   if (!complaint) {
     return { ok: false, status: 404, message: 'Complaint ticket not found.' };
   }
@@ -865,7 +895,6 @@ export function submitFieldWorkerForReview(
     return { ok: false, status: 400, message: 'Completion remarks (min 5 characters) are required.' };
   }
 
-  // Guard: Require at least one BEFORE and one AFTER photo
   const hasBefore = complaint.evidence.some((e) => e.stage === 'BEFORE');
   const hasAfter = complaint.evidence.some((e) => e.stage === 'AFTER');
 
@@ -877,50 +906,55 @@ export function submitFieldWorkerForReview(
     };
   }
 
-  const now = new Date().toISOString();
-  complaint.readyForReview = true;
-  complaint.fieldWorkerRemarks = remarks.trim();
-  complaint.updatedAt = now;
-
-  complaint.statusHistory.push({
-    id: `sh-${Date.now()}`,
-    fromStatus: complaint.status,
-    toStatus: complaint.status,
-    changedAt: now,
-    changedByUser: { name: 'Field Worker' },
-    notes: `Field worker submitted work for review: "${remarks.trim()}"`,
+  const updated = await prisma.complaint.update({
+    where: { id: complaint.id },
+    data: {
+      readyForReview: true,
+      fieldWorkerRemarks: remarks.trim(),
+      statusHistory: {
+        create: {
+          fromStatus: complaint.status as ComplaintStatus,
+          toStatus: complaint.status as ComplaintStatus,
+          changedByUserId: fieldWorkerId,
+          notes: `Field worker submitted work for review: "${remarks.trim()}"`,
+        },
+      },
+    },
+    include: DEFAULT_INCLUDE,
   });
 
-  return { ok: true, status: 200, message: 'Work submitted for officer review successfully.', complaint };
+  return { ok: true, status: 200, message: 'Work submitted for officer review successfully.', complaint: formatComplaint(updated) };
 }
 
-export function assignFieldWorkerToComplaint(
+export async function assignFieldWorkerToComplaint(
   complaintId: string,
   fieldWorkerId: string,
   fieldWorkerName: string,
   officerUserId: string,
-): { ok: boolean; status: number; message: string; complaint?: Complaint } {
-  const complaint = getComplaintById(complaintId);
+): Promise<{ ok: boolean; status: number; message: string; complaint?: Complaint }> {
+  const complaint = await getComplaintById(complaintId);
   if (!complaint) {
     return { ok: false, status: 404, message: 'Complaint ticket not found.' };
   }
 
-  const now = new Date().toISOString();
   const prevStatus = complaint.status;
-  complaint.assignedFieldWorkerId = fieldWorkerId;
-  complaint.assignedFieldWorker = { id: fieldWorkerId, name: fieldWorkerName };
-  complaint.status = 'ASSIGNED';
-  complaint.assignedAt = now;
-  complaint.updatedAt = now;
 
-  complaint.statusHistory.push({
-    id: `sh-${Date.now()}`,
-    fromStatus: prevStatus,
-    toStatus: 'ASSIGNED',
-    changedAt: now,
-    changedByUser: { name: 'Department Officer' },
-    notes: `Assigned field worker ${fieldWorkerName} to carry out repair work on site.`,
+  const updated = await prisma.complaint.update({
+    where: { id: complaint.id },
+    data: {
+      assignedFieldWorkerId: fieldWorkerId,
+      status: ComplaintStatus.ASSIGNED,
+      statusHistory: {
+        create: {
+          fromStatus: prevStatus as ComplaintStatus,
+          toStatus: ComplaintStatus.ASSIGNED,
+          changedByUserId: officerUserId,
+          notes: `Assigned field worker ${fieldWorkerName} to carry out repair work on site.`,
+        },
+      },
+    },
+    include: DEFAULT_INCLUDE,
   });
 
-  return { ok: true, status: 200, message: 'Field worker assigned successfully.', complaint };
+  return { ok: true, status: 200, message: 'Field worker assigned successfully.', complaint: formatComplaint(updated) };
 }

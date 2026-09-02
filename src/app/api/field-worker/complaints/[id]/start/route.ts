@@ -27,7 +27,7 @@ export async function POST(
       );
     }
 
-    const result = startComplaintWork(params.id, payload.sub, payload.name || 'Field Worker');
+    const result = await startComplaintWork(params.id, payload.sub, payload.name || 'Field Worker');
     if (!result.ok) {
       return NextResponse.json({ statusCode: result.status, message: result.message }, { status: result.status });
     }

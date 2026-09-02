@@ -4,10 +4,10 @@ import { reactivateStaff } from '@/services/staffService';
 
 // PATCH /api/admin/staff/[id]/reactivate
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = requireAdmin();
+  const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 
-  const result = reactivateStaff(params.id, auth.admin);
+  const result = await reactivateStaff(params.id, auth.admin);
   if (!result.ok) {
     return NextResponse.json({ message: result.message }, { status: result.status });
   }

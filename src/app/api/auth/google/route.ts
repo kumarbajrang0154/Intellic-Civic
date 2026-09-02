@@ -6,8 +6,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Google OAuth not configured' }, { status: 500 });
   }
 
-  // Build Google OAuth 2.0 authorization URL
-  const baseUrl = process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000';
+  // Build Google OAuth 2.0 authorization URL with sanitized base URL (strip trailing slashes)
+  const baseUrl = (process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000').replace(/\/+$/, '');
   const redirectUri = `${baseUrl}/api/auth/google/callback`;
 
   const params = new URLSearchParams({

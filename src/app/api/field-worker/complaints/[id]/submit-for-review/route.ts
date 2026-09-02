@@ -37,7 +37,7 @@ export async function POST(
       );
     }
 
-    const result = submitWorkForReview(
+    const result = await submitWorkForReview(
       params.id,
       payload.sub,
       remarks.trim(),

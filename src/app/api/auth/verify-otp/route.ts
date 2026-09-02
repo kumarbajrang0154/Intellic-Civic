@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const isValid = verifySavedOtp(cleanNumber, otp);
+    const isValid = await verifySavedOtp(cleanNumber, otp);
     if (!isValid) {
       return NextResponse.json(
         { statusCode: 401, message: 'Invalid or expired OTP code. Try 123456 or resend OTP.' },
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const profile = getOrCreateCitizenProfile(cleanNumber);
+    const profile = await getOrCreateCitizenProfile(cleanNumber);
     const userId = profile.id;
 
     const userPayload = {

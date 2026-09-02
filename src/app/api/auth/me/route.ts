@@ -19,7 +19,7 @@ export async function GET() {
     }
 
     if (payload.role === 'CITIZEN' && payload.mobileNumber) {
-      const profile = getOrCreateCitizenProfile(payload.mobileNumber);
+      const profile = await getOrCreateCitizenProfile(payload.mobileNumber);
       return NextResponse.json({
         user: {
           id: profile.id,
@@ -36,7 +36,7 @@ export async function GET() {
 
     // Check staff-dept-store for updated staff/admin info
     if (payload.email) {
-      const staffUser = getUserByEmail(payload.email);
+      const staffUser = await getUserByEmail(payload.email);
       if (staffUser) {
         return NextResponse.json({
           user: {

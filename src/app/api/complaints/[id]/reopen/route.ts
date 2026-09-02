@@ -29,12 +29,12 @@ export async function POST(
       return NextResponse.json({ statusCode: 400, message: validation.error }, { status: 400 });
     }
 
-    const result = reopenComplaint(params.id, payload.sub, validation.data!.reason);
+    const result = await reopenComplaint(params.id, payload.sub, validation.data!.reason);
     if (!result.ok) {
       return NextResponse.json({ statusCode: result.status, message: result.message }, { status: result.status });
     }
 
-    addAuditLog({
+    await addAuditLog({
       actorId: payload.sub,
       actorName: payload.name || 'Citizen User',
       action: 'COMPLAINT_REOPENED',

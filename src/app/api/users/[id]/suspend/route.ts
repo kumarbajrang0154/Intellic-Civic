@@ -9,7 +9,7 @@ export async function PATCH(
     const body = await req.json().catch(() => ({}));
     const isSuspended = body.isSuspended !== undefined ? Boolean(body.isSuspended) : true;
 
-    const updated = suspendUser(params.id, isSuspended);
+    const updated = await suspendUser(params.id, isSuspended);
     if (!updated) {
       return NextResponse.json({ message: 'User not found or protected' }, { status: 404 });
     }

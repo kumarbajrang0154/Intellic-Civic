@@ -21,12 +21,12 @@ export interface FieldWorkerComplaintsQuery {
   limit?: number;
 }
 
-export function getAssignedComplaints(query: FieldWorkerComplaintsQuery) {
-  return listFieldWorkerComplaints(query);
+export async function getAssignedComplaints(query: FieldWorkerComplaintsQuery) {
+  return await listFieldWorkerComplaints(query);
 }
 
-export function getAssignedComplaintById(complaintId: string, fieldWorkerId: string) {
-  const complaint = getComplaintById(complaintId);
+export async function getAssignedComplaintById(complaintId: string, fieldWorkerId: string) {
+  const complaint = await getComplaintById(complaintId);
   if (!complaint) {
     return { ok: false, status: 404, message: 'Complaint ticket not found.' };
   }
@@ -38,10 +38,10 @@ export function getAssignedComplaintById(complaintId: string, fieldWorkerId: str
   return { ok: true, status: 200, complaint };
 }
 
-export function startComplaintWork(complaintId: string, fieldWorkerId: string, actorName = 'Field Worker') {
-  const result = startFieldWorkerTask(complaintId, fieldWorkerId);
+export async function startComplaintWork(complaintId: string, fieldWorkerId: string, actorName = 'Field Worker') {
+  const result = await startFieldWorkerTask(complaintId, fieldWorkerId);
   if (result.ok && result.complaint) {
-    addAuditLog({
+    await addAuditLog({
       actorId: fieldWorkerId,
       actorName,
       action: 'FIELD_WORK_STARTED',
@@ -54,7 +54,7 @@ export function startComplaintWork(complaintId: string, fieldWorkerId: string, a
   return result;
 }
 
-export function uploadWorkEvidence(
+export async function uploadWorkEvidence(
   complaintId: string,
   fieldWorkerId: string,
   stage: 'BEFORE' | 'DURING' | 'AFTER',
@@ -62,9 +62,9 @@ export function uploadWorkEvidence(
   notes?: string,
   actorName = 'Field Worker',
 ) {
-  const result = addFieldWorkerEvidenceToComplaint(complaintId, fieldWorkerId, stage, imageUrl, notes);
+  const result = await addFieldWorkerEvidenceToComplaint(complaintId, fieldWorkerId, stage, imageUrl, notes);
   if (result.ok && result.evidence) {
-    addAuditLog({
+    await addAuditLog({
       actorId: fieldWorkerId,
       actorName,
       action: 'FIELD_EVIDENCE_UPLOADED',
@@ -77,15 +77,15 @@ export function uploadWorkEvidence(
   return result;
 }
 
-export function submitWorkForReview(
+export async function submitWorkForReview(
   complaintId: string,
   fieldWorkerId: string,
   remarks: string,
   actorName = 'Field Worker',
 ) {
-  const result = submitFieldWorkerForReview(complaintId, fieldWorkerId, remarks);
+  const result = await submitFieldWorkerForReview(complaintId, fieldWorkerId, remarks);
   if (result.ok && result.complaint) {
-    addAuditLog({
+    await addAuditLog({
       actorId: fieldWorkerId,
       actorName,
       action: 'FIELD_WORK_SUBMITTED_FOR_REVIEW',

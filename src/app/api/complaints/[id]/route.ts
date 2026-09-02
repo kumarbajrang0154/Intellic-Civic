@@ -21,7 +21,7 @@ export async function GET(
     }
 
     const { id } = params;
-    const complaint = getComplaintById(id);
+    const complaint = await getComplaintById(id);
 
     if (!complaint) {
       return NextResponse.json(

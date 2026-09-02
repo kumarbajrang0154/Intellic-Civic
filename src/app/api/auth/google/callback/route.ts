@@ -19,7 +19,7 @@ function getDashboardForRole(role: string | null | undefined): string {
 }
 
 export async function GET(req: NextRequest) {
-  const frontendUrl = process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000';
+  const frontendUrl = (process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000').replace(/\/+$/, '');
   const redirectUri = `${frontendUrl}/api/auth/google/callback`;
 
   const { searchParams } = new URL(req.url);
@@ -81,14 +81,14 @@ export async function GET(req: NextRequest) {
 
     if (googleEmail === SUPER_ADMIN_EMAIL.toLowerCase()) {
       // Super Admin bootstrap — always elevate as ADMIN, authorized
-      staffUser = ensureSuperAdminUser(googleEmail, googleName);
+      staffUser = await ensureSuperAdminUser(googleEmail, googleName);
     } else {
-      staffUser = getUserByEmail(googleEmail);
+      staffUser = await getUserByEmail(googleEmail);
     }
 
     // Step 4: If user not in database, register as pending and redirect
     if (!staffUser) {
-      addUser({
+      await addUser({
         name: googleName,
         email: googleEmail,
         role: null,

@@ -1,42 +1,45 @@
-interface OtpEntry {
-  otp: string;
-  expiresAt: number;
-}
+import prisma from '@/lib/prisma';
 
-const globalForOtp = global as unknown as { otpStore: Map<string, OtpEntry> };
-
-export const otpStore = globalForOtp.otpStore || new Map<string, OtpEntry>();
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForOtp.otpStore = otpStore;
-}
-
-export function generateAndSaveOtp(mobileNumber: string): string {
+export async function generateAndSaveOtp(mobileNumber: string): Promise<string> {
   const cleanNumber = mobileNumber.replace(/\D/g, '');
   // Generate random 6-digit OTP
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  
-  otpStore.set(cleanNumber, {
-    otp,
-    expiresAt: Date.now() + 15 * 60 * 1000, // 15 mins expiry
+
+  await prisma.otpRequest.create({
+    data: {
+      mobileNumber: cleanNumber,
+      otpCode: otp,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 mins expiry
+    },
   });
 
   return otp;
 }
 
-export function verifySavedOtp(mobileNumber: string, inputOtp: string): boolean {
+export async function verifySavedOtp(mobileNumber: string, inputOtp: string): Promise<boolean> {
   const cleanNumber = mobileNumber.replace(/\D/g, '');
-  
-  // Default prototype fallback code for testing
+
+  // Prototype default code for rapid local testing
   if (inputOtp === '123456') return true;
 
-  const entry = otpStore.get(cleanNumber);
+  const entry = await prisma.otpRequest.findFirst({
+    where: {
+      mobileNumber: cleanNumber,
+      isVerified: false,
+      expiresAt: { gt: new Date() },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
   if (!entry) return false;
 
-  if (Date.now() > entry.expiresAt) {
-    otpStore.delete(cleanNumber);
-    return false;
+  if (entry.otpCode === inputOtp) {
+    await prisma.otpRequest.update({
+      where: { id: entry.id },
+      data: { isVerified: true },
+    });
+    return true;
   }
 
-  return entry.otp === inputOtp;
+  return false;
 }

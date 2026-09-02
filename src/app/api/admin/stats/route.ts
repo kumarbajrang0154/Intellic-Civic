@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { complaintsStore } from '@/lib/complaints-store';
+import { listComplaints } from '@/lib/complaints-store';
 import { listDepartments, listUsers } from '@/lib/staff-dept-store';
 
 export async function GET(req: NextRequest) {
@@ -15,7 +15,9 @@ export async function GET(req: NextRequest) {
       DUPLICATE: 0,
     };
 
-    complaintsStore.forEach((c) => {
+    const { data: allComplaints } = await listComplaints({ limit: 1000 });
+
+    allComplaints.forEach((c) => {
       if (statusBreakdown[c.status] !== undefined) {
         statusBreakdown[c.status]++;
       }
@@ -24,14 +26,14 @@ export async function GET(req: NextRequest) {
     const needsTriageCount =
       statusBreakdown.SUBMITTED + statusBreakdown.PENDING_DEPT_REVIEW;
 
-    const departments = listDepartments();
+    const departments = await listDepartments();
     const activeDepts = departments.filter((d) => !d.isSuspended).length;
-    const allUsers = listUsers();
+    const allUsers = await listUsers();
     const authorizedStaff = allUsers.filter((u) => u.isAuthorized && !u.isSuspended);
-    const pendingUsers = listUsers({ pendingOnly: true });
+    const pendingUsers = await listUsers({ pendingOnly: true });
 
     return NextResponse.json({
-      totalComplaints: complaintsStore.length,
+      totalComplaints: allComplaints.length,
       statusBreakdown,
       needsTriageCount,
       pendingUserApprovalsCount: pendingUsers.length,

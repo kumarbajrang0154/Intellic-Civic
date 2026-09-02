@@ -17,7 +17,7 @@ export async function GET() {
       return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
     }
 
-    const profile = getOrCreateCitizenProfile(payload.mobileNumber);
+    const profile = await getOrCreateCitizenProfile(payload.mobileNumber);
     return NextResponse.json({ success: true, profile });
   } catch (error: any) {
     return NextResponse.json(
@@ -56,7 +56,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ statusCode: 400, message: 'Residential address is required' }, { status: 400 });
     }
 
-    const updatedProfile = updateCitizenProfile(payload.mobileNumber, {
+    const updatedProfile = await updateCitizenProfile(payload.mobileNumber, {
       name: name.trim(),
       email: email.trim(),
       address: address.trim(),

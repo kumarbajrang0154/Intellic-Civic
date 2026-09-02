@@ -19,7 +19,7 @@ type RequireAdminResult =
   | { authorized: true; admin: AdminPayload }
   | { authorized: false; response: NextResponse };
 
-export function requireAdmin(): RequireAdminResult {
+export async function requireAdmin(): Promise<RequireAdminResult> {
   const cookieStore = cookies();
   const token = cookieStore.get('ic_access_token')?.value;
 
@@ -39,7 +39,7 @@ export function requireAdmin(): RequireAdminResult {
   }
 
   // Re-verify from store in case role was changed
-  const storeUser = payload.email ? getUserByEmail(payload.email) : null;
+  const storeUser = payload.email ? await getUserByEmail(payload.email) : null;
   const effectiveRole = storeUser?.role ?? payload.role;
 
   if (effectiveRole !== 'ADMIN') {

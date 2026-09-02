@@ -76,22 +76,24 @@ model User {
   name         String
   avatarUrl    String?
   isAuthorized Boolean      @default(false)
+  isSuspended  Boolean      @default(false)
+  lastLoginAt  DateTime?
   departmentId String?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
   department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 
-  complaints          Complaint[]    @relation("CitizenComplaints")
-  assignmentsHandled  Assignment[]   @relation("OfficerAssignments")
-  assignmentsCreated  Assignment[]   @relation("AssignedBy")
-  fieldWorkerAssignments Complaint[] @relation("FieldWorkerAssignments")
-  evidenceUploaded    Evidence[]
-  statusChanges       StatusHistory[]
-  notifications       Notification[]
-  feedbacks           Feedback[]
-  auditLogs           AuditLog[]
-  refreshTokens       RefreshToken[]
+  complaints             Complaint[]     @relation("CitizenComplaints")
+  assignmentsHandled     Assignment[]    @relation("OfficerAssignments")
+  assignmentsCreated     Assignment[]    @relation("AssignedBy")
+  fieldWorkerAssignments Complaint[]     @relation("FieldWorkerAssignments")
+  evidenceUploaded       Evidence[]
+  statusChanges          StatusHistory[]
+  notifications          Notification[]
+  feedbacks              Feedback[]
+  auditLogs              AuditLog[]
+  refreshTokens          RefreshToken[]
 
   @@map("users")
 }
@@ -123,18 +125,20 @@ model RefreshToken {
 }
 
 model Department {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  description String   @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                String   @id @default(uuid())
+  name              String   @unique
+  description       String   @db.Text
+  headOfficeAddress String?  @db.Text
+  isSuspended       Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  users                    User[]
-  categories               Category[]
-  complaints               Complaint[]    @relation("DepartmentComplaints")
+  users                   User[]
+  categories              Category[]
+  complaints              Complaint[]    @relation("DepartmentComplaints")
   aiRecommendedComplaints Complaint[]    @relation("AiRecommendedDepartmentComplaints")
-  aiPredictions            AiPrediction[]
-  fieldWorkers             FieldWorker[]
+  aiPredictions           AiPrediction[]
+  fieldWorkers            FieldWorker[]
 
   @@map("departments")
 }
@@ -188,16 +192,16 @@ model Complaint {
   aiRecommendedDepartment Department? @relation("AiRecommendedDepartmentComplaints", fields: [aiRecommendedDepartmentId], references: [id], onDelete: SetNull)
   assignedFieldWorker     User?       @relation("FieldWorkerAssignments", fields: [assignedFieldWorkerId], references: [id], onDelete: SetNull)
 
-  images              ComplaintImage[]
-  location            ComplaintLocation?
-  aiPrediction        AiPrediction?
-  duplicateMatches    DuplicateMatch[]   @relation("PrimaryComplaint")
-  matchedAsDuplicate  DuplicateMatch[]   @relation("MatchedComplaint")
-  assignment          Assignment?
-  evidence            Evidence[]
-  statusHistory       StatusHistory[]
-  notifications       Notification[]
-  feedback            Feedback?
+  images             ComplaintImage[]
+  location           ComplaintLocation?
+  aiPrediction       AiPrediction?
+  duplicateMatches   DuplicateMatch[]   @relation("PrimaryComplaint")
+  matchedAsDuplicate DuplicateMatch[]   @relation("MatchedComplaint")
+  assignment         Assignment?
+  evidence           Evidence[]
+  statusHistory      StatusHistory[]
+  notifications      Notification[]
+  feedback           Feedback?
 
   @@index([status])
   @@index([departmentId])
@@ -312,6 +316,7 @@ model StatusHistory {
   complaintId     String
   fromStatus      ComplaintStatus?
   toStatus        ComplaintStatus
+  notes           String?          @db.Text
   changedByUserId String?
   changedAt       DateTime         @default(now())
 

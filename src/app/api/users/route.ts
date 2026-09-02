@@ -9,15 +9,17 @@ export async function GET(req: NextRequest) {
     const pendingOnly = searchParams.get('pendingOnly') === 'true';
     const search = searchParams.get('search') || undefined;
 
-    const users = listUsers({ role, departmentId, pendingOnly, search });
+    const users = await listUsers({ role, departmentId, pendingOnly, search });
 
-    const data = users.map((u) => {
-      const dept = u.departmentId ? getDepartment(u.departmentId) : undefined;
-      return {
-        ...u,
-        department: dept ? { id: dept.id, name: dept.name } : undefined,
-      };
-    });
+    const data = await Promise.all(
+      users.map(async (u) => {
+        const dept = u.departmentId ? await getDepartment(u.departmentId) : undefined;
+        return {
+          ...u,
+          department: dept ? { id: dept.id, name: dept.name } : undefined,
+        };
+      }),
+    );
 
     return NextResponse.json({ data });
   } catch (error: any) {
@@ -41,7 +43,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Email is required' }, { status: 400 });
     }
 
-    const newUser = addUser({
+    const newUser = await addUser({
       name: name.trim(),
       email: email.trim(),
       role: role || 'DEPARTMENT_OFFICER',

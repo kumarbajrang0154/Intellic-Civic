@@ -9,7 +9,7 @@ export async function PATCH(
     const body = await req.json().catch(() => ({}));
     const { role, departmentId } = body;
 
-    const approved = approveUser(params.id, role || 'DEPARTMENT_OFFICER', departmentId);
+    const approved = await approveUser(params.id, role || 'DEPARTMENT_OFFICER', departmentId);
     if (!approved) {
       return NextResponse.json({ message: 'User not found' }, { status: 404 });
     }

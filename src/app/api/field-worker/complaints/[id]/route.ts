@@ -27,7 +27,7 @@ export async function GET(
       );
     }
 
-    const result = getAssignedComplaintById(params.id, payload.sub);
+    const result = await getAssignedComplaintById(params.id, payload.sub);
     if (!result.ok) {
       return NextResponse.json({ statusCode: result.status, message: result.message }, { status: result.status });
     }

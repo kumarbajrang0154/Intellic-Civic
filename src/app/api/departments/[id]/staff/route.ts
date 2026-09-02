@@ -7,7 +7,7 @@ export async function GET(
 ) {
   try {
     const { id } = params;
-    const officers = listUsers({ departmentId: id });
+    const officers = await listUsers({ departmentId: id });
 
     return NextResponse.json({
       officers: officers.map((u) => ({

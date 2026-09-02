@@ -4,10 +4,10 @@ import { getWorkloadSummary } from '@/services/staffService';
 
 // GET /api/admin/staff/workload-summary
 export async function GET(req: NextRequest) {
-  const auth = requireAdmin();
+  const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 
-  const result = getWorkloadSummary();
+  const result = await getWorkloadSummary();
   if (!result.ok) {
     return NextResponse.json({ message: result.message }, { status: result.status });
   }

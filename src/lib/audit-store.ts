@@ -1,5 +1,4 @@
-import fs from 'fs';
-import path from 'path';
+import prisma from '@/lib/prisma';
 
 export interface AuditEntry {
   id: string;
@@ -13,80 +12,68 @@ export interface AuditEntry {
   createdAt: string;
 }
 
-const AUDIT_FILE_PATH = path.join(process.cwd(), '.audit_store.json');
-
-interface AuditStoreData {
-  entries: AuditEntry[];
-}
-
-function loadAuditFromDisk(): AuditStoreData {
-  try {
-    if (fs.existsSync(AUDIT_FILE_PATH)) {
-      const raw = fs.readFileSync(AUDIT_FILE_PATH, 'utf-8');
-      const json = JSON.parse(raw);
-      if (json && Array.isArray(json.entries)) return json;
-    }
-  } catch (err) {
-    console.error('Error loading audit store from disk:', err);
-  }
-  return { entries: [] };
-}
-
-function saveAuditToDisk(data: AuditStoreData) {
-  try {
-    fs.writeFileSync(AUDIT_FILE_PATH, JSON.stringify(data, null, 2), 'utf-8');
-  } catch (err) {
-    console.error('Error saving audit store to disk:', err);
-  }
-}
-
-const globalForAudit = global as unknown as { auditStore: AuditStoreData };
-
-export const auditStore = globalForAudit.auditStore || loadAuditFromDisk();
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForAudit.auditStore = auditStore;
-}
-
-export function addAuditLog(entry: Omit<AuditEntry, 'id' | 'createdAt'>): AuditEntry {
-  const newEntry: AuditEntry = {
-    id: `audit_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-    ...entry,
-    createdAt: new Date().toISOString(),
+function formatAuditEntry(log: any): AuditEntry {
+  const meta = (log.metadata as Record<string, any>) || {};
+  return {
+    id: log.id,
+    actorId: log.userId || meta.actorId || 'system',
+    actorName: meta.actorName || 'System User',
+    action: log.action,
+    entityType: log.entityType,
+    targetId: log.entityId || meta.targetId || null,
+    targetName: meta.targetName || null,
+    metadata: meta,
+    createdAt: log.createdAt instanceof Date ? log.createdAt.toISOString() : new Date(log.createdAt || Date.now()).toISOString(),
   };
-  auditStore.entries.push(newEntry);
-  // Keep only last 10,000 entries to avoid unbounded growth
-  if (auditStore.entries.length > 10_000) {
-    auditStore.entries = auditStore.entries.slice(-10_000);
-  }
-  saveAuditToDisk(auditStore);
-  return newEntry;
 }
 
-export function listAuditLogs(filters?: {
+export async function addAuditLog(entry: Omit<AuditEntry, 'id' | 'createdAt'>): Promise<AuditEntry> {
+  const metadata = {
+    actorName: entry.actorName,
+    targetName: entry.targetName,
+    ...(entry.metadata || {}),
+  };
+
+  const newLog = await prisma.auditLog.create({
+    data: {
+      userId: entry.actorId !== 'system' ? entry.actorId : undefined,
+      action: entry.action,
+      entityType: entry.entityType,
+      entityId: entry.targetId || undefined,
+      metadata,
+    },
+  });
+
+  return formatAuditEntry(newLog);
+}
+
+export async function listAuditLogs(filters?: {
   actorId?: string;
   targetId?: string;
   actions?: string[];
   entityType?: string;
   limit?: number;
-}): AuditEntry[] {
-  let list = [...auditStore.entries].reverse(); // Most recent first
+}): Promise<AuditEntry[]> {
+  const where: any = {};
 
   if (filters?.actorId) {
-    list = list.filter((e) => e.actorId === filters.actorId);
+    where.userId = filters.actorId;
   }
   if (filters?.targetId) {
-    list = list.filter((e) => e.targetId === filters.targetId);
+    where.entityId = filters.targetId;
   }
   if (filters?.actions && filters.actions.length > 0) {
-    list = list.filter((e) => filters.actions!.includes(e.action));
+    where.action = { in: filters.actions };
   }
   if (filters?.entityType) {
-    list = list.filter((e) => e.entityType === filters.entityType);
-  }
-  if (filters?.limit) {
-    list = list.slice(0, filters.limit);
+    where.entityType = filters.entityType;
   }
 
-  return list;
+  const logs = await prisma.auditLog.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    take: filters?.limit || 100,
+  });
+
+  return logs.map(formatAuditEntry);
 }

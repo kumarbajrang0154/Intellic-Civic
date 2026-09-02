@@ -31,7 +31,7 @@ export async function POST(
       );
     }
 
-    const evidence = addEvidenceToComplaint(id, { imageUrl, stage });
+    const evidence = await addEvidenceToComplaint(id, { imageUrl, stage });
     if (!evidence) {
       return NextResponse.json(
         { statusCode: 404, message: 'Complaint not found' },

@@ -44,7 +44,7 @@ export async function POST(
       );
     }
 
-    const result = uploadWorkEvidence(
+    const result = await uploadWorkEvidence(
       params.id,
       payload.sub,
       stage,

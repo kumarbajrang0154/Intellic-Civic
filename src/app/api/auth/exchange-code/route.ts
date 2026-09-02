@@ -23,9 +23,9 @@ export async function POST(request: Request) {
     let user;
 
     if (userEmail.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) {
-      user = ensureSuperAdminUser(userEmail, 'Bajrang Kumar (Super Admin)');
+      user = await ensureSuperAdminUser(userEmail, 'Bajrang Kumar (Super Admin)');
     } else {
-      user = getUserByEmail(userEmail);
+      user = await getUserByEmail(userEmail);
     }
 
     if (!user || !user.isAuthorized || user.isSuspended) {

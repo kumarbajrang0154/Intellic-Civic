@@ -29,7 +29,7 @@ export async function POST(
       return NextResponse.json({ statusCode: 400, message: validation.error }, { status: 400 });
     }
 
-    const result = addFeedbackToComplaint(
+    const result = await addFeedbackToComplaint(
       params.id,
       payload.sub,
       validation.data!.rating,
@@ -40,7 +40,7 @@ export async function POST(
       return NextResponse.json({ statusCode: result.status, message: result.message }, { status: result.status });
     }
 
-    addAuditLog({
+    await addAuditLog({
       actorId: payload.sub,
       actorName: payload.name || 'Citizen User',
       action: 'COMPLAINT_FEEDBACK_SUBMITTED',

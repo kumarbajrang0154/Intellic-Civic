@@ -10,7 +10,7 @@ export async function GET(
   { params }: { params: { id: string } },
 ) {
   try {
-    const dept = getDepartment(params.id);
+    const dept = await getDepartment(params.id);
     if (!dept) {
       return NextResponse.json({ message: 'Department not found' }, { status: 404 });
     }
@@ -29,7 +29,7 @@ export async function PATCH(
 ) {
   try {
     const body = await req.json();
-    const updated = updateDepartment(params.id, body);
+    const updated = await updateDepartment(params.id, body);
 
     if (!updated) {
       return NextResponse.json({ message: 'Department not found' }, { status: 404 });
@@ -49,7 +49,7 @@ export async function DELETE(
   { params }: { params: { id: string } },
 ) {
   try {
-    const deleted = deleteDepartment(params.id);
+    const deleted = await deleteDepartment(params.id);
     if (!deleted) {
       return NextResponse.json({ message: 'Department not found' }, { status: 404 });
     }

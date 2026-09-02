@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const otp = generateAndSaveOtp(cleanNumber);
+    const otp = await generateAndSaveOtp(cleanNumber);
 
     return NextResponse.json({
       success: true,

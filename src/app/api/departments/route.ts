@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { complaintsStore } from '@/lib/complaints-store';
+import { listComplaints } from '@/lib/complaints-store';
 import { addDepartment, listDepartments, listUsers } from '@/lib/staff-dept-store';
 
 export async function GET(req: NextRequest) {
   try {
-    const departments = listDepartments();
-    const allUsers = listUsers();
+    const departments = await listDepartments();
+    const allUsers = await listUsers();
+    const { data: allComplaints } = await listComplaints({ limit: 1000 });
 
     // Map staff counts and complaint counts
     const data = departments.map((dept) => {
       const staffCount = allUsers.filter((u) => u.departmentId === dept.id).length;
-      const deptComplaints = complaintsStore.filter(
+      const deptComplaints = allComplaints.filter(
         (c) => c.departmentId === dept.id || c.category?.departmentId === dept.id,
       );
       const activeComplaintCount = deptComplaints.filter((c) =>
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const newDept = addDepartment({
+    const newDept = await addDepartment({
       name: name.trim(),
       description: description.trim(),
       headOfficeAddress: headOfficeAddress?.trim(),

@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import { categoriesStore } from '@/lib/complaints-store';
+import { listCategories } from '@/lib/complaints-store';
 
 export async function GET() {
   try {
-    return NextResponse.json(categoriesStore);
+    const categories = await listCategories();
+    return NextResponse.json(categories);
   } catch (error: any) {
     return NextResponse.json(
       { message: 'Failed to fetch categories', error: error.message },
