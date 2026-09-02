@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       // Look up staff member or create a minimal token for testing
       const staffUser = getUserByEmail(email);
       userPayload = {
-        sub: staffUser?.id ?? `test_${Date.now()}`,
+        sub: body.id ?? staffUser?.id ?? `test_${Date.now()}`,
         email: staffUser?.email ?? email,
         name: staffUser?.name ?? 'Test User',
         role: requestedRole,

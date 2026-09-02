@@ -1,0 +1,24 @@
+[
+  {
+    "id": "citizen_9876543210",
+    "mobileNumber": "9876543210",
+    "name": "Bajrang Kumar",
+    "email": "kumarbajrang0154@gmail.com",
+    "address": "House No. 102, Civic Heights, Sector 14, Smart City",
+    "avatarUrl": "https://api.dicebear.com/7.x/avataaars/svg?seed=Bajrang",
+    "role": "CITIZEN",
+    "isProfileComplete": true,
+    "createdAt": "2026-09-02T08:09:01.794Z"
+  },
+  {
+    "id": "citizen_9123456789",
+    "mobileNumber": "9123456789",
+    "name": "",
+    "email": "",
+    "address": "",
+    "avatarUrl": "",
+    "role": "CITIZEN",
+    "isProfileComplete": false,
+    "createdAt": "2026-09-02T08:09:04.750Z"
+  }
+]

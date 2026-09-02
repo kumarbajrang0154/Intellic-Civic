@@ -74,6 +74,9 @@ interface ComplaintDetail {
     aiVerified?: boolean;
     aiConfidence?: number;
   }>;
+  readyForReview?: boolean;
+  fieldWorkerRemarks?: string;
+  assignedFieldWorker?: { name: string };
   statusHistory?: Array<{
     id: string;
     fromStatus?: string;
@@ -359,6 +362,53 @@ export default function OfficerComplaintDetailPage() {
             <AlertTitle>Error</AlertTitle>
             <AlertDescription className="text-xs">{error}</AlertDescription>
           </Alert>
+        )}
+
+        {/* Step 5 — Field Worker Submission Review Section */}
+        {complaint.readyForReview && (
+          <Card className="border-2 border-purple-500/50 bg-purple-500/10 shadow-lg">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-purple-900 dark:text-purple-200">
+                  <ShieldCheck className="h-5 w-5 text-purple-600 shrink-0" />
+                  <CardTitle className="text-base font-bold">
+                    Field Worker Repair Submission Pending Sign-off
+                  </CardTitle>
+                </div>
+                <Badge variant="warning" className="font-bold">Ready for Sign-off</Badge>
+              </div>
+              <CardDescription className="text-xs text-purple-950/80 dark:text-purple-200">
+                Field worker {complaint.assignedFieldWorker?.name || ''} has completed repair work on site and submitted Before/After photo evidence for officer review.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {complaint.fieldWorkerRemarks && (
+                <div className="p-3 bg-background border rounded-lg text-xs space-y-1">
+                  <span className="font-bold text-foreground block">Field Worker Remarks:</span>
+                  <p className="text-muted-foreground italic">&quot;{complaint.fieldWorkerRemarks}&quot;</p>
+                </div>
+              )}
+
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-purple-500/20">
+                <span className="text-xs text-purple-900 dark:text-purple-300 font-medium">
+                  Review evidence below. If repairs are satisfactory, click to mark ticket as RESOLVED:
+                </span>
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    setSelectedNextStatus('RESOLVED');
+                    setStatusRemarks(`Approved field worker repair submission: "${complaint.fieldWorkerRemarks || 'Repair complete'}"`);
+                    await handleUpdateStatus();
+                  }}
+                  disabled={statusUpdating}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shrink-0 w-full sm:w-auto"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  Approve &amp; Mark RESOLVED
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

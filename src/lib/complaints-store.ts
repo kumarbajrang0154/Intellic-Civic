@@ -79,6 +79,11 @@ export interface Complaint {
   reopenReason?: string;
   resolutionNotes?: string;
   feedback?: ComplaintFeedback;
+  assignedFieldWorkerId?: string;
+  assignedFieldWorker?: { id: string; name: string; email?: string; mobileNumber?: string } | null;
+  readyForReview?: boolean;
+  fieldWorkerRemarks?: string;
+  assignedAt?: string;
   createdAt: string;
   updatedAt: string;
   aiPrediction?: {
@@ -175,8 +180,8 @@ const INITIAL_COMPLAINTS: Complaint[] = [
         changedByUser: { name: 'Officer Sharma' },
       },
     ],
-    citizenId: 'citizen_demo',
-    citizenName: 'Sample Citizen',
+    citizenId: 'citizen_9876543210',
+    citizenName: 'Bajrang Kumar',
     createdAt: new Date(Date.now() - 86400000).toISOString(),
     updatedAt: new Date(Date.now() - 21600000).toISOString(),
     aiPrediction: {
@@ -185,6 +190,104 @@ const INITIAL_COMPLAINTS: Complaint[] = [
         statusMessage: 'AI Triage completed. Assigned to Roads Department.',
       },
     },
+  },
+  {
+    id: 'cmp-resolved-demo',
+    ticketId: 'INC-2026-0902-8821',
+    title: 'Water Pipe Leakage Fixed on Sector 14 Main Road',
+    description: 'Clean drinking water was overflowing onto the footpath near Civic Hospital entrance.',
+    status: 'RESOLVED',
+    priority: 'MEDIUM',
+    categoryId: 'cat-water',
+    category: DEFAULT_CATEGORIES[2],
+    originalCategoryId: 'cat-water',
+    originalCategory: DEFAULT_CATEGORIES[2],
+    department: { id: 'dept-water', name: 'Water Supply & Sewerage Department' },
+    location: { address: 'Sector 14 Main Road, near Civic Hospital', latitude: 28.614, longitude: 77.21 },
+    evidence: [],
+    statusHistory: [
+      { id: 'sh-res-1', toStatus: 'SUBMITTED', changedAt: new Date(Date.now() - 172800000).toISOString() },
+      { id: 'sh-res-2', fromStatus: 'SUBMITTED', toStatus: 'RESOLVED', changedAt: new Date(Date.now() - 3600000).toISOString(), changedByUser: { name: 'Officer Verma' }, notes: 'Pipe patch repaired and pressure tested.' },
+    ],
+    citizenId: 'citizen_9876543210',
+    citizenName: 'Bajrang Kumar',
+    createdAt: new Date(Date.now() - 172800000).toISOString(),
+    updatedAt: new Date(Date.now() - 3600000).toISOString(),
+  },
+  {
+    id: 'cmp-rejected-demo',
+    ticketId: 'INC-2026-0902-9904',
+    title: 'Garbage Dumped in Private Residential Compound',
+    description: 'Requesting municipal staff to clean garbage dumped inside private building courtyard.',
+    status: 'REJECTED',
+    priority: 'LOW',
+    categoryId: 'cat-sanitation',
+    category: DEFAULT_CATEGORIES[0],
+    originalCategoryId: 'cat-roads',
+    originalCategory: DEFAULT_CATEGORIES[1],
+    department: { id: 'dept-sanitation', name: 'Sanitation & Waste Management Department' },
+    location: { address: 'Plot 42, Private Colony, Sector 14', latitude: 28.615, longitude: 77.211 },
+    evidence: [],
+    statusHistory: [
+      { id: 'sh-rej-1', toStatus: 'SUBMITTED', changedAt: new Date(Date.now() - 259200000).toISOString() },
+      { id: 'sh-rej-2', fromStatus: 'SUBMITTED', toStatus: 'REJECTED', changedAt: new Date(Date.now() - 86400000).toISOString(), changedByUser: { name: 'Dept Head Sharma' }, notes: 'Municipal sanitation services only cover public property. Private courtyard maintenance is the responsibility of the building society.' },
+    ],
+    resolutionNotes: 'Municipal sanitation services cover public roads and municipal bins only. Private residential property cleanup must be handled by private management.',
+    citizenId: 'citizen_9876543210',
+    citizenName: 'Bajrang Kumar',
+    createdAt: new Date(Date.now() - 259200000).toISOString(),
+    updatedAt: new Date(Date.now() - 86400000).toISOString(),
+  },
+  {
+    id: 'cmp-field-assigned',
+    ticketId: 'INC-2026-0902-7711',
+    title: 'Broken Traffic Light Wiring at Ring Road Crossing',
+    description: 'Traffic signal control box door damaged. Wires exposed causing traffic light disruption.',
+    status: 'ASSIGNED',
+    priority: 'HIGH',
+    categoryId: 'cat-safety',
+    category: DEFAULT_CATEGORIES[3],
+    department: { id: 'dept-traffic', name: 'Traffic & Public Safety Department' },
+    location: { address: 'Ring Road Crossing, Near Gate 4', latitude: 28.616, longitude: 77.212 },
+    evidence: [
+      { id: 'ev-fw-1', imageUrl: 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=600', stage: 'BEFORE', uploadedAt: new Date(Date.now() - 43200000).toISOString() }
+    ],
+    statusHistory: [
+      { id: 'sh-fw-1', toStatus: 'SUBMITTED', changedAt: new Date(Date.now() - 86400000).toISOString() },
+      { id: 'sh-fw-2', fromStatus: 'SUBMITTED', toStatus: 'ASSIGNED', changedAt: new Date(Date.now() - 43200000).toISOString(), changedByUser: { name: 'Officer Sharma' } }
+    ],
+    assignedFieldWorkerId: 'fw-demo-1',
+    assignedFieldWorker: { id: 'fw-demo-1', name: 'Ramesh Kumar' },
+    citizenId: 'citizen_9876543210',
+    createdAt: new Date(Date.now() - 86400000).toISOString(),
+    updatedAt: new Date(Date.now() - 43200000).toISOString(),
+  },
+  {
+    id: 'cmp-field-review-ready',
+    ticketId: 'INC-2026-0902-7722',
+    title: 'Severe Asphalt Pothole Repair on Central Flyover',
+    description: 'Large 3-foot pothole on northbound lane repaired by field crew with cold-mix asphalt.',
+    status: 'IN_PROGRESS',
+    priority: 'CRITICAL',
+    categoryId: 'cat-roads',
+    category: DEFAULT_CATEGORIES[1],
+    department: { id: 'dept-roads', name: 'Roads & Infrastructure Department' },
+    location: { address: 'Central Flyover Northbound Lane', latitude: 28.617, longitude: 77.213 },
+    evidence: [
+      { id: 'ev-fw-b1', imageUrl: 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=600', stage: 'BEFORE', uploadedAt: new Date(Date.now() - 86400000).toISOString() },
+      { id: 'ev-fw-a1', imageUrl: 'https://images.unsplash.com/photo-1584467735871-8e85353a8413?w=600', stage: 'AFTER', uploadedAt: new Date(Date.now() - 7200000).toISOString() }
+    ],
+    statusHistory: [
+      { id: 'sh-fw-r1', toStatus: 'SUBMITTED', changedAt: new Date(Date.now() - 172800000).toISOString() },
+      { id: 'sh-fw-r2', fromStatus: 'SUBMITTED', toStatus: 'IN_PROGRESS', changedAt: new Date(Date.now() - 86400000).toISOString(), changedByUser: { name: 'Officer Sharma' } }
+    ],
+    assignedFieldWorkerId: 'fw-demo-1',
+    assignedFieldWorker: { id: 'fw-demo-1', name: 'Ramesh Kumar' },
+    readyForReview: true,
+    fieldWorkerRemarks: 'Pothole patch sealed with cold-mix asphalt and steam roller compacted. Traffic lane reopened safely.',
+    citizenId: 'citizen_9876543210',
+    createdAt: new Date(Date.now() - 172800000).toISOString(),
+    updatedAt: new Date(Date.now() - 7200000).toISOString(),
   },
 ];
 
@@ -618,4 +721,206 @@ export function addFeedbackToComplaint(
   complaint.updatedAt = new Date().toISOString();
 
   return { ok: true, status: 200, message: 'Feedback submitted successfully.', feedback: newFeedback };
+}
+
+// -----------------------------------------------------------------------------
+// FIELD WORKER PORTAL STORE FUNCTIONS
+// -----------------------------------------------------------------------------
+
+export function listFieldWorkerComplaints(params: {
+  fieldWorkerId: string;
+  status?: string;
+  page?: number;
+  limit?: number;
+}): {
+  data: Complaint[];
+  meta: { total: number; page: number; limit: number; totalPages: number };
+} {
+  const { fieldWorkerId, status, page = 1, limit = 10 } = params;
+
+  let filtered = complaintsStore.filter(
+    (c) => c.assignedFieldWorkerId === fieldWorkerId,
+  );
+
+  if (status) {
+    if (status === 'ACTIVE') {
+      filtered = filtered.filter((c) => ['ASSIGNED', 'IN_PROGRESS'].includes(c.status));
+    } else {
+      filtered = filtered.filter((c) => c.status === status);
+    }
+  }
+
+  // Sort: ASSIGNED/IN_PROGRESS first, then newest created
+  filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const total = filtered.length;
+  const totalPages = Math.ceil(total / limit) || 1;
+  const startIndex = (page - 1) * limit;
+  const paginatedData = filtered.slice(startIndex, startIndex + limit);
+
+  return {
+    data: paginatedData,
+    meta: { total, page, limit, totalPages },
+  };
+}
+
+export function startFieldWorkerTask(
+  complaintId: string,
+  fieldWorkerId: string,
+): { ok: boolean; status: number; message: string; complaint?: Complaint } {
+  const complaint = getComplaintById(complaintId);
+  if (!complaint) {
+    return { ok: false, status: 404, message: 'Complaint ticket not found.' };
+  }
+
+  if (complaint.assignedFieldWorkerId !== fieldWorkerId) {
+    return { ok: false, status: 403, message: 'Forbidden: Ticket not assigned to this field worker.' };
+  }
+
+  if (complaint.status !== 'ASSIGNED') {
+    return {
+      ok: false,
+      status: 400,
+      message: `Cannot start work: ticket status is currently ${complaint.status}. Expected ASSIGNED.`,
+    };
+  }
+
+  const now = new Date().toISOString();
+  const prevStatus = complaint.status;
+  complaint.status = 'IN_PROGRESS';
+  complaint.updatedAt = now;
+
+  complaint.statusHistory.push({
+    id: `sh-${Date.now()}`,
+    fromStatus: prevStatus,
+    toStatus: 'IN_PROGRESS',
+    changedAt: now,
+    changedByUser: { name: 'Field Worker' },
+    notes: 'Field worker initiated repair work on site.',
+  });
+
+  return { ok: true, status: 200, message: 'Work started successfully.', complaint };
+}
+
+export function addFieldWorkerEvidenceToComplaint(
+  complaintId: string,
+  fieldWorkerId: string,
+  stage: 'BEFORE' | 'DURING' | 'AFTER',
+  imageUrl: string,
+  notes?: string,
+): { ok: boolean; status: number; message: string; evidence?: ComplaintEvidence } {
+  const complaint = getComplaintById(complaintId);
+  if (!complaint) {
+    return { ok: false, status: 404, message: 'Complaint ticket not found.' };
+  }
+
+  if (complaint.assignedFieldWorkerId !== fieldWorkerId) {
+    return { ok: false, status: 403, message: 'Forbidden: Ticket not assigned to this field worker.' };
+  }
+
+  if (!imageUrl || !imageUrl.trim()) {
+    return { ok: false, status: 400, message: 'Image URL is required.' };
+  }
+
+  // Sequence Guard: Cannot upload AFTER photo until at least one BEFORE photo exists
+  if (stage === 'AFTER') {
+    const hasBeforePhoto = complaint.evidence.some((e) => e.stage === 'BEFORE');
+    if (!hasBeforePhoto) {
+      return {
+        ok: false,
+        status: 400,
+        message: 'Sequence Violation: At least one BEFORE repair photo must be uploaded prior to uploading AFTER photos.',
+      };
+    }
+  }
+
+  const newEvidence: ComplaintEvidence = {
+    id: `ev-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+    imageUrl: imageUrl.trim(),
+    stage,
+    uploadedAt: new Date().toISOString(),
+  };
+
+  complaint.evidence.push(newEvidence);
+  complaint.updatedAt = new Date().toISOString();
+
+  return { ok: true, status: 201, message: `${stage} photo evidence uploaded successfully.`, evidence: newEvidence };
+}
+
+export function submitFieldWorkerForReview(
+  complaintId: string,
+  fieldWorkerId: string,
+  remarks: string,
+): { ok: boolean; status: number; message: string; complaint?: Complaint } {
+  const complaint = getComplaintById(complaintId);
+  if (!complaint) {
+    return { ok: false, status: 404, message: 'Complaint ticket not found.' };
+  }
+
+  if (complaint.assignedFieldWorkerId !== fieldWorkerId) {
+    return { ok: false, status: 403, message: 'Forbidden: Ticket not assigned to this field worker.' };
+  }
+
+  if (!remarks || remarks.trim().length < 5) {
+    return { ok: false, status: 400, message: 'Completion remarks (min 5 characters) are required.' };
+  }
+
+  // Guard: Require at least one BEFORE and one AFTER photo
+  const hasBefore = complaint.evidence.some((e) => e.stage === 'BEFORE');
+  const hasAfter = complaint.evidence.some((e) => e.stage === 'AFTER');
+
+  if (!hasBefore || !hasAfter) {
+    return {
+      ok: false,
+      status: 400,
+      message: 'Evidence Violation: Both BEFORE and AFTER repair photos are required before submitting work for officer review.',
+    };
+  }
+
+  const now = new Date().toISOString();
+  complaint.readyForReview = true;
+  complaint.fieldWorkerRemarks = remarks.trim();
+  complaint.updatedAt = now;
+
+  complaint.statusHistory.push({
+    id: `sh-${Date.now()}`,
+    fromStatus: complaint.status,
+    toStatus: complaint.status,
+    changedAt: now,
+    changedByUser: { name: 'Field Worker' },
+    notes: `Field worker submitted work for review: "${remarks.trim()}"`,
+  });
+
+  return { ok: true, status: 200, message: 'Work submitted for officer review successfully.', complaint };
+}
+
+export function assignFieldWorkerToComplaint(
+  complaintId: string,
+  fieldWorkerId: string,
+  fieldWorkerName: string,
+  officerUserId: string,
+): { ok: boolean; status: number; message: string; complaint?: Complaint } {
+  const complaint = getComplaintById(complaintId);
+  if (!complaint) {
+    return { ok: false, status: 404, message: 'Complaint ticket not found.' };
+  }
+
+  const now = new Date().toISOString();
+  const prevStatus = complaint.status;
+  complaint.assignedFieldWorkerId = fieldWorkerId;
+  complaint.assignedFieldWorker = { id: fieldWorkerId, name: fieldWorkerName };
+  complaint.status = 'ASSIGNED';
+  complaint.assignedAt = now;
+  complaint.updatedAt = now;
+
+  complaint.statusHistory.push({
+    id: `sh-${Date.now()}`,
+    fromStatus: prevStatus,
+    toStatus: 'ASSIGNED',
+    changedAt: now,
+    changedByUser: { name: 'Department Officer' },
+    notes: `Assigned field worker ${fieldWorkerName} to carry out repair work on site.`,
+  });
+
+  return { ok: true, status: 200, message: 'Field worker assigned successfully.', complaint };
 }

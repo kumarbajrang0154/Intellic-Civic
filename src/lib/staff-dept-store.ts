@@ -123,6 +123,18 @@ const INITIAL_USERS: UserItem[] = [
     updatedAt: new Date().toISOString(),
   },
   {
+    id: 'fw-demo-1',
+    name: 'Ramesh Kumar',
+    email: 'fieldworker@intellicivic.gov.in',
+    role: 'FIELD_WORKER',
+    departmentId: 'dept_roads_infra',
+    isAuthorized: true,
+    isSuspended: false,
+    lastLoginAt: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
     id: 'usr_dept_head_water',
     name: 'Priya Verma',
     email: 'head.water@smartcity.gov.in',

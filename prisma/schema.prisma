@@ -19,6 +19,7 @@ enum UserRole {
   CITIZEN
   DEPARTMENT_HEAD
   DEPARTMENT_OFFICER
+  FIELD_WORKER
   ADMIN
 }
 
@@ -84,6 +85,7 @@ model User {
   complaints          Complaint[]    @relation("CitizenComplaints")
   assignmentsHandled  Assignment[]   @relation("OfficerAssignments")
   assignmentsCreated  Assignment[]   @relation("AssignedBy")
+  fieldWorkerAssignments Complaint[] @relation("FieldWorkerAssignments")
   evidenceUploaded    Evidence[]
   statusChanges       StatusHistory[]
   notifications       Notification[]
@@ -172,6 +174,9 @@ model Complaint {
   resolutionNotes            String?         @db.Text
   /// Note: Null for complaints created before this feature shipped. UI hides override badge if null or matches current category.
   originalCategoryId         String?
+  assignedFieldWorkerId      String?
+  readyForReview             Boolean         @default(false)
+  fieldWorkerRemarks         String?         @db.Text
   createdAt                  DateTime        @default(now())
   updatedAt                  DateTime        @updatedAt
   resolvedAt                 DateTime?
@@ -181,6 +186,7 @@ model Complaint {
   category                Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   department              Department? @relation("DepartmentComplaints", fields: [departmentId], references: [id], onDelete: SetNull)
   aiRecommendedDepartment Department? @relation("AiRecommendedDepartmentComplaints", fields: [aiRecommendedDepartmentId], references: [id], onDelete: SetNull)
+  assignedFieldWorker     User?       @relation("FieldWorkerAssignments", fields: [assignedFieldWorkerId], references: [id], onDelete: SetNull)
 
   images              ComplaintImage[]
   location            ComplaintLocation?
