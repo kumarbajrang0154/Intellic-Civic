@@ -15,13 +15,28 @@ export async function POST(request: Request) {
       );
     }
 
+    const mode = (process.env.OTP_AUTH_MODE || 'console').toLowerCase();
+
+    // Firebase mode: OTP SMS generation and verification are handled by Firebase Client SDK on frontend.
+    if (mode === 'firebase') {
+      return NextResponse.json({
+        success: true,
+        message: 'Firebase Phone Auth active. SMS sent via Firebase Client SDK.',
+        mode: 'firebase',
+        mobileNumber: cleanNumber,
+      });
+    }
+
+    // Console mode (Default for dev/testing): Generate OTP, save in Postgres, log to console.
     const otp = await generateAndSaveOtp(cleanNumber);
+    console.log(`[CONSOLE OTP] Mobile: +91${cleanNumber} | Code: ${otp} | Timestamp: ${new Date().toISOString()}`);
 
     return NextResponse.json({
       success: true,
       message: 'OTP sent successfully',
       otp,
       mobileNumber: cleanNumber,
+      mode: 'console',
     });
   } catch (error: any) {
     return NextResponse.json(
