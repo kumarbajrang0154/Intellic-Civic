@@ -233,6 +233,16 @@ export default function AdminDashboardPage() {
                   </div>
                 </Button>
               </Link>
+
+              <Link href="/admin/staff" className="block">
+                <Button variant="outline" className="w-full justify-start text-left font-medium min-h-[3.25rem] h-auto py-2 px-3">
+                  <Users className="w-4 h-4 mr-3 text-blue-600 shrink-0" />
+                  <div className="min-w-0">
+                    <div className="font-semibold text-sm">Staff Management</div>
+                    <div className="text-xs text-muted-foreground font-normal leading-tight">Create, reassign and audit staff accounts</div>
+                  </div>
+                </Button>
+              </Link>
             </CardContent>
           </Card>
         </div>

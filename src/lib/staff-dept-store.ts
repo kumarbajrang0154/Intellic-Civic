@@ -19,6 +19,7 @@ export interface UserItem {
   departmentId: string | null;
   isAuthorized: boolean;
   isSuspended: boolean;
+  lastLoginAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -93,6 +94,7 @@ const INITIAL_USERS: UserItem[] = [
     departmentId: null,
     isAuthorized: true,
     isSuspended: false,
+    lastLoginAt: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -104,6 +106,7 @@ const INITIAL_USERS: UserItem[] = [
     departmentId: 'dept_roads_infra',
     isAuthorized: true,
     isSuspended: false,
+    lastLoginAt: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -115,6 +118,7 @@ const INITIAL_USERS: UserItem[] = [
     departmentId: 'dept_roads_infra',
     isAuthorized: true,
     isSuspended: false,
+    lastLoginAt: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -126,6 +130,7 @@ const INITIAL_USERS: UserItem[] = [
     departmentId: 'dept_water_sanitation',
     isAuthorized: true,
     isSuspended: false,
+    lastLoginAt: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -137,6 +142,7 @@ const INITIAL_USERS: UserItem[] = [
     departmentId: 'dept_water_sanitation',
     isAuthorized: true,
     isSuspended: false,
+    lastLoginAt: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -148,6 +154,7 @@ const INITIAL_USERS: UserItem[] = [
     departmentId: null,
     isAuthorized: false,
     isSuspended: false,
+    lastLoginAt: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -339,6 +346,7 @@ export function ensureSuperAdminUser(email: string = SUPER_ADMIN_EMAIL, name: st
       departmentId: null,
       isAuthorized: true,
       isSuspended: false,
+      lastLoginAt: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -375,6 +383,7 @@ export function addUser(input: {
     departmentId: input.departmentId || null,
     isAuthorized: input.isAuthorized ?? true,
     isSuspended: false,
+    lastLoginAt: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -458,4 +467,16 @@ export function approveUser(
 
 export function rejectUser(id: string): boolean {
   return deleteUser(id);
+}
+
+export function updateLastLogin(id: string): UserItem | null {
+  const index = staffDeptStore.users.findIndex((u) => u.id === id);
+  if (index === -1) return null;
+  staffDeptStore.users[index] = {
+    ...staffDeptStore.users[index],
+    lastLoginAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  saveStoreToDisk(staffDeptStore);
+  return staffDeptStore.users[index];
 }
