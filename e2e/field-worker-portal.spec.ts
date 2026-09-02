@@ -25,29 +25,6 @@ async function getCitizenContext(request: APIRequestContext): Promise<string> {
 }
 
 test.describe('Field Worker Portal API Integration Tests', () => {
-  let complaintId: string;
-
-  test.beforeAll(async ({ request }) => {
-    // Create a new complaint as citizen
-    const citCookie = await getCitizenContext(request);
-    const createRes = await request.post(`${BASE}/api/complaints`, {
-      headers: { cookie: citCookie, 'Content-Type': 'application/json' },
-      data: {
-        title: 'Broken Pothole Repair Task for Field Worker',
-        description: 'Large asphalt damage requiring immediate site patch work on Main Street.',
-      },
-    });
-    const createdComp = await createRes.json();
-    complaintId = createdComp.id;
-
-    // Assign to Field Worker fw-demo-1 using internal store helper endpoint or direct store initialization
-    const assignRes = await request.post(`${BASE}/api/field-worker/complaints/${complaintId}/evidence`, {
-      headers: { cookie: await getFieldWorkerContext(request), 'Content-Type': 'application/json' },
-      data: { stage: 'BEFORE', imageUrl: 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7' },
-    });
-    // Note: if unassigned, API will reject, so we initialize assignment in test setup if needed
-  });
-
   test('1. GET /api/field-worker/complaints — auth and role enforcement', async ({ request }) => {
     // 401 Unauthenticated
     const unauthRes = await request.get(`${BASE}/api/field-worker/complaints`);
@@ -71,19 +48,29 @@ test.describe('Field Worker Portal API Integration Tests', () => {
     expect(Array.isArray(body.data)).toBe(true);
   });
 
-  test('2. GET /api/field-worker/complaints/[id] — ownership guard', async ({ request }) => {
+  test('2. GET /api/field-worker/complaints/[id] — ownership guard and detail fetching', async ({ request }) => {
+    // 403 when wrong field worker attempts access
     const otherFwCookie = await getOtherFieldWorkerContext(request);
-    const res = await request.get(`${BASE}/api/field-worker/complaints/cmp-sample-1`, {
+    const forbiddenRes = await request.get(`${BASE}/api/field-worker/complaints/cmp-field-assigned`, {
       headers: { cookie: otherFwCookie },
     });
-    // Should be 403 forbidden if assigned to another field worker
-    expect([403, 404]).toContain(res.status());
+    expect(forbiddenRes.status()).toBe(403);
+
+    // 200 when assigned field worker requests detail
+    const fwCookie = await getFieldWorkerContext(request);
+    const res = await request.get(`${BASE}/api/field-worker/complaints/cmp-field-assigned`, {
+      headers: { cookie: fwCookie },
+    });
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.id).toBe('cmp-field-assigned');
+    expect(body.assignedFieldWorkerId).toBe('fw-demo-1');
   });
 
   test('3. Sequence Guard: AFTER evidence photo rejected if BEFORE photo missing', async ({ request }) => {
     const fwCookie = await getFieldWorkerContext(request, 'fw-fresh-worker');
     
-    // Create a unassigned complaint and assign to fw-fresh-worker
+    // Create an unassigned complaint
     const citCookie = await getCitizenContext(request);
     const compRes = await request.post(`${BASE}/api/complaints`, {
       headers: { cookie: citCookie, 'Content-Type': 'application/json' },
@@ -100,16 +87,51 @@ test.describe('Field Worker Portal API Integration Tests', () => {
       data: { stage: 'AFTER', imageUrl: 'https://images.unsplash.com/photo-after.jpg' },
     });
 
-    // Should return 400 sequence violation (or 403 if unassigned)
     expect([400, 403]).toContain(res.status());
   });
 
   test('4. Submit for review rejects short remarks (< 5 chars)', async ({ request }) => {
     const fwCookie = await getFieldWorkerContext(request);
-    const res = await request.post(`${BASE}/api/field-worker/complaints/cmp-sample-1/submit-for-review`, {
+    const res = await request.post(`${BASE}/api/field-worker/complaints/cmp-field-assigned/submit-for-review`, {
       headers: { cookie: fwCookie, 'Content-Type': 'application/json' },
       data: { remarks: 'Done' },
     });
     expect(res.status()).toBe(400);
+  });
+
+  test('5. Happy Path: Start work, upload BEFORE/AFTER evidence, submit for officer review', async ({ request }) => {
+    const fwCookie = await getFieldWorkerContext(request);
+
+    // Step 5a: Start Work (ASSIGNED -> IN_PROGRESS)
+    const startRes = await request.post(`${BASE}/api/field-worker/complaints/cmp-field-assigned/start`, {
+      headers: { cookie: fwCookie },
+    });
+    expect(startRes.status()).toBe(200);
+    const startData = await startRes.json();
+    expect(startData.complaint.status).toBe('IN_PROGRESS');
+
+    // Step 5b: Upload BEFORE evidence photo
+    const beforeRes = await request.post(`${BASE}/api/field-worker/complaints/cmp-field-assigned/evidence`, {
+      headers: { cookie: fwCookie, 'Content-Type': 'application/json' },
+      data: { stage: 'BEFORE', imageUrl: 'https://images.unsplash.com/photo-before.jpg', notes: 'Initial site inspection photo' },
+    });
+    expect(beforeRes.status()).toBe(201);
+
+    // Step 5c: Upload AFTER evidence photo (now valid since BEFORE exists)
+    const afterRes = await request.post(`${BASE}/api/field-worker/complaints/cmp-field-assigned/evidence`, {
+      headers: { cookie: fwCookie, 'Content-Type': 'application/json' },
+      data: { stage: 'AFTER', imageUrl: 'https://images.unsplash.com/photo-after.jpg', notes: 'Repair completed photo' },
+    });
+    expect(afterRes.status()).toBe(201);
+
+    // Step 5d: Submit work for officer review
+    const submitRes = await request.post(`${BASE}/api/field-worker/complaints/cmp-field-assigned/submit-for-review`, {
+      headers: { cookie: fwCookie, 'Content-Type': 'application/json' },
+      data: { remarks: 'Traffic signal control box re-wired and door securely locked.' },
+    });
+    expect(submitRes.status()).toBe(200);
+    const submitData = await submitRes.json();
+    expect(submitData.complaint.readyForReview).toBe(true);
+    expect(submitData.complaint.fieldWorkerRemarks).toContain('Traffic signal control box');
   });
 });
