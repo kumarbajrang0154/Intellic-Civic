@@ -1,30 +1,58 @@
-import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-
-const BACKEND_URL = process.env.NESTJS_BACKEND_URL || 'http://localhost:3001';
+import { addUser, getDepartment, listUsers } from '@/lib/staff-dept-store';
 
 export async function GET(req: NextRequest) {
   try {
-    const token = cookies().get('token')?.value;
-    if (!token) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-    }
-
     const { searchParams } = new URL(req.url);
-    const queryString = searchParams.toString();
+    const role = searchParams.get('role') || undefined;
+    const departmentId = searchParams.get('departmentId') || undefined;
+    const pendingOnly = searchParams.get('pendingOnly') === 'true';
+    const search = searchParams.get('search') || undefined;
 
-    const backendRes = await fetch(`${BACKEND_URL}/api/v1/users?${queryString}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+    const users = listUsers({ role, departmentId, pendingOnly, search });
+
+    const data = users.map((u) => {
+      const dept = u.departmentId ? getDepartment(u.departmentId) : undefined;
+      return {
+        ...u,
+        department: dept ? { id: dept.id, name: dept.name } : undefined,
+      };
     });
 
-    const data = await backendRes.json();
-    return NextResponse.json(data, { status: backendRes.status });
-  } catch (error) {
+    return NextResponse.json({ data });
+  } catch (error: any) {
     return NextResponse.json(
-      { message: 'Failed to fetch users' },
+      { message: 'Failed to fetch users', error: error.message },
+      { status: 500 },
+    );
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { name, email, role, departmentId } = body;
+
+    if (!name || !name.trim()) {
+      return NextResponse.json({ message: 'Name is required' }, { status: 400 });
+    }
+
+    if (!email || !email.trim()) {
+      return NextResponse.json({ message: 'Email is required' }, { status: 400 });
+    }
+
+    const newUser = addUser({
+      name: name.trim(),
+      email: email.trim(),
+      role: role || 'DEPARTMENT_OFFICER',
+      departmentId: role === 'ADMIN' ? null : departmentId,
+      isAuthorized: true,
+    });
+
+    return NextResponse.json(newUser, { status: 201 });
+  } catch (error: any) {
+    return NextResponse.json(
+      { message: 'Failed to create user', error: error.message },
       { status: 500 },
     );
   }

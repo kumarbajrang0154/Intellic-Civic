@@ -1,32 +1,24 @@
-import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { listUsers } from '@/lib/staff-dept-store';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } },
 ) {
   try {
-    const cookieStore = cookies();
-    const accessToken = cookieStore.get('ic_access_token')?.value;
-
-    if (!accessToken) {
-      return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
-    }
-
     const { id } = params;
+    const officers = listUsers({ departmentId: id });
 
-    const response = await fetch(`${API_URL}/api/v1/departments/${id}/staff`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
+    return NextResponse.json({
+      officers: officers.map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        isAuthorized: u.isAuthorized,
+        isSuspended: u.isSuspended,
+      })),
     });
-
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
   } catch (error: any) {
     return NextResponse.json(
       { statusCode: 500, message: 'Internal server error', error: error.message },

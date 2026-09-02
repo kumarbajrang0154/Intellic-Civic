@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { decodeJwtToken } from '@/lib/auth-jwt';
+import { getUserByEmail } from '@/lib/staff-dept-store';
 import { getOrCreateCitizenProfile } from '@/lib/user-store';
 
 export async function GET() {
@@ -31,6 +32,24 @@ export async function GET() {
           isProfileComplete: profile.isProfileComplete,
         },
       });
+    }
+
+    // Check staff-dept-store for updated staff/admin info
+    if (payload.email) {
+      const staffUser = getUserByEmail(payload.email);
+      if (staffUser) {
+        return NextResponse.json({
+          user: {
+            id: staffUser.id,
+            email: staffUser.email,
+            name: staffUser.name,
+            role: staffUser.role,
+            departmentId: staffUser.departmentId,
+            isAuthorized: staffUser.isAuthorized,
+            isSuspended: staffUser.isSuspended,
+          },
+        });
+      }
     }
 
     return NextResponse.json({

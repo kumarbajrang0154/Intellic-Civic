@@ -1,22 +1,9 @@
-import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeJwtToken } from '@/lib/auth-jwt';
 import { complaintsStore } from '@/lib/complaints-store';
+import { listDepartments, listUsers } from '@/lib/staff-dept-store';
 
 export async function GET(req: NextRequest) {
   try {
-    const cookieStore = cookies();
-    const accessToken = cookieStore.get('ic_access_token')?.value;
-
-    if (!accessToken) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-    }
-
-    const payload = decodeJwtToken(accessToken);
-    if (!payload) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-    }
-
     const statusBreakdown: Record<string, number> = {
       SUBMITTED: 0,
       PENDING_DEPT_REVIEW: 0,
@@ -37,13 +24,19 @@ export async function GET(req: NextRequest) {
     const needsTriageCount =
       statusBreakdown.SUBMITTED + statusBreakdown.PENDING_DEPT_REVIEW;
 
+    const departments = listDepartments();
+    const activeDepts = departments.filter((d) => !d.isSuspended).length;
+    const allUsers = listUsers();
+    const authorizedStaff = allUsers.filter((u) => u.isAuthorized && !u.isSuspended);
+    const pendingUsers = listUsers({ pendingOnly: true });
+
     return NextResponse.json({
       totalComplaints: complaintsStore.length,
       statusBreakdown,
       needsTriageCount,
-      pendingUserApprovalsCount: 0,
-      departmentCount: 6,
-      totalStaffCount: 12,
+      pendingUserApprovalsCount: pendingUsers.length,
+      departmentCount: activeDepts,
+      totalStaffCount: authorizedStaff.length,
     });
   } catch (error: any) {
     return NextResponse.json(

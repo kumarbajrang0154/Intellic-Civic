@@ -1,22 +1,15 @@
 import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createJwtToken } from '@/lib/auth-jwt';
-import { ensureSuperAdminUser, getUserByEmail } from '@/lib/staff-dept-store';
+import { ensureSuperAdminUser } from '@/lib/staff-dept-store';
 
-export async function POST(request: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const { code } = await request.json();
+    const body = await req.json().catch(() => ({}));
+    const email = body.email || 'kumarbajrang325@gmail.com';
 
-    if (!code) {
-      return NextResponse.json(
-        { statusCode: 400, message: 'Authorization code is required' },
-        { status: 400 },
-      );
-    }
-
-    // Default Google Super Admin OAuth bootstrap for kumarbajrang325@gmail.com
-    const superAdminEmail = 'kumarbajrang325@gmail.com';
-    const superAdmin = ensureSuperAdminUser(superAdminEmail, 'Bajrang Kumar (Super Admin)');
+    // Ensure Super Admin user is bootstrapped
+    const superAdmin = ensureSuperAdminUser(email);
 
     const userPayload = {
       sub: superAdmin.id,
@@ -48,10 +41,14 @@ export async function POST(request: Request) {
       maxAge: 30 * 24 * 60 * 60,
     });
 
-    return NextResponse.json({ success: true, user: superAdmin });
+    return NextResponse.json({
+      success: true,
+      user: superAdmin,
+      redirectUrl: '/admin',
+    });
   } catch (error: any) {
     return NextResponse.json(
-      { statusCode: 500, message: 'Internal server error', error: error.message },
+      { statusCode: 500, message: 'Failed to initiate Super Admin session', error: error.message },
       { status: 500 },
     );
   }

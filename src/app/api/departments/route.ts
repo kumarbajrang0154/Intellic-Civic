@@ -1,24 +1,34 @@
-import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-
-const BACKEND_URL = process.env.NESTJS_BACKEND_URL || 'http://localhost:3001';
+import { complaintsStore } from '@/lib/complaints-store';
+import { addDepartment, listDepartments, listUsers } from '@/lib/staff-dept-store';
 
 export async function GET(req: NextRequest) {
   try {
-    const token = cookies().get('token')?.value;
+    const departments = listDepartments();
+    const allUsers = listUsers();
 
-    const backendRes = await fetch(`${BACKEND_URL}/api/v1/departments`, {
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        'Content-Type': 'application/json',
-      },
+    // Map staff counts and complaint counts
+    const data = departments.map((dept) => {
+      const staffCount = allUsers.filter((u) => u.departmentId === dept.id).length;
+      const deptComplaints = complaintsStore.filter(
+        (c) => c.departmentId === dept.id || c.category?.departmentId === dept.id,
+      );
+      const activeComplaintCount = deptComplaints.filter((c) =>
+        ['SUBMITTED', 'PENDING_DEPT_REVIEW', 'ASSIGNED', 'IN_PROGRESS'].includes(c.status),
+      ).length;
+
+      return {
+        ...dept,
+        staffCount,
+        complaintCount: deptComplaints.length,
+        activeComplaintCount,
+      };
     });
 
-    const data = await backendRes.json();
-    return NextResponse.json(data, { status: backendRes.status });
-  } catch (error) {
+    return NextResponse.json(data);
+  } catch (error: any) {
     return NextResponse.json(
-      { message: 'Failed to fetch departments' },
+      { message: 'Failed to fetch departments', error: error.message },
       { status: 500 },
     );
   }
@@ -26,27 +36,33 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const token = cookies().get('token')?.value;
-    if (!token) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    const body = await req.json();
+    const { name, description, headOfficeAddress } = body;
+
+    if (!name || !name.trim()) {
+      return NextResponse.json(
+        { message: 'Department name is required' },
+        { status: 400 },
+      );
     }
 
-    const body = await req.json();
+    if (!description || !description.trim()) {
+      return NextResponse.json(
+        { message: 'Department description is required' },
+        { status: 400 },
+      );
+    }
 
-    const backendRes = await fetch(`${BACKEND_URL}/api/v1/departments`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
+    const newDept = addDepartment({
+      name: name.trim(),
+      description: description.trim(),
+      headOfficeAddress: headOfficeAddress?.trim(),
     });
 
-    const data = await backendRes.json();
-    return NextResponse.json(data, { status: backendRes.status });
-  } catch (error) {
+    return NextResponse.json(newDept, { status: 201 });
+  } catch (error: any) {
     return NextResponse.json(
-      { message: 'Failed to create department' },
+      { message: 'Failed to create department', error: error.message },
       { status: 500 },
     );
   }
