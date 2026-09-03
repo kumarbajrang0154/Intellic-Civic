@@ -39,9 +39,10 @@ export async function POST(request: Request) {
       mode: 'console',
     });
   } catch (error: any) {
+    console.error('[SEND OTP SERVER ERROR]', error);
     return NextResponse.json(
-      { statusCode: 500, message: 'Internal server error', error: error.message },
-      { status: 500 },
+      { statusCode: 500, message: 'Internal server error', error: error?.message || String(error) },
+      { status: 500, headers: { 'Content-Type': 'application/json' } },
     );
   }
 }

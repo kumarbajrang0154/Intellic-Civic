@@ -13,7 +13,15 @@ export function getFirebaseAdminAuth(): Auth | null {
       let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
       if (privateKey) {
-        // Unescape newlines if stored as string literal
+        // Strip surrounding quotes if added by Vercel environment UI
+        privateKey = privateKey.trim();
+        if (
+          (privateKey.startsWith('"') && privateKey.endsWith('"')) ||
+          (privateKey.startsWith("'") && privateKey.endsWith("'"))
+        ) {
+          privateKey = privateKey.slice(1, -1);
+        }
+        // Replace escaped newlines \n or \\n with actual newlines
         privateKey = privateKey.replace(/\\n/g, '\n');
       }
 
