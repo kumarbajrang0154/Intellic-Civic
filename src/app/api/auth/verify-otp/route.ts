@@ -28,11 +28,17 @@ export async function POST(request: Request) {
       let decodedToken;
       try {
         const firebaseAdminAuth = getFirebaseAdminAuth();
+        if (!firebaseAdminAuth) {
+          return NextResponse.json(
+            { statusCode: 500, message: 'Firebase Admin SDK is not initialized. Please configure FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables.' },
+            { status: 500 },
+          );
+        }
         decodedToken = await firebaseAdminAuth.verifyIdToken(idToken);
       } catch (err: any) {
         console.error('[FIREBASE AUTH ERROR] ID token verification failed:', err);
         return NextResponse.json(
-          { statusCode: 401, message: 'Invalid or expired Firebase authentication token' },
+          { statusCode: 401, message: `Invalid or expired Firebase authentication token: ${err.message || err}` },
           { status: 401 },
         );
       }
