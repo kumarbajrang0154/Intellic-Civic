@@ -141,11 +141,11 @@ export default function AdminDashboardPage() {
         if (statsRes.ok) setStats(await statsRes.json());
         if (meRes.ok) {
           const me = await meRes.json();
-          setUser({ name: me.name || 'Admin', role: me.role || 'ADMIN' });
+          setUser({ name: me.user?.name || 'Admin', role: me.user?.role || 'ADMIN' });
         }
         if (complaintsRes.ok) {
           const data = await complaintsRes.json();
-          setRecentComplaints(data.data || data.complaints || []);
+          setRecentComplaints(data.data || []);
         }
       } catch (err) {
         console.error('Dashboard fetch error:', err);
