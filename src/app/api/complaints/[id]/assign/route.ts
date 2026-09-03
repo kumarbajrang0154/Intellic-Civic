@@ -1,7 +1,8 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { decodeJwtToken } from '@/lib/auth-jwt';
+import { assignFieldWorkerToComplaint } from '@/lib/complaints-store';
+import prisma from '@/lib/prisma';
 
 export async function POST(
   request: NextRequest,
@@ -15,21 +16,29 @@ export async function POST(
       return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
     }
 
+    const payload = decodeJwtToken(accessToken);
+    if (!payload) {
+      return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = params;
     const body = await request.json();
+    const { fieldWorkerId, assignedToId } = body;
 
-    const response = await fetch(`${API_URL}/api/v1/complaints/${id}/assign`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
+    const targetId = fieldWorkerId || assignedToId;
+    if (!targetId) {
+      return NextResponse.json({ statusCode: 400, message: 'Field worker ID is required' }, { status: 400 });
+    }
 
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
+    const targetWorker = await prisma.user.findUnique({ where: { id: targetId } });
+    const targetName = targetWorker?.name || 'Field Worker';
+
+    const result = await assignFieldWorkerToComplaint(id, targetId, targetName, payload.sub);
+    if (!result.ok) {
+      return NextResponse.json({ statusCode: result.status, message: result.message }, { status: result.status });
+    }
+
+    return NextResponse.json({ success: true, complaint: result.complaint });
   } catch (error: any) {
     return NextResponse.json(
       { statusCode: 500, message: 'Internal server error', error: error.message },

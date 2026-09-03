@@ -80,15 +80,19 @@ export default function CitizenLoginPage() {
           body: JSON.stringify({ mobileNumber: cleanNumber }),
         });
 
-        const contentType = res.headers.get('content-type') || '';
-        let data: any = {};
-        if (contentType.includes('application/json')) {
-          data = await res.json();
-        } else {
-          await res.text();
-          throw new Error(`Server returned HTML response (${res.status}). Please check network or server status.`);
+        const contentType = res.headers.get('content-type');
+        if (!contentType?.includes('application/json')) {
+          const responseText = await res.text();
+          console.error('API returned non-JSON response:', {
+            url: res.url,
+            status: res.status,
+            contentType,
+            body: responseText,
+          });
+          throw new Error(`Server returned non-JSON response. HTTP ${res.status}`);
         }
 
+        const data = await res.json();
         if (!res.ok) {
           throw new Error(data.message || 'Failed to send OTP');
         }
@@ -150,15 +154,19 @@ export default function CitizenLoginPage() {
         body: JSON.stringify(reqBody),
       });
 
-      const contentType = res.headers.get('content-type') || '';
-      let data: any = {};
-      if (contentType.includes('application/json')) {
-        data = await res.json();
-      } else {
-        await res.text();
-        throw new Error(`Server returned HTML response (${res.status}). Please check server logs.`);
+      const contentType = res.headers.get('content-type');
+      if (!contentType?.includes('application/json')) {
+        const responseText = await res.text();
+        console.error('API returned non-JSON response:', {
+          url: res.url,
+          status: res.status,
+          contentType,
+          body: responseText,
+        });
+        throw new Error(`Server returned non-JSON response. HTTP ${res.status}`);
       }
 
+      const data = await res.json();
       if (!res.ok) {
         throw new Error(data.message || 'Invalid or expired verification code');
       }

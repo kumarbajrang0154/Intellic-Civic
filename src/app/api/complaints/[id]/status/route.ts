@@ -1,7 +1,8 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { decodeJwtToken } from '@/lib/auth-jwt';
+import prisma from '@/lib/prisma';
+import { ComplaintStatus } from '@prisma/client';
 
 export async function PATCH(
   request: NextRequest,
@@ -15,21 +16,40 @@ export async function PATCH(
       return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
     }
 
+    const payload = decodeJwtToken(accessToken);
+    if (!payload) {
+      return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = params;
     const body = await request.json();
+    const { status, notes } = body;
 
-    const response = await fetch(`${API_URL}/api/v1/complaints/${id}/status`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
+    if (!status || !Object.values(ComplaintStatus).includes(status as ComplaintStatus)) {
+      return NextResponse.json({ statusCode: 400, message: 'Invalid complaint status' }, { status: 400 });
+    }
+
+    const currentComplaint = await prisma.complaint.findUnique({ where: { id } });
+    if (!currentComplaint) {
+      return NextResponse.json({ statusCode: 404, message: 'Complaint not found' }, { status: 404 });
+    }
+
+    const updated = await prisma.complaint.update({
+      where: { id },
+      data: {
+        status: status as ComplaintStatus,
+        statusHistory: {
+          create: {
+            fromStatus: currentComplaint.status,
+            toStatus: status as ComplaintStatus,
+            changedByUserId: payload.sub,
+            notes: notes || `Status changed to ${status}`,
+          },
+        },
       },
-      body: JSON.stringify(body),
     });
 
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
+    return NextResponse.json({ success: true, complaint: updated });
   } catch (error: any) {
     return NextResponse.json(
       { statusCode: 500, message: 'Internal server error', error: error.message },

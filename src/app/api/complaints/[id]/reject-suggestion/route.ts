@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { decodeJwtToken } from '@/lib/auth-jwt';
+import prisma from '@/lib/prisma';
 
 export async function PATCH(
   request: NextRequest,
@@ -15,19 +15,19 @@ export async function PATCH(
       return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
     }
 
+    const payload = decodeJwtToken(accessToken);
+    if (!payload) {
+      return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = params;
 
-    const response = await fetch(`${API_URL}/api/v1/complaints/${id}/reject-suggestion`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
+    const updated = await prisma.aiPrediction.updateMany({
+      where: { complaintId: id },
+      data: { isRejected: true },
     });
 
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
+    return NextResponse.json({ success: true, count: updated.count });
   } catch (error: any) {
     return NextResponse.json(
       { statusCode: 500, message: 'Internal server error', error: error.message },
