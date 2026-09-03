@@ -238,9 +238,8 @@ const CITIZEN_NAV: NavSection[] = [
 function getNavSections(role: UserRole): NavSection[] {
   switch (role) {
     case 'SUPER_ADMIN':
+    case 'ADMIN': // ADMIN = Super Admin in this platform
       return SUPER_ADMIN_NAV;
-    case 'ADMIN':
-      return ADMIN_NAV;
     case 'DEPARTMENT_HEAD':
       return DEPT_HEAD_NAV;
     case 'DEPARTMENT_OFFICER':
