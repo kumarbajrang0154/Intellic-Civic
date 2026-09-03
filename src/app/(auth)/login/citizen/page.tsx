@@ -80,7 +80,15 @@ export default function CitizenLoginPage() {
           body: JSON.stringify({ mobileNumber: cleanNumber }),
         });
 
-        const data = await res.json();
+        const contentType = res.headers.get('content-type') || '';
+        let data: any = {};
+        if (contentType.includes('application/json')) {
+          data = await res.json();
+        } else {
+          await res.text();
+          throw new Error(`Server returned HTML response (${res.status}). Please check network or server status.`);
+        }
+
         if (!res.ok) {
           throw new Error(data.message || 'Failed to send OTP');
         }
@@ -142,7 +150,15 @@ export default function CitizenLoginPage() {
         body: JSON.stringify(reqBody),
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get('content-type') || '';
+      let data: any = {};
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        await res.text();
+        throw new Error(`Server returned HTML response (${res.status}). Please check server logs.`);
+      }
+
       if (!res.ok) {
         throw new Error(data.message || 'Invalid or expired verification code');
       }
