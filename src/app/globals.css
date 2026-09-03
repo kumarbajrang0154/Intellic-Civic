@@ -30,6 +30,12 @@
     --ring: 217 91% 48%;
 
     --radius: 0.5rem;
+
+    /* IntelliCivic Brand Colors */
+    --ic-navy: 217 57% 13%;   /* #0B1730 */
+    --ic-blue: 214 53% 36%;   /* #28528E */
+    --ic-action: 207 55% 48%; /* #3A83BD */
+    --ic-light: 207 47% 95%; /* #E8F1F7 */
   }
 
   .dark {

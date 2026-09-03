@@ -430,3 +430,14 @@ model PlatformSettings {
   @@map("platform_settings")
 }
 
+model SlaRule {
+  id              String        @id @default(uuid())
+  priority        PriorityLevel @unique
+  resolutionHours Int           /// Resolution time in hours (e.g. 24, 72, 168)
+  label           String        /// Human-readable label e.g. "24 hours", "3 days"
+  isActive        Boolean       @default(true)
+  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime      @default(now())
+
+  @@map("sla_rules")
+}

@@ -8,6 +8,11 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // IntelliCivic brand palette
+        'ic-navy': 'hsl(var(--ic-navy))',
+        'ic-blue': 'hsl(var(--ic-blue))',
+        'ic-action': 'hsl(var(--ic-action))',
+        'ic-light': 'hsl(var(--ic-light))',
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
