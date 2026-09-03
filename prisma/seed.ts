@@ -103,7 +103,7 @@ async function main() {
       id: 'usr_super_admin',
       name: 'Bajrang Kumar (Super Admin)',
       email: 'kumarbajrang325@gmail.com',
-      role: UserRole.ADMIN,
+      role: UserRole.SUPER_ADMIN,
       authProvider: AuthProvider.GOOGLE,
       isAuthorized: true,
       isSuspended: false,

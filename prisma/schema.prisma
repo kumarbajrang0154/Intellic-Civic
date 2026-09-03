@@ -21,6 +21,7 @@ enum UserRole {
   DEPARTMENT_OFFICER
   FIELD_WORKER
   ADMIN
+  SUPER_ADMIN
 }
 
 enum AuthProvider {
@@ -370,3 +371,62 @@ model AuditLog {
   @@index([userId])
   @@map("audit_logs")
 }
+
+model PlatformSettings {
+  id                    String   @id @default("global")
+  // 1. General Branding
+  platformName          String   @default("IntelliCivic Platform")
+  shortName             String   @default("IntelliCivic")
+  organizationName      String   @default("Smart City Municipal Corporation")
+  logoUrl               String?  @db.Text
+  faviconUrl            String?  @db.Text
+
+  // 2. Contact Information
+  supportEmail          String   @default("support@intellicivic.gov.in")
+  officialPhone         String   @default("+91 1800-123-4567")
+  citizenSupportNumber  String   @default("+91 1800-111-2222")
+  officeContactNumber   String   @default("+91 011-23456789")
+  workingHours          String   @default("Mon - Sat: 9:00 AM - 6:00 PM")
+
+  // 3. Organization Address
+  officeName            String   @default("Civic Center HQ")
+  address               String   @default("1, Municipal Circle, Connaught Place")
+  city                  String   @default("New Delhi")
+  district              String   @default("Central Delhi")
+  state                 String   @default("Delhi")
+  pincode               String   @default("110001")
+  country               String   @default("India")
+
+  // 4. Google Maps
+  googleMapsUrl         String?  @db.Text
+  latitude              Float?   @default(28.6315)
+  longitude             Float?   @default(77.2167)
+
+  // 5. Social Links
+  websiteUrl            String?  @default("https://smartaicity.vercel.app")
+  facebookUrl           String?  @default("https://facebook.com/intellicivic")
+  instagramUrl          String?  @default("https://instagram.com/intellicivic")
+  twitterUrl            String?  @default("https://x.com/intellicivic")
+  linkedinUrl           String?  @default("https://linkedin.com/company/intellicivic")
+  youtubeUrl            String?  @default("https://youtube.com/@intellicivic")
+
+  // 6. Footer Settings
+  footerDescription     String   @default("Empowering citizens and municipal administration with AI-driven civic complaint resolution, transparent tracking, and automated field governance.") @db.Text
+  copyrightText         String   @default("© 2026 IntelliCivic Smart City Platform. All rights reserved.")
+
+  // 7. Legal Settings
+  privacyPolicyUrl      String?  @default("/privacy") @db.Text
+  termsConditionsUrl    String?  @default("/terms") @db.Text
+
+  // 8. SEO & Meta
+  metaTitle             String   @default("IntelliCivic - AI Driven Smart City Civic Platform")
+  metaDescription       String   @default("Report civic complaints, track real-time resolution, and connect with municipal departments efficiently.") @db.Text
+  metaKeywords          String   @default("smart city, civic complaint, municipal governance, pothole repair, sanitation, AI triage")
+  openGraphImageUrl     String?  @db.Text
+
+  updatedAt             DateTime @updatedAt
+  createdAt             DateTime @default(now())
+
+  @@map("platform_settings")
+}
+

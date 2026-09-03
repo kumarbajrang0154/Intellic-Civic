@@ -90,7 +90,7 @@ export function middleware(request: NextRequest) {
     if (role === 'FIELD_WORKER' && !pathname.startsWith('/field-worker')) {
       return NextResponse.redirect(new URL('/field-worker', request.url));
     }
-    if (role === 'ADMIN' && !pathname.startsWith('/admin')) {
+    if ((role === 'ADMIN' || role === 'SUPER_ADMIN') && !pathname.startsWith('/admin')) {
       return NextResponse.redirect(new URL('/admin', request.url));
     }
   }
@@ -109,6 +109,7 @@ function getDashboardForRole(role?: string): string {
     case 'FIELD_WORKER':
       return '/field-worker';
     case 'ADMIN':
+    case 'SUPER_ADMIN':
       return '/admin';
     default:
       return '/login/citizen';

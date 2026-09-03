@@ -191,7 +191,7 @@ export async function ensureSuperAdminUser(
     admin = await prisma.user.update({
       where: { id: admin.id },
       data: {
-        role: UserRole.ADMIN,
+        role: UserRole.SUPER_ADMIN,
         isAuthorized: true,
         isSuspended: false,
         name: admin.name || name,
@@ -203,7 +203,7 @@ export async function ensureSuperAdminUser(
         id: 'usr_super_admin',
         name,
         email: cleanEmail,
-        role: UserRole.ADMIN,
+        role: UserRole.SUPER_ADMIN,
         authProvider: AuthProvider.GOOGLE,
         departmentId: null,
         isAuthorized: true,
@@ -264,7 +264,7 @@ export async function updateUser(
     let updatedSuspended = updates.isSuspended !== undefined ? updates.isSuspended : current.isSuspended;
 
     if (current.email && current.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) {
-      updatedRole = UserRole.ADMIN;
+      updatedRole = UserRole.SUPER_ADMIN;
       updatedAuthorized = true;
       updatedSuspended = false;
     }

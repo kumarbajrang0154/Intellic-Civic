@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   AlertCircle,
@@ -12,6 +13,7 @@ import {
   LogOut,
   Menu,
   PlusCircle,
+  Settings,
   Shield,
   Sparkles,
   User,
@@ -26,7 +28,8 @@ export type UserRole =
   | 'DEPARTMENT_HEAD'
   | 'DEPARTMENT_OFFICER'
   | 'FIELD_WORKER'
-  | 'ADMIN';
+  | 'ADMIN'
+  | 'SUPER_ADMIN';
 
 interface NavItem {
   title: string;
@@ -64,6 +67,18 @@ const NAV_CONFIG: Record<UserRole, NavItem[]> = {
     { title: 'All Users', href: '/admin/users', icon: Users },
     { title: 'Departments', href: '/admin/departments', icon: Building2 },
     { title: 'Categories', href: '/admin/categories', icon: Sparkles },
+    { title: 'Platform Settings', href: '/admin/settings', icon: Settings },
+    { title: 'Profile', href: '/admin/profile', icon: User },
+  ],
+  SUPER_ADMIN: [
+    { title: 'Dashboard', href: '/admin', icon: Home },
+    { title: 'Triage Queue', href: '/admin/triage', icon: AlertCircle },
+    { title: 'All Complaints', href: '/admin/complaints', icon: FileText },
+    { title: 'User Approvals', href: '/admin/users/pending', icon: Shield },
+    { title: 'All Users', href: '/admin/users', icon: Users },
+    { title: 'Departments', href: '/admin/departments', icon: Building2 },
+    { title: 'Categories', href: '/admin/categories', icon: Sparkles },
+    { title: 'Platform Settings', href: '/admin/settings', icon: Settings },
     { title: 'Profile', href: '/admin/profile', icon: User },
   ],
 };
@@ -79,8 +94,27 @@ interface AppShellProps {
 
 export function AppShell({ children, user }: AppShellProps) {
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const [platformInfo, setPlatformInfo] = React.useState<{ platformName: string; logoUrl: string | null }>({
+    platformName: 'IntelliCivic',
+    logoUrl: null,
+  });
+
   const pathname = usePathname();
   const router = useRouter();
+
+  React.useEffect(() => {
+    fetch('/api/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.settings) {
+          setPlatformInfo({
+            platformName: data.settings.shortName || data.settings.platformName || 'IntelliCivic',
+            logoUrl: data.settings.logoUrl || null,
+          });
+        }
+      })
+      .catch((err) => console.warn('[APPSHELL] Failed to fetch settings:', err));
+  }, []);
 
   const navItems = NAV_CONFIG[user.role] || NAV_CONFIG.CITIZEN;
 
@@ -109,8 +143,20 @@ export function AppShell({ children, user }: AppShellProps) {
           </Button>
 
           <Link href="/" className="flex items-center gap-2 font-bold text-base sm:text-lg text-primary truncate min-w-0">
-            <Shield className="h-5 w-5 sm:h-6 sm:w-6 text-primary shrink-0" />
-            <span className="truncate">IntelliCivic</span>
+            {platformInfo.logoUrl ? (
+              <div className="relative h-6 w-6 shrink-0 overflow-hidden rounded">
+                <Image
+                  src={platformInfo.logoUrl}
+                  alt={platformInfo.platformName}
+                  width={24}
+                  height={24}
+                  className="h-full w-full object-contain"
+                />
+              </div>
+            ) : (
+              <Shield className="h-5 w-5 sm:h-6 sm:w-6 text-primary shrink-0" />
+            )}
+            <span className="truncate">{platformInfo.platformName}</span>
           </Link>
         </div>
 
@@ -172,7 +218,7 @@ export function AppShell({ children, user }: AppShellProps) {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between pb-3 border-b">
-                <span className="font-bold text-primary">IntelliCivic</span>
+                <span className="font-bold text-primary">{platformInfo.platformName}</span>
                 <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)}>
                   <X className="h-5 w-5" />
                 </Button>
