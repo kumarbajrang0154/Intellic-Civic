@@ -1,4 +1,3 @@
-import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { createJwtToken } from '@/lib/auth-jwt';
 import { addUser, ensureSuperAdminUser, getUserByEmail } from '@/lib/staff-dept-store';
@@ -36,14 +35,12 @@ export async function POST(req: NextRequest) {
     const SUPER_ADMIN_EMAIL = 'kumarbajrang325@gmail.com';
     let user;
 
-    // 1. Special case: Super Admin Google Account
     if (email === SUPER_ADMIN_EMAIL.toLowerCase()) {
       user = await ensureSuperAdminUser(email, googleName || 'Bajrang Kumar (Super Admin)');
     } else {
       user = await getUserByEmail(email);
     }
 
-    // 2. If user does NOT exist in database, register as pending staff account
     if (!user) {
       user = await addUser({
         name: googleName || email.split('@')[0],
@@ -61,7 +58,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 3. Check if account is suspended
     if (user.isSuspended) {
       return NextResponse.json(
         {
@@ -74,7 +70,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Check if account is authorized
     if (!user.isAuthorized) {
       return NextResponse.json({
         success: false,
@@ -84,7 +79,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 5. Authorized Staff/Admin Login — Generate JWT & Set Cookies
     const userPayload = {
       sub: user.id,
       email: user.email,
@@ -97,28 +91,10 @@ export async function POST(req: NextRequest) {
     const accessToken = await createJwtToken(userPayload, '7d');
     const refreshToken = await createJwtToken({ ...userPayload, type: 'refresh' }, '30d');
 
-    const cookieStore = cookies();
     const isProduction = process.env.NODE_ENV === 'production';
-
-    cookieStore.set('ic_access_token', accessToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60,
-    });
-
-    cookieStore.set('ic_refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 30 * 24 * 60 * 60,
-    });
-
     const targetPortal = getPortalRouteForRole(user.role);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       status: 'AUTHORIZED',
       user: {
@@ -130,6 +106,24 @@ export async function POST(req: NextRequest) {
       },
       redirectUrl: targetPortal,
     });
+
+    response.cookies.set('ic_access_token', accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60,
+    });
+
+    response.cookies.set('ic_refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 30 * 24 * 60 * 60,
+    });
+
+    return response;
   } catch (error: any) {
     return NextResponse.json(
       { statusCode: 500, message: 'Google authentication failed', error: error.message },

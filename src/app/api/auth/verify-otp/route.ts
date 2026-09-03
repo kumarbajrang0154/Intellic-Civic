@@ -1,4 +1,3 @@
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { createJwtToken } from '@/lib/auth-jwt';
 import { getFirebaseAdminAuth } from '@/lib/firebase-admin';
@@ -30,7 +29,11 @@ export async function POST(request: Request) {
         const firebaseAdminAuth = getFirebaseAdminAuth();
         if (!firebaseAdminAuth) {
           return NextResponse.json(
-            { statusCode: 500, message: 'Firebase Admin SDK is not initialized. Please configure FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables.' },
+            {
+              statusCode: 500,
+              message:
+                'Firebase Admin SDK is not initialized. Please configure FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables in Vercel.',
+            },
             { status: 500 },
           );
         }
@@ -71,10 +74,17 @@ export async function POST(request: Request) {
       const accessToken = await createJwtToken(userPayload, '7d');
       const refreshToken = await createJwtToken({ ...userPayload, type: 'refresh' }, '30d');
 
-      const cookieStore = cookies();
       const isProduction = process.env.NODE_ENV === 'production';
 
-      cookieStore.set('ic_access_token', accessToken, {
+      const response = NextResponse.json({
+        success: true,
+        mode: 'firebase',
+        isFirstTime: !profile.isProfileComplete,
+        isProfileComplete: profile.isProfileComplete,
+        user: profile,
+      });
+
+      response.cookies.set('ic_access_token', accessToken, {
         httpOnly: true,
         secure: isProduction,
         sameSite: 'lax',
@@ -82,7 +92,7 @@ export async function POST(request: Request) {
         maxAge: 7 * 24 * 60 * 60,
       });
 
-      cookieStore.set('ic_refresh_token', refreshToken, {
+      response.cookies.set('ic_refresh_token', refreshToken, {
         httpOnly: true,
         secure: isProduction,
         sameSite: 'lax',
@@ -90,13 +100,7 @@ export async function POST(request: Request) {
         maxAge: 30 * 24 * 60 * 60,
       });
 
-      return NextResponse.json({
-        success: true,
-        mode: 'firebase',
-        isFirstTime: !profile.isProfileComplete,
-        isProfileComplete: profile.isProfileComplete,
-        user: profile,
-      });
+      return response;
     }
 
     // =========================================================================
@@ -139,10 +143,17 @@ export async function POST(request: Request) {
     const accessToken = await createJwtToken(userPayload, '7d');
     const refreshToken = await createJwtToken({ ...userPayload, type: 'refresh' }, '30d');
 
-    const cookieStore = cookies();
     const isProduction = process.env.NODE_ENV === 'production';
 
-    cookieStore.set('ic_access_token', accessToken, {
+    const response = NextResponse.json({
+      success: true,
+      mode: 'console',
+      isFirstTime: !profile.isProfileComplete,
+      isProfileComplete: profile.isProfileComplete,
+      user: profile,
+    });
+
+    response.cookies.set('ic_access_token', accessToken, {
       httpOnly: true,
       secure: isProduction,
       sameSite: 'lax',
@@ -150,7 +161,7 @@ export async function POST(request: Request) {
       maxAge: 7 * 24 * 60 * 60,
     });
 
-    cookieStore.set('ic_refresh_token', refreshToken, {
+    response.cookies.set('ic_refresh_token', refreshToken, {
       httpOnly: true,
       secure: isProduction,
       sameSite: 'lax',
@@ -158,13 +169,7 @@ export async function POST(request: Request) {
       maxAge: 30 * 24 * 60 * 60,
     });
 
-    return NextResponse.json({
-      success: true,
-      mode: 'console',
-      isFirstTime: !profile.isProfileComplete,
-      isProfileComplete: profile.isProfileComplete,
-      user: profile,
-    });
+    return response;
   } catch (error: any) {
     return NextResponse.json(
       { statusCode: 500, message: 'Internal server error', error: error.message },

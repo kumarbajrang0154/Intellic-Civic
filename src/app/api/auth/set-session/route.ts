@@ -1,4 +1,3 @@
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
@@ -12,10 +11,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const cookieStore = cookies();
     const isProduction = process.env.NODE_ENV === 'production';
+    const response = NextResponse.json({ success: true });
 
-    cookieStore.set('ic_access_token', accessToken, {
+    response.cookies.set('ic_access_token', accessToken, {
       httpOnly: true,
       secure: isProduction,
       sameSite: 'lax',
@@ -23,7 +22,7 @@ export async function POST(request: Request) {
       maxAge: 7 * 24 * 60 * 60,
     });
 
-    cookieStore.set('ic_refresh_token', refreshToken, {
+    response.cookies.set('ic_refresh_token', refreshToken, {
       httpOnly: true,
       secure: isProduction,
       sameSite: 'lax',
@@ -31,7 +30,7 @@ export async function POST(request: Request) {
       maxAge: 30 * 24 * 60 * 60,
     });
 
-    return NextResponse.json({ success: true });
+    return response;
   } catch (error: any) {
     return NextResponse.json(
       { statusCode: 500, message: 'Internal server error', error: error.message },

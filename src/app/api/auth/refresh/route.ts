@@ -16,12 +16,13 @@ export async function POST() {
 
     const payload = decodeJwtToken(refreshToken);
     if (!payload || payload.type !== 'refresh' || (payload.exp && payload.exp * 1000 < Date.now())) {
-      cookieStore.delete('ic_access_token');
-      cookieStore.delete('ic_refresh_token');
-      return NextResponse.json(
+      const errorResponse = NextResponse.json(
         { statusCode: 401, message: 'Invalid or expired refresh token' },
         { status: 401 },
       );
+      errorResponse.cookies.delete('ic_access_token');
+      errorResponse.cookies.delete('ic_refresh_token');
+      return errorResponse;
     }
 
     const newPayload = { ...payload };
@@ -33,8 +34,9 @@ export async function POST() {
     const newRefreshToken = await createJwtToken({ ...newPayload, type: 'refresh' }, '30d');
 
     const isProduction = process.env.NODE_ENV === 'production';
+    const response = NextResponse.json({ success: true, accessToken });
 
-    cookieStore.set('ic_access_token', accessToken, {
+    response.cookies.set('ic_access_token', accessToken, {
       httpOnly: true,
       secure: isProduction,
       sameSite: 'lax',
@@ -42,7 +44,7 @@ export async function POST() {
       maxAge: 7 * 24 * 60 * 60,
     });
 
-    cookieStore.set('ic_refresh_token', newRefreshToken, {
+    response.cookies.set('ic_refresh_token', newRefreshToken, {
       httpOnly: true,
       secure: isProduction,
       sameSite: 'lax',
@@ -50,7 +52,7 @@ export async function POST() {
       maxAge: 30 * 24 * 60 * 60,
     });
 
-    return NextResponse.json({ success: true, accessToken });
+    return response;
   } catch (error: any) {
     return NextResponse.json(
       { statusCode: 500, message: 'Internal server error', error: error.message },

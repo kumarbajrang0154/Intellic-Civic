@@ -1,4 +1,3 @@
-import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { createJwtToken } from '@/lib/auth-jwt';
 import { getUser, getUserByEmail } from '@/lib/staff-dept-store';
@@ -21,7 +20,6 @@ const ALLOWED_DEV_EMAILS = new Set([
 ]);
 
 export async function POST(req: NextRequest) {
-  // 1. Gate: 404 response unless in non-production AND ENABLE_DEV_LOGIN is explicitly 'true'
   const isDevMode = process.env.NODE_ENV !== 'production';
   const isDevLoginEnabled = process.env.ENABLE_DEV_LOGIN === 'true';
 
@@ -36,7 +34,6 @@ export async function POST(req: NextRequest) {
 
     let targetUser: any = null;
 
-    // Resolve user by ID if provided, or by email, or default to Super Admin
     if (requestedId) {
       targetUser = await getUser(requestedId);
       if (!targetUser && requestedId === 'usr_super_admin') {
@@ -48,7 +45,6 @@ export async function POST(req: NextRequest) {
       targetUser = (await getUser('usr_super_admin')) || (await getUserByEmail('kumarbajrang325@gmail.com'));
     }
 
-    // 2. Allowlist Gate: Reject non-allowlisted or nonexistent users with 400 Bad Request
     const isAllowedId = targetUser && ALLOWED_DEV_USER_IDS.has(targetUser.id);
     const isAllowedEmail = targetUser?.email && ALLOWED_DEV_EMAILS.has(targetUser.email.toLowerCase());
 
@@ -59,7 +55,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. DB Role Enforcement: ALWAYS use the user's actual database role, NEVER trust body.role
     const actualRole = targetUser.role || 'CITIZEN';
 
     if (body.role && body.role !== actualRole) {
@@ -68,7 +63,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Usage Warning Logging
     console.warn(
       `[DEV-LOGIN WARNING] Dev authentication bypass used for user ID "${targetUser.id}" (${actualRole}) at ${new Date().toISOString()}`,
     );
@@ -85,24 +79,7 @@ export async function POST(req: NextRequest) {
     const accessToken = await createJwtToken(userPayload, '7d');
     const refreshToken = await createJwtToken({ ...userPayload, type: 'refresh' }, '30d');
 
-    const cookieStore = cookies();
     const isProduction = process.env.NODE_ENV === 'production';
-
-    cookieStore.set('ic_access_token', accessToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60,
-    });
-
-    cookieStore.set('ic_refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 30 * 24 * 60 * 60,
-    });
 
     let redirectUrl = '/citizen';
     if (actualRole === 'ADMIN') redirectUrl = '/admin';
@@ -110,11 +87,29 @@ export async function POST(req: NextRequest) {
     else if (actualRole === 'DEPARTMENT_OFFICER') redirectUrl = '/officer';
     else if (actualRole === 'FIELD_WORKER') redirectUrl = '/field-worker';
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       user: userPayload,
       redirectUrl,
     });
+
+    response.cookies.set('ic_access_token', accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60,
+    });
+
+    response.cookies.set('ic_refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 30 * 24 * 60 * 60,
+    });
+
+    return response;
   } catch (error: any) {
     return NextResponse.json(
       { statusCode: 500, message: 'Failed to initiate session', error: error.message },
