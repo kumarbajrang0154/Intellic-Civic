@@ -43,13 +43,13 @@ export default function AdminAccountsPage() {
         ]);
         if (staffRes.ok) {
           const data = await staffRes.json();
-          const all: AdminAccount[] = data.staff || data || [];
+          const all: AdminAccount[] = data.items || data.staff || [];
           setAccounts(all);
           setFiltered(all);
         }
         if (meRes.ok) {
           const me = await meRes.json();
-          setUser({ name: me.name || 'Admin', role: me.role || 'ADMIN' });
+          setUser({ name: me.user?.name || 'Admin', role: me.user?.role || 'ADMIN' });
         }
       } catch (err) {
         console.error(err);

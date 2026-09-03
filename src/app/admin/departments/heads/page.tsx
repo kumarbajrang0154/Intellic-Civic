@@ -28,16 +28,16 @@ function HeadsPage() {
     async function load() {
       try {
         const [staffRes, meRes] = await Promise.all([
-          fetch('/api/admin/staff?role=DEPARTMENT_HEAD'),
+          fetch('/api/admin/staff'),
           fetch('/api/auth/me'),
         ]);
         if (staffRes.ok) {
           const data = await staffRes.json();
-          setHeads(data.staff || data || []);
+          setHeads(data.items || data.staff || []);
         }
         if (meRes.ok) {
           const me = await meRes.json();
-          setUser({ name: me.name || 'Admin', role: me.role || 'ADMIN' });
+          setUser({ name: me.user?.name || 'Admin', role: me.user?.role || 'ADMIN' });
         }
       } catch (err) {
         console.error(err);

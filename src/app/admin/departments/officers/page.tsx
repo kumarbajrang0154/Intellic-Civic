@@ -33,12 +33,12 @@ export default function OfficersPage() {
         ]);
         if (staffRes.ok) {
           const data = await staffRes.json();
-          const all: StaffMember[] = data.staff || data || [];
+          const all: StaffMember[] = data.items || data.staff || [];
           setOfficers(all.filter((s) => s.role === 'DEPARTMENT_OFFICER'));
         }
         if (meRes.ok) {
           const me = await meRes.json();
-          setUser({ name: me.name || 'Admin', role: me.role || 'ADMIN' });
+          setUser({ name: me.user?.name || 'Admin', role: me.user?.role || 'ADMIN' });
         }
       } catch (err) {
         console.error(err);

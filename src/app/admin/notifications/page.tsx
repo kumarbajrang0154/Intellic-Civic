@@ -39,8 +39,7 @@ export default function NotificationsPage() {
         ]);
         if (cRes.ok) {
           const data = await cRes.json();
-          const all: NotificationItem[] = data.data || data.complaints || [];
-          // Only show actionable / high-interest items
+          const all: NotificationItem[] = data.data || [];
           const notif = all.filter(
             (c) =>
               c.priority === 'CRITICAL' ||
@@ -51,7 +50,7 @@ export default function NotificationsPage() {
         }
         if (meRes.ok) {
           const me = await meRes.json();
-          setUser({ name: me.name || 'Admin', role: me.role || 'ADMIN' });
+          setUser({ name: me.user?.name || 'Admin', role: me.user?.role || 'ADMIN' });
         }
       } catch (err) {
         console.error(err);

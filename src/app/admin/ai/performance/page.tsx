@@ -35,11 +35,11 @@ export default function AiPerformancePage() {
         ]);
         if (cRes.ok) {
           const data = await cRes.json();
-          setComplaints(data.data || data.complaints || []);
+          setComplaints(data.data || []);
         }
         if (meRes.ok) {
           const me = await meRes.json();
-          setUser({ name: me.name || 'Admin', role: me.role || 'ADMIN' });
+          setUser({ name: me.user?.name || 'Admin', role: me.user?.role || 'ADMIN' });
         }
       } catch (err) {
         console.error(err);

@@ -13,8 +13,9 @@ interface StaffMember {
   name: string;
   email?: string;
   role: string;
+  isActive?: boolean;
   isAuthorized: boolean;
-  isSuspended: boolean;
+  isSuspended?: boolean;
   department?: { name: string };
   createdAt: string;
 }
@@ -89,11 +90,11 @@ export default function SecurityPage() {
         ]);
         if (staffRes.ok) {
           const data = await staffRes.json();
-          setStaff(data.staff || data || []);
+          setStaff(data.items || data.staff || []);
         }
         if (meRes.ok) {
           const me = await meRes.json();
-          setUser({ name: me.name || 'Admin', role: me.role || 'ADMIN' });
+          setUser({ name: me.user?.name || 'Admin', role: me.user?.role || 'ADMIN' });
         }
       } catch (err) {
         console.error(err);
@@ -104,9 +105,9 @@ export default function SecurityPage() {
     load();
   }, []);
 
-  const authorizedCount = staff.filter((s) => s.isAuthorized).length;
-  const suspendedCount = staff.filter((s) => s.isSuspended).length;
-  const pendingCount = staff.filter((s) => !s.isAuthorized && !s.isSuspended).length;
+  const authorizedCount = staff.filter((s) => s.isActive && s.isAuthorized).length;
+  const suspendedCount = staff.filter((s) => !s.isActive).length;
+  const pendingCount = staff.filter((s) => s.isActive && !s.isAuthorized).length;
 
   return (
     <AppShell user={{ name: user.name, role: user.role as any }}>
@@ -220,14 +221,14 @@ export default function SecurityPage() {
                         <td className="px-4 py-3">
                           <span
                             className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                              s.isSuspended
+                              !s.isActive
                                 ? 'bg-red-50 text-red-700'
                                 : s.isAuthorized
                                 ? 'bg-emerald-50 text-emerald-700'
                                 : 'bg-amber-50 text-amber-700'
                             }`}
                           >
-                            {s.isSuspended ? 'Suspended' : s.isAuthorized ? 'Active' : 'Pending'}
+                            {!s.isActive ? 'Inactive' : s.isAuthorized ? 'Active' : 'Pending'}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-xs text-slate-500">

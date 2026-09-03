@@ -49,10 +49,10 @@ export default async function LandingPage() {
 
       {/* Hero */}
       <main className="flex-1 max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-16 flex flex-col items-center text-center space-y-6 sm:space-y-8 min-w-0">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-semibold max-w-full">
+        {/* <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-semibold max-w-full">
           <Cpu className="h-4 w-4 shrink-0" />
           <span className="truncate">AI-Powered Smart City Governance</span>
-        </div>
+        </div> */}
 
         <h1 className="text-2xl sm:text-4xl md:text-6xl font-extrabold tracking-tight text-foreground max-w-4xl leading-tight">
           Empowering Cities with Intelligent Civic Resolution

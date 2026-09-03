@@ -33,14 +33,14 @@ export default function CitizensPage() {
         ]);
         if (usersRes.ok) {
           const data = await usersRes.json();
-          const all: Citizen[] = data.users || data || [];
+          const all: Citizen[] = data.data || data.users || [];
           const c = all.filter((u: any) => u.role === 'CITIZEN');
           setCitizens(c);
           setFiltered(c);
         }
         if (meRes.ok) {
           const me = await meRes.json();
-          setUser({ name: me.name || 'Admin', role: me.role || 'ADMIN' });
+          setUser({ name: me.user?.name || 'Admin', role: me.user?.role || 'ADMIN' });
         }
       } catch (err) {
         console.error(err);

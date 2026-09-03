@@ -45,17 +45,13 @@ export default function AiLogsPage() {
         ]);
         if (cRes.ok) {
           const data = await cRes.json();
-          const all: AiLogEntry[] = data.data || data.complaints || [];
-          // Only show complaints that have gone through AI
-          const withAi = all.filter(
-            (c) => c.status !== 'SUBMITTED' || c.aiPrediction,
-          );
-          setEntries(withAi);
-          setFiltered(withAi);
+          const all: AiLogEntry[] = data.data || [];
+          setEntries(all);
+          setFiltered(all);
         }
         if (meRes.ok) {
           const me = await meRes.json();
-          setUser({ name: me.name || 'Admin', role: me.role || 'ADMIN' });
+          setUser({ name: me.user?.name || 'Admin', role: me.user?.role || 'ADMIN' });
         }
       } catch (err) {
         console.error(err);

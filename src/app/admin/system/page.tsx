@@ -64,7 +64,7 @@ export default function SystemManagementPage() {
   useEffect(() => {
     fetch('/api/auth/me')
       .then((r) => r.json())
-      .then((me) => setUser({ name: me.name || 'Admin', role: me.role || 'ADMIN' }))
+      .then((me) => setUser({ name: me.user?.name || 'Admin', role: me.user?.role || 'ADMIN' }))
       .catch(console.error);
 
     // Load SLA rules
