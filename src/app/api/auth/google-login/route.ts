@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createJwtToken } from '@/lib/auth-jwt';
 import { addUser, ensureSuperAdminUser, getUserByEmail } from '@/lib/staff-dept-store';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 function getPortalRouteForRole(role?: string | null): string {
   switch (role) {
     case 'ADMIN':

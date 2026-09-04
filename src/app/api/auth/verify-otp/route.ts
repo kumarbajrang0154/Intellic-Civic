@@ -4,6 +4,9 @@ import { getFirebaseAdminAuth } from '@/lib/firebase-admin';
 import { verifySavedOtp } from '@/lib/otp-store';
 import { getOrCreateCitizenProfile, normalizeMobileNumber } from '@/lib/user-store';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: Request) {
   try {
     let body: any;

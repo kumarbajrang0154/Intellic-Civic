@@ -3,6 +3,9 @@ import { Clock, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default function PendingApprovalPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">

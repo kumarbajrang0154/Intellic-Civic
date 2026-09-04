@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { generateAndSaveOtp } from '@/lib/otp-store';
 import { normalizeMobileNumber } from '@/lib/user-store';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: Request) {
   try {
     let body: any;
