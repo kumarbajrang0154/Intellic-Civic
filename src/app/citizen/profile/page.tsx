@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { User, Mail, MapPin, Phone, CheckCircle2, Sparkles, Loader2 } from 'lucide-react';
+import { User, Mail, MapPin, Phone, CheckCircle2, Sparkles, Loader2, UploadCloud } from 'lucide-react';
 import { AppShell } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +18,10 @@ function CitizenProfileForm() {
 
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const [mobileNumber, setMobileNumber] = React.useState('');
   const [name, setName] = React.useState('');
@@ -26,6 +29,58 @@ function CitizenProfileForm() {
   const [address, setAddress] = React.useState('');
   const [avatarUrl, setAvatarUrl] = React.useState('');
   const [isProfileComplete, setIsProfileComplete] = React.useState(false);
+
+  const handleAvatarFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingAvatar(true);
+    try {
+      let secureUrl = '';
+      try {
+        const sigRes = await fetch('/api/upload/signature', { method: 'POST' });
+        if (sigRes.ok) {
+          const sigData = await sigRes.json();
+          if (sigData.cloudName && sigData.cloudName !== 'demo' && sigData.apiKey !== '1234567890') {
+            const { timestamp, signature, cloudName, apiKey } = sigData;
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('api_key', apiKey);
+            formData.append('timestamp', String(timestamp));
+            formData.append('signature', signature);
+
+            const uploadRes = await fetch(
+              `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+              { method: 'POST', body: formData },
+            );
+
+            if (uploadRes.ok) {
+              const uploadData = await uploadRes.json();
+              secureUrl = uploadData.secure_url;
+            }
+          }
+        }
+      } catch (cloudErr) {
+        // Cloudinary unavailable, proceed to data URL fallback
+      }
+
+      if (!secureUrl) {
+        secureUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      }
+
+      setAvatarUrl(secureUrl);
+      toast.success('Profile photo uploaded! Click "Save & Continue" to persist.');
+    } catch (err: any) {
+      toast.error('Failed to upload image: ' + (err.message || 'Unknown error'));
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   // Fetch current citizen profile
   React.useEffect(() => {
@@ -163,16 +218,40 @@ function CitizenProfileForm() {
                   </div>
 
                   <div className="space-y-2 text-center sm:text-left flex-1 min-w-0">
-                    <div className="font-semibold text-sm">Profile Picture URL</div>
-                    <Input
-                      type="url"
-                      placeholder="https://example.com/avatar.jpg"
-                      value={avatarUrl}
-                      onChange={(e) => setAvatarUrl(e.target.value)}
-                      className="text-xs font-mono"
-                    />
+                    <div className="font-semibold text-sm">Profile Picture</div>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      <Input
+                        type="url"
+                        placeholder="https://example.com/avatar.jpg"
+                        value={avatarUrl}
+                        onChange={(e) => setAvatarUrl(e.target.value)}
+                        className="text-xs font-mono flex-1"
+                      />
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={handleAvatarFileUpload}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={uploadingAvatar}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-xs gap-1.5 shrink-0"
+                      >
+                        {uploadingAvatar ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <UploadCloud className="h-3.5 w-3.5" />
+                        )}
+                        <span>{uploadingAvatar ? 'Uploading...' : 'Upload Photo'}</span>
+                      </Button>
+                    </div>
                     <p className="text-[11px] text-muted-foreground">
-                      Enter an image URL or choose a sample avatar below.
+                      Upload a photo from your device, enter an image URL, or choose a sample avatar below.
                     </p>
 
                     {/* Quick Preset Avatars */}

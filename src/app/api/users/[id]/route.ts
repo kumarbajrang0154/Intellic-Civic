@@ -33,6 +33,12 @@ export async function PATCH(
 
     return NextResponse.json(updated);
   } catch (error: any) {
+    if (error?.code === 'P2002' || error?.message?.includes('P2002') || error?.message?.includes('Unique constraint failed')) {
+      return NextResponse.json(
+        { message: 'This email or mobile number is already associated with another account.', error: error.message },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       { message: 'Failed to update user', error: error.message },
       { status: 500 },

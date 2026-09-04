@@ -88,6 +88,16 @@ export async function PUT(request: NextRequest) {
       profile: updatedProfile,
     });
   } catch (error: any) {
+    if (error?.code === 'P2002' || error?.message?.includes('P2002') || error?.message?.includes('Unique constraint failed')) {
+      return NextResponse.json(
+        {
+          success: false,
+          statusCode: 409,
+          message: 'This email is already associated with another account. Please use a different email.',
+        },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       { statusCode: 500, message: 'Internal server error', error: error.message },
       { status: 500 },
