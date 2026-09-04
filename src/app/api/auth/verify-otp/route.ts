@@ -6,8 +6,17 @@ import { getOrCreateCitizenProfile, normalizeMobileNumber } from '@/lib/user-sto
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { mobileNumber, otp, idToken } = body;
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { statusCode: 400, message: 'Invalid or missing JSON request body' },
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    const { mobileNumber, otp, idToken } = body || {};
 
     const mode = (process.env.OTP_AUTH_MODE || 'console').toLowerCase();
 

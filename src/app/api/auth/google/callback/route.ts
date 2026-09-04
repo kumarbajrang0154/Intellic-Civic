@@ -95,17 +95,26 @@ export async function GET(req: NextRequest) {
         departmentId: null,
         isAuthorized: false,
       });
-      return NextResponse.redirect(new URL('/pending-approval', frontendUrl));
+      const res = NextResponse.redirect(new URL('/pending-approval', frontendUrl));
+      res.cookies.delete('ic_access_token');
+      res.cookies.delete('ic_refresh_token');
+      return res;
     }
 
     // Step 5: Check suspension
     if (staffUser.isSuspended) {
-      return NextResponse.redirect(new URL('/denied', frontendUrl));
+      const res = NextResponse.redirect(new URL('/denied', frontendUrl));
+      res.cookies.delete('ic_access_token');
+      res.cookies.delete('ic_refresh_token');
+      return res;
     }
 
     // Step 6: Check authorization
     if (!staffUser.isAuthorized) {
-      return NextResponse.redirect(new URL('/pending-approval', frontendUrl));
+      const res = NextResponse.redirect(new URL('/pending-approval', frontendUrl));
+      res.cookies.delete('ic_access_token');
+      res.cookies.delete('ic_refresh_token');
+      return res;
     }
 
     // Step 7: Issue JWT session cookies

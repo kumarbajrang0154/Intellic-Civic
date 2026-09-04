@@ -50,16 +50,19 @@ export async function POST(req: NextRequest) {
         isAuthorized: false,
       });
 
-      return NextResponse.json({
+      const res = NextResponse.json({
         success: false,
         status: 'PENDING',
         message: 'Your Google staff account has been registered and is awaiting approval by Super Admin.',
         redirectUrl: '/pending-approval',
       });
+      res.cookies.delete('ic_access_token');
+      res.cookies.delete('ic_refresh_token');
+      return res;
     }
 
     if (user.isSuspended) {
-      return NextResponse.json(
+      const res = NextResponse.json(
         {
           success: false,
           status: 'SUSPENDED',
@@ -68,15 +71,21 @@ export async function POST(req: NextRequest) {
         },
         { status: 403 },
       );
+      res.cookies.delete('ic_access_token');
+      res.cookies.delete('ic_refresh_token');
+      return res;
     }
 
     if (!user.isAuthorized) {
-      return NextResponse.json({
+      const res = NextResponse.json({
         success: false,
         status: 'PENDING',
         message: 'Your staff account is awaiting authorization and role assignment by Super Admin.',
         redirectUrl: '/pending-approval',
       });
+      res.cookies.delete('ic_access_token');
+      res.cookies.delete('ic_refresh_token');
+      return res;
     }
 
     const userPayload = {

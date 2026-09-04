@@ -4,14 +4,23 @@ import { normalizeMobileNumber } from '@/lib/user-store';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { mobileNumber } = body;
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { statusCode: 400, message: 'Invalid or missing JSON request body' },
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    const { mobileNumber } = body || {};
 
     const cleanNumber = normalizeMobileNumber(mobileNumber);
     if (!cleanNumber || cleanNumber.length !== 10) {
       return NextResponse.json(
         { statusCode: 400, message: 'Mobile number must be a valid 10-digit number' },
-        { status: 400 },
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
       );
     }
 
@@ -19,25 +28,31 @@ export async function POST(request: Request) {
 
     // Firebase mode: OTP SMS generation and verification are handled by Firebase Client SDK on frontend.
     if (mode === 'firebase') {
-      return NextResponse.json({
-        success: true,
-        message: 'Firebase Phone Auth active. SMS sent via Firebase Client SDK.',
-        mode: 'firebase',
-        mobileNumber: cleanNumber,
-      });
+      return NextResponse.json(
+        {
+          success: true,
+          message: 'Firebase Phone Auth active. SMS sent via Firebase Client SDK.',
+          mode: 'firebase',
+          mobileNumber: cleanNumber,
+        },
+        { headers: { 'Content-Type': 'application/json' } },
+      );
     }
 
     // Console mode (Default for dev/testing): Generate OTP, save in Postgres, log to console.
     const otp = await generateAndSaveOtp(cleanNumber);
     console.log(`[CONSOLE OTP] Mobile: +91${cleanNumber} | Code: ${otp} | Timestamp: ${new Date().toISOString()}`);
 
-    return NextResponse.json({
-      success: true,
-      message: 'OTP sent successfully',
-      otp,
-      mobileNumber: cleanNumber,
-      mode: 'console',
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        message: 'OTP sent successfully',
+        otp,
+        mobileNumber: cleanNumber,
+        mode: 'console',
+      },
+      { headers: { 'Content-Type': 'application/json' } },
+    );
   } catch (error: any) {
     console.error('[SEND OTP SERVER ERROR]', error);
     return NextResponse.json(

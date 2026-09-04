@@ -80,8 +80,11 @@ export default function CitizenLoginPage() {
           body: JSON.stringify({ mobileNumber: cleanNumber }),
         });
 
+        let data: any = {};
         const contentType = res.headers.get('content-type');
-        if (!contentType?.includes('application/json')) {
+        if (contentType?.includes('application/json')) {
+          data = await res.json();
+        } else {
           const responseText = await res.text();
           console.error('API returned non-JSON response:', {
             url: res.url,
@@ -89,10 +92,9 @@ export default function CitizenLoginPage() {
             contentType,
             body: responseText,
           });
-          throw new Error(`Server returned non-JSON response. HTTP ${res.status}`);
+          throw new Error(`Server connection error (${res.status}). Please try again.`);
         }
 
-        const data = await res.json();
         if (!res.ok) {
           throw new Error(data.message || 'Failed to send OTP');
         }
@@ -154,8 +156,11 @@ export default function CitizenLoginPage() {
         body: JSON.stringify(reqBody),
       });
 
+      let data: any = {};
       const contentType = res.headers.get('content-type');
-      if (!contentType?.includes('application/json')) {
+      if (contentType?.includes('application/json')) {
+        data = await res.json();
+      } else {
         const responseText = await res.text();
         console.error('API returned non-JSON response:', {
           url: res.url,
@@ -163,10 +168,9 @@ export default function CitizenLoginPage() {
           contentType,
           body: responseText,
         });
-        throw new Error(`Server returned non-JSON response. HTTP ${res.status}`);
+        throw new Error(`Server verification error (${res.status}). Please try again.`);
       }
 
-      const data = await res.json();
       if (!res.ok) {
         throw new Error(data.message || 'Invalid or expired verification code');
       }

@@ -19,6 +19,13 @@ function decodeJwtPayload(token: string): any {
   }
 }
 
+function addCacheControlHeaders(response: NextResponse): NextResponse {
+  response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+  response.headers.set('Pragma', 'no-cache');
+  response.headers.set('Expires', '0');
+  return response;
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -63,39 +70,52 @@ export function middleware(request: NextRequest) {
       pathname.startsWith('/admin')
         ? '/login/staff'
         : '/login/citizen';
-    return NextResponse.redirect(new URL(loginTarget, request.url));
+    return addCacheControlHeaders(NextResponse.redirect(new URL(loginTarget, request.url)));
   }
 
-  // 2. Authenticated users attempting login pages -> redirect to their role home
+  // 2. Check authorization for staff/admin roles trying to access protected paths
+  const isStaffPath =
+    pathname.startsWith('/department-head') ||
+    pathname.startsWith('/dept-head') ||
+    pathname.startsWith('/officer') ||
+    pathname.startsWith('/staff') ||
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/field-worker');
+
+  if (isAuthenticated && isStaffPath && payload?.isAuthorized === false) {
+    return addCacheControlHeaders(NextResponse.redirect(new URL('/pending-approval', request.url)));
+  }
+
+  // 3. Authenticated users attempting login pages -> redirect to their role home
   if (isAuthenticated && (pathname === '/login/citizen' || pathname === '/login/staff')) {
     const targetDashboard = getDashboardForRole(role);
-    return NextResponse.redirect(new URL(targetDashboard, request.url));
+    return addCacheControlHeaders(NextResponse.redirect(new URL(targetDashboard, request.url)));
   }
 
-  // 3. Role boundary enforcement (prevent role mismatch access)
+  // 4. Role boundary enforcement (prevent role mismatch access)
   if (isAuthenticated && isProtectedPath) {
     if (role === 'CITIZEN' && !pathname.startsWith('/citizen')) {
-      return NextResponse.redirect(new URL('/citizen', request.url));
+      return addCacheControlHeaders(NextResponse.redirect(new URL('/citizen', request.url)));
     }
     if (
       role === 'DEPARTMENT_HEAD' &&
       !pathname.startsWith('/dept-head') &&
       !pathname.startsWith('/department-head')
     ) {
-      return NextResponse.redirect(new URL('/dept-head', request.url));
+      return addCacheControlHeaders(NextResponse.redirect(new URL('/dept-head', request.url)));
     }
     if (role === 'DEPARTMENT_OFFICER' && !pathname.startsWith('/officer')) {
-      return NextResponse.redirect(new URL('/officer', request.url));
+      return addCacheControlHeaders(NextResponse.redirect(new URL('/officer', request.url)));
     }
     if (role === 'FIELD_WORKER' && !pathname.startsWith('/field-worker')) {
-      return NextResponse.redirect(new URL('/field-worker', request.url));
+      return addCacheControlHeaders(NextResponse.redirect(new URL('/field-worker', request.url)));
     }
     if ((role === 'ADMIN' || role === 'SUPER_ADMIN') && !pathname.startsWith('/admin')) {
-      return NextResponse.redirect(new URL('/admin', request.url));
+      return addCacheControlHeaders(NextResponse.redirect(new URL('/admin', request.url)));
     }
   }
 
-  return NextResponse.next();
+  return addCacheControlHeaders(NextResponse.next());
 }
 
 function getDashboardForRole(role?: string): string {

@@ -42,6 +42,14 @@ export async function requireAdmin(): Promise<RequireAdminResult> {
   // Re-verify from store in case role was changed
   const storeUser = payload.email ? await getUserByEmail(payload.email) : null;
   const effectiveRole = storeUser?.role ?? payload.role;
+  const isAuthorized = storeUser?.isAuthorized ?? payload.isAuthorized ?? false;
+
+  if (!isAuthorized) {
+    return {
+      authorized: false,
+      response: NextResponse.json({ message: 'Forbidden: Account is pending authorization by Super Admin.' }, { status: 403 }),
+    };
+  }
 
   if (effectiveRole !== 'ADMIN' && effectiveRole !== 'SUPER_ADMIN') {
     return {
@@ -89,6 +97,14 @@ export async function requireSuperAdmin(): Promise<RequireAdminResult> {
 
   const storeUser = payload.email ? await getUserByEmail(payload.email) : null;
   const effectiveRole = storeUser?.role ?? payload.role;
+  const isAuthorized = storeUser?.isAuthorized ?? payload.isAuthorized ?? false;
+
+  if (!isAuthorized) {
+    return {
+      authorized: false,
+      response: NextResponse.json({ message: 'Forbidden: Account is pending authorization by Super Admin.' }, { status: 403 }),
+    };
+  }
 
   if (effectiveRole !== 'SUPER_ADMIN') {
     return {
