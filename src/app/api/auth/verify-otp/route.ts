@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createJwtToken } from '@/lib/auth-jwt';
-import { getFirebaseAdminAuth } from '@/lib/firebase-admin';
 import { verifySavedOtp } from '@/lib/otp-store';
 import { getOrCreateCitizenProfile, normalizeMobileNumber } from '@/lib/user-store';
 
@@ -52,6 +51,7 @@ export async function POST(req: NextRequest) {
           let decodedToken;
           try {
             log('before-firebase-admin-auth');
+            const { getFirebaseAdminAuth } = await import('@/lib/firebase-admin');
             const firebaseAdminAuth = getFirebaseAdminAuth();
             log('after-firebase-admin-auth', { initialized: Boolean(firebaseAdminAuth) });
 
