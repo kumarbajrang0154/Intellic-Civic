@@ -575,23 +575,103 @@ export function AppShell({ children, user }: AppShellProps) {
     }
   };
 
-  // Citizen layout uses simple top-nav only
+  // Citizen layout uses simple top-nav only with persistent links
   if (user.role === 'CITIZEN') {
+    const citizenNavItems = [
+      { title: 'Dashboard', href: '/citizen', icon: FileText },
+      { title: 'New Complaint', href: '/citizen/complaints/new', icon: PlusCircle },
+      { title: 'Profile Settings', href: '/citizen/profile', icon: User },
+    ];
+
     return (
       <div className="min-h-screen bg-ic-light flex flex-col">
-        <header className="sticky top-0 z-40 border-b bg-white px-4 sm:px-6 py-3 flex items-center justify-between shadow-sm">
-          <Link href="/" className="flex items-center gap-2 font-bold text-ic-navy">
-            <Shield className="h-5 w-5 text-ic-action" />
-            <span>{platformInfo.platformName}</span>
-          </Link>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-slate-600 hidden sm:block">{user.name}</span>
-            <Button variant="outline" size="sm" onClick={handleLogout}>
-              <LogOut className="h-4 w-4 mr-1" />
-              Logout
-            </Button>
+        <header className="sticky top-0 z-40 border-b bg-white px-4 sm:px-6 py-3 shadow-sm">
+          <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+            {/* Logo & Navigation Links */}
+            <div className="flex items-center gap-6">
+              <Link href="/citizen" className="flex items-center gap-2 font-bold text-ic-navy group">
+                <div className="w-8 h-8 rounded-lg bg-ic-action flex items-center justify-center text-white shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                  <Shield className="h-4 w-4" />
+                </div>
+                <span className="text-base font-bold tracking-tight text-slate-900">{platformInfo.platformName}</span>
+              </Link>
+
+              {/* Desktop Nav Links */}
+              <nav className="hidden md:flex items-center gap-1.5 border-l border-slate-200 pl-5">
+                {citizenNavItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                        isActive
+                          ? 'bg-ic-action/10 text-ic-action font-semibold'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100',
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+
+            {/* Right Header Actions */}
+            <div className="flex items-center gap-3">
+              {/* Notifications Link */}
+              <Link
+                href="/citizen"
+                className="relative p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                aria-label="Notifications"
+                title="Notifications"
+              >
+                <Bell className="w-5 h-5" />
+              </Link>
+
+              {/* User Avatar & Name */}
+              <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-slate-200">
+                <div className="w-7 h-7 rounded-full bg-ic-action flex items-center justify-center text-white text-xs font-bold shrink-0">
+                  {(user.name || 'C').charAt(0).toUpperCase()}
+                </div>
+                <span className="text-sm font-medium text-slate-700 max-w-[120px] truncate">{user.name || 'Citizen'}</span>
+              </div>
+
+              {/* Logout Button */}
+              <Button variant="outline" size="sm" onClick={handleLogout} className="text-xs gap-1.5">
+                <LogOut className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Logout</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* Mobile Nav Links Bar */}
+          <div className="md:hidden flex items-center justify-around border-t mt-2 pt-2 gap-1 overflow-x-auto">
+            {citizenNavItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap',
+                    isActive
+                      ? 'bg-ic-action/10 text-ic-action font-semibold'
+                      : 'text-slate-600 hover:bg-slate-100',
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  <span>{item.title}</span>
+                </Link>
+              );
+            })}
           </div>
         </header>
+
         <main className="flex-1 p-4 sm:p-6 max-w-5xl mx-auto w-full">{children}</main>
       </div>
     );
