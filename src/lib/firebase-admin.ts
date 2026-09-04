@@ -7,35 +7,36 @@ export function getFirebaseAdminAuth(): Auth | null {
   if (cachedAuth) return cachedAuth;
 
   try {
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+
+    if (!projectId || !clientEmail || !privateKey) {
+      console.warn('[FIREBASE ADMIN] Credentials not configured. Skipping initialization.');
+      return null;
+    }
+
+    if (privateKey) {
+      // Strip surrounding quotes if added by Vercel environment UI
+      privateKey = privateKey.trim();
+      if (
+        (privateKey.startsWith('"') && privateKey.endsWith('"')) ||
+        (privateKey.startsWith("'") && privateKey.endsWith("'"))
+      ) {
+        privateKey = privateKey.slice(1, -1);
+      }
+      // Replace escaped newlines \n or \\n with actual newlines
+      privateKey = privateKey.replace(/\\n/g, '\n');
+    }
+
     if (!getApps().length) {
-      const projectId = process.env.FIREBASE_PROJECT_ID;
-      const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-      let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-
-      if (privateKey) {
-        // Strip surrounding quotes if added by Vercel environment UI
-        privateKey = privateKey.trim();
-        if (
-          (privateKey.startsWith('"') && privateKey.endsWith('"')) ||
-          (privateKey.startsWith("'") && privateKey.endsWith("'"))
-        ) {
-          privateKey = privateKey.slice(1, -1);
-        }
-        // Replace escaped newlines \n or \\n with actual newlines
-        privateKey = privateKey.replace(/\\n/g, '\n');
-      }
-
-      if (projectId && clientEmail && privateKey) {
-        initializeApp({
-          credential: cert({
-            projectId,
-            clientEmail,
-            privateKey,
-          }),
-        });
-      } else {
-        initializeApp();
-      }
+      initializeApp({
+        credential: cert({
+          projectId,
+          clientEmail,
+          privateKey,
+        }),
+      });
     }
 
     cachedAuth = getAuth();

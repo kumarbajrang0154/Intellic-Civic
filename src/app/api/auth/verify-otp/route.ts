@@ -183,15 +183,9 @@ export async function POST(request: Request) {
 
     return response;
   } catch (error: any) {
-    console.error('[VERIFY-OTP ERROR]', error?.name, error?.message, error?.stack);
+    console.error('[VERIFY OTP SERVER ERROR]', error);
     return NextResponse.json(
-      {
-        statusCode: 500,
-        message: 'Internal server error',
-        errorName: error?.name,
-        errorMessage: error?.message,
-        errorStack: error?.stack,
-      },
+      { statusCode: 500, message: 'Internal server error', error: error?.message || String(error) },
       { status: 500, headers: { 'Content-Type': 'application/json' } },
     );
   }
