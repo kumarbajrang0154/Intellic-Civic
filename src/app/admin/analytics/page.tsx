@@ -135,7 +135,13 @@ export default function AnalyticsPage() {
           title="Analytics & Reports"
           description="Comprehensive complaint analytics and department performance insights"
           actions={
-            <Button variant="outline" size="sm">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                window.location.href = '/api/admin/reports/export';
+              }}
+            >
               <Download className="w-4 h-4 mr-2" />
               Export Report
             </Button>

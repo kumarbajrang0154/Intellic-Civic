@@ -113,8 +113,8 @@ export function middleware(request: NextRequest) {
     if (role === 'DEPARTMENT_OFFICER' && !pathname.startsWith('/officer')) {
       return addCacheControlHeaders(NextResponse.redirect(new URL('/officer', request.url)));
     }
-    if (role === 'FIELD_WORKER' && !pathname.startsWith('/field-worker')) {
-      return addCacheControlHeaders(NextResponse.redirect(new URL('/field-worker', request.url)));
+    if (role === 'FIELD_WORKER') {
+      return addCacheControlHeaders(NextResponse.redirect(new URL('/login/staff', request.url)));
     }
     if ((role === 'ADMIN' || role === 'SUPER_ADMIN') && !pathname.startsWith('/admin')) {
       return addCacheControlHeaders(NextResponse.redirect(new URL('/admin', request.url)));
@@ -133,7 +133,7 @@ function getDashboardForRole(role?: string): string {
     case 'DEPARTMENT_OFFICER':
       return '/officer';
     case 'FIELD_WORKER':
-      return '/field-worker';
+      return '/login/staff';
     case 'ADMIN':
     case 'SUPER_ADMIN':
       return '/admin';

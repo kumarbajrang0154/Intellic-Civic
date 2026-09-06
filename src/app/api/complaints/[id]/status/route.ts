@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeJwtToken } from '@/lib/auth-jwt';
+import { requireStaff } from '@/lib/admin-auth';
 import prisma from '@/lib/prisma';
 import { ComplaintStatus } from '@prisma/client';
 
@@ -9,16 +9,9 @@ export async function PATCH(
   { params }: { params: { id: string } },
 ) {
   try {
-    const cookieStore = cookies();
-    const accessToken = cookieStore.get('ic_access_token')?.value;
-
-    if (!accessToken) {
-      return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
-    }
-
-    const payload = decodeJwtToken(accessToken);
-    if (!payload) {
-      return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
+    const auth = await requireStaff(['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER']);
+    if (!auth.authorized) {
+      return auth.response;
     }
 
     const { id } = params;
@@ -34,6 +27,16 @@ export async function PATCH(
       return NextResponse.json({ statusCode: 404, message: 'Complaint not found' }, { status: 404 });
     }
 
+    // Cross-department isolation check for Department Head & Officer
+    if (['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER'].includes(auth.user.role)) {
+      if (auth.user.departmentId && currentComplaint.departmentId && auth.user.departmentId !== currentComplaint.departmentId) {
+        return NextResponse.json(
+          { statusCode: 403, message: 'Forbidden: Cannot alter status of complaints outside your assigned department.' },
+          { status: 403 },
+        );
+      }
+    }
+
     const updated = await prisma.complaint.update({
       where: { id },
       data: {
@@ -42,8 +45,8 @@ export async function PATCH(
           create: {
             fromStatus: currentComplaint.status,
             toStatus: status as ComplaintStatus,
-            changedByUserId: payload.sub,
-            notes: notes || `Status changed to ${status}`,
+            changedByUserId: auth.user.id,
+            notes: notes || `Status changed to ${status} by ${auth.user.name} (${auth.user.role})`,
           },
         },
       },

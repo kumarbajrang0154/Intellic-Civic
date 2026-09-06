@@ -96,7 +96,7 @@ export default function AiSuggestionsPage() {
     setError(null);
 
     try {
-      const res = await fetch(`/api/complaints/${complaintId}/assign`, {
+      const res = await fetch(`/api/complaints/${complaintId}/verify-triage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
-import { listComplaints } from '@/lib/complaints-store';
-import { listDepartments, listUsers } from '@/lib/staff-dept-store';
+import prisma from '@/lib/prisma';
+import { ComplaintStatus, UserRole } from '@prisma/client';
 
 export async function GET(req: NextRequest) {
   try {
     const auth = await requireAdmin();
     if (!auth.authorized) return auth.response;
+
     const statusBreakdown: Record<string, number> = {
       SUBMITTED: 0,
       PENDING_DEPT_REVIEW: 0,
@@ -18,30 +19,44 @@ export async function GET(req: NextRequest) {
       DUPLICATE: 0,
     };
 
-    const { data: allComplaints } = await listComplaints({ limit: 1000 });
+    const [totalComplaints, groupResults, activeDepts, authorizedStaffCount, pendingUserApprovalsCount] = await Promise.all([
+      prisma.complaint.count(),
+      prisma.complaint.groupBy({
+        by: ['status'],
+        _count: { status: true },
+      }),
+      prisma.department.count({ where: { isSuspended: false } }),
+      prisma.user.count({
+        where: {
+          isAuthorized: true,
+          isSuspended: false,
+          role: { in: [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.DEPARTMENT_OFFICER, UserRole.FIELD_WORKER] },
+        },
+      }),
+      prisma.user.count({
+        where: {
+          isAuthorized: false,
+          role: { not: UserRole.ADMIN },
+        },
+      }),
+    ]);
 
-    allComplaints.forEach((c) => {
-      if (statusBreakdown[c.status] !== undefined) {
-        statusBreakdown[c.status]++;
+    groupResults.forEach((g) => {
+      if (statusBreakdown[g.status] !== undefined) {
+        statusBreakdown[g.status] = g._count.status;
       }
     });
 
     const needsTriageCount =
       statusBreakdown.SUBMITTED + statusBreakdown.PENDING_DEPT_REVIEW;
 
-    const departments = await listDepartments();
-    const activeDepts = departments.filter((d) => !d.isSuspended).length;
-    const allUsers = await listUsers();
-    const authorizedStaff = allUsers.filter((u) => u.isAuthorized && !u.isSuspended);
-    const pendingUsers = await listUsers({ pendingOnly: true });
-
     return NextResponse.json({
-      totalComplaints: allComplaints.length,
+      totalComplaints,
       statusBreakdown,
       needsTriageCount,
-      pendingUserApprovalsCount: pendingUsers.length,
+      pendingUserApprovalsCount,
       departmentCount: activeDepts,
-      totalStaffCount: authorizedStaff.length,
+      totalStaffCount: authorizedStaffCount,
     });
   } catch (error: any) {
     return NextResponse.json(

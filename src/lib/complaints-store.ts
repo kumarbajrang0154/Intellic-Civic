@@ -506,11 +506,16 @@ export async function getComplaintById(id: string): Promise<Complaint | null> {
 
 export async function listComplaints(filters?: {
   citizenId?: string;
+  departmentId?: string;
+  assignedFieldWorkerId?: string;
   status?: string;
+  priority?: string;
   categoryId?: string;
   search?: string;
   fromDate?: string;
   toDate?: string;
+  needsTriage?: boolean;
+  pendingAiConfirmation?: boolean;
   page?: number;
   limit?: number;
 }): Promise<{ data: Complaint[]; meta: { total: number; page: number; limit: number; totalPages: number } }> {
@@ -520,21 +525,53 @@ export async function listComplaints(filters?: {
     where.citizenId = filters.citizenId;
   }
 
+  if (filters?.departmentId && filters.departmentId !== 'ALL') {
+    where.departmentId = filters.departmentId;
+  }
+
+  if (filters?.assignedFieldWorkerId) {
+    where.assignedFieldWorkerId = filters.assignedFieldWorkerId;
+  }
+
+  if (filters?.priority && filters.priority !== 'ALL') {
+    where.priority = filters.priority as PriorityLevel;
+  }
+
   if (filters?.status && filters.status !== 'ALL') {
     where.status = filters.status as ComplaintStatus;
   }
 
-  if (filters?.categoryId) {
+  if (filters?.needsTriage) {
+    where.OR = [
+      { status: ComplaintStatus.SUBMITTED },
+      { status: ComplaintStatus.PENDING_DEPT_REVIEW, departmentId: null },
+    ];
+  }
+
+  if (filters?.pendingAiConfirmation) {
+    where.status = ComplaintStatus.PENDING_DEPT_REVIEW;
+    if (filters?.departmentId && filters.departmentId !== 'ALL') {
+      where.departmentId = filters.departmentId;
+    }
+  }
+
+  if (filters?.categoryId && filters.categoryId !== 'ALL') {
     where.categoryId = filters.categoryId;
   }
 
   if (filters?.search) {
     const q = filters.search.trim();
-    where.OR = [
+    const searchConditions = [
       { title: { contains: q, mode: 'insensitive' } },
       { description: { contains: q, mode: 'insensitive' } },
       { ticketId: { contains: q, mode: 'insensitive' } },
     ];
+    if (where.OR) {
+      where.AND = [{ OR: where.OR }, { OR: searchConditions }];
+      delete where.OR;
+    } else {
+      where.OR = searchConditions;
+    }
   }
 
   if (filters?.fromDate || filters?.toDate) {
@@ -573,6 +610,90 @@ export async function listComplaints(filters?: {
       totalPages,
     },
   };
+}
+
+export async function verifyAiTriage(params: {
+  complaintId: string;
+  departmentId: string;
+  categoryId?: string;
+  priority?: PriorityLevel;
+  verifiedByUserId: string;
+  notes?: string;
+}): Promise<{ ok: boolean; status: number; message: string; complaint?: Complaint }> {
+  const complaint = await getComplaintById(params.complaintId);
+  if (!complaint) {
+    return { ok: false, status: 404, message: 'Complaint not found.' };
+  }
+
+  const targetDept = await prisma.department.findUnique({ where: { id: params.departmentId } });
+  if (!targetDept) {
+    return { ok: false, status: 400, message: 'Specified department does not exist.' };
+  }
+
+  let finalCategoryId = params.categoryId || complaint.categoryId;
+  if (!finalCategoryId) {
+    const firstCat = await prisma.category.findFirst({ where: { departmentId: params.departmentId } });
+    finalCategoryId = firstCat?.id || undefined;
+  }
+
+  const updated = await prisma.complaint.update({
+    where: { id: complaint.id },
+    data: {
+      departmentId: params.departmentId,
+      categoryId: finalCategoryId,
+      priority: params.priority || complaint.priority || PriorityLevel.MEDIUM,
+      status: ComplaintStatus.ASSIGNED,
+      statusHistory: {
+        create: {
+          fromStatus: complaint.status as ComplaintStatus,
+          toStatus: ComplaintStatus.ASSIGNED,
+          changedByUserId: params.verifiedByUserId,
+          notes: params.notes || `Department Head verified AI recommendations and routed to ${targetDept.name}.`,
+        },
+      },
+    },
+    include: DEFAULT_INCLUDE,
+  });
+
+  return { ok: true, status: 200, message: 'AI triage verified and complaint allocated.', complaint: formatComplaint(updated) };
+}
+
+export async function reassignComplaintDepartment(params: {
+  complaintId: string;
+  departmentId: string;
+  reassignedByUserId: string;
+  notes?: string;
+}): Promise<{ ok: boolean; status: number; message: string; complaint?: Complaint }> {
+  const complaint = await getComplaintById(params.complaintId);
+  if (!complaint) {
+    return { ok: false, status: 404, message: 'Complaint not found.' };
+  }
+
+  const targetDept = await prisma.department.findUnique({ where: { id: params.departmentId } });
+  if (!targetDept) {
+    return { ok: false, status: 400, message: 'Target department does not exist.' };
+  }
+
+  const nextStatus = complaint.status === ComplaintStatus.SUBMITTED ? ComplaintStatus.PENDING_DEPT_REVIEW : complaint.status as ComplaintStatus;
+
+  const updated = await prisma.complaint.update({
+    where: { id: complaint.id },
+    data: {
+      departmentId: params.departmentId,
+      status: nextStatus,
+      statusHistory: {
+        create: {
+          fromStatus: complaint.status as ComplaintStatus,
+          toStatus: nextStatus,
+          changedByUserId: params.reassignedByUserId,
+          notes: params.notes || `Reassigned department to ${targetDept.name}.`,
+        },
+      },
+    },
+    include: DEFAULT_INCLUDE,
+  });
+
+  return { ok: true, status: 200, message: 'Department reassigned successfully.', complaint: formatComplaint(updated) };
 }
 
 export async function addEvidenceToComplaint(

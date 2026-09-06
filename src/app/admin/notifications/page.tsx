@@ -70,12 +70,30 @@ export default function NotificationsPage() {
 
   const unreadCount = filtered.filter((i) => !readIds.has(i.id)).length;
 
-  function markRead(id: string) {
+  async function markRead(id: string) {
     setReadIds((prev) => new Set(Array.from(prev).concat(id)));
+    try {
+      await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationId: id }),
+      });
+    } catch (err) {
+      console.error('Failed to mark notification read:', err);
+    }
   }
 
-  function markAllRead() {
+  async function markAllRead() {
     setReadIds(new Set(filtered.map((i) => i.id)));
+    try {
+      await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markAll: true }),
+      });
+    } catch (err) {
+      console.error('Failed to mark all notifications read:', err);
+    }
   }
 
   function getNotifType(item: NotificationItem): {

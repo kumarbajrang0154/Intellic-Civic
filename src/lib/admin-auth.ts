@@ -130,3 +130,72 @@ export async function requireSuperAdmin(): Promise<RequireAdminResult> {
     },
   };
 }
+
+export interface StaffPayload {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  departmentId?: string | null;
+}
+
+type RequireStaffResult =
+  | { authorized: true; user: StaffPayload }
+  | { authorized: false; response: NextResponse };
+
+export async function requireStaff(allowedRoles?: string[]): Promise<RequireStaffResult> {
+  const cookieStore = cookies();
+  const token = cookieStore.get('ic_access_token')?.value;
+
+  if (!token) {
+    return {
+      authorized: false,
+      response: NextResponse.json({ message: 'Authentication required.' }, { status: 401 }),
+    };
+  }
+
+  const payload = decodeJwtToken(token);
+  if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
+    return {
+      authorized: false,
+      response: NextResponse.json({ message: 'Session expired. Please sign in again.' }, { status: 401 }),
+    };
+  }
+
+  const storeUser = payload.email ? await getUserByEmail(payload.email) : null;
+  const effectiveRole = storeUser?.role ?? payload.role;
+  const isAuthorized = storeUser?.isAuthorized ?? payload.isAuthorized ?? false;
+
+  if (!isAuthorized) {
+    return {
+      authorized: false,
+      response: NextResponse.json({ message: 'Forbidden: Account is pending authorization by Super Admin.' }, { status: 403 }),
+    };
+  }
+
+  if (storeUser?.isSuspended) {
+    return {
+      authorized: false,
+      response: NextResponse.json({ message: 'Your account has been suspended.' }, { status: 403 }),
+    };
+  }
+
+  if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(effectiveRole)) {
+    return {
+      authorized: false,
+      response: NextResponse.json({ message: `Forbidden: Access requires one of roles: ${allowedRoles.join(', ')}.` }, { status: 403 }),
+    };
+  }
+
+  return {
+    authorized: true,
+    user: {
+      id: storeUser?.id ?? payload.sub,
+      name: storeUser?.name ?? payload.name ?? 'Staff User',
+      email: storeUser?.email ?? payload.email,
+      role: effectiveRole,
+      departmentId: storeUser?.departmentId ?? payload.departmentId ?? null,
+    },
+  };
+}
+

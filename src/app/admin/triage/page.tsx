@@ -35,8 +35,17 @@ export default function AdminTriagePage() {
   const [loading, setLoading] = useState(true);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [selectedDepts, setSelectedDepts] = useState<Record<string, string>>({});
+  const [user, setUser] = useState({ name: 'Super Admin', role: 'SUPER_ADMIN' });
 
   useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((me) => {
+        if (me.user) {
+          setUser({ name: me.user.name || 'Super Admin', role: me.user.role || 'SUPER_ADMIN' });
+        }
+      })
+      .catch(() => {});
     fetchData();
   }, []);
 

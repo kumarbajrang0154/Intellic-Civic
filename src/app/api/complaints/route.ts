@@ -21,21 +21,43 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '10', 10);
     const status = searchParams.get('status') || undefined;
-    const categoryId = searchParams.get('category') || undefined;
+    const priority = searchParams.get('priority') || undefined;
+    const categoryId = searchParams.get('category') || searchParams.get('categoryId') || undefined;
+    let departmentId = searchParams.get('departmentId') || searchParams.get('department') || undefined;
     const search = searchParams.get('search') || undefined;
     const fromDate = searchParams.get('fromDate') || undefined;
     const toDate = searchParams.get('toDate') || undefined;
+    const needsTriage = searchParams.get('needsTriage') === 'true';
+    const pendingAiConfirmation = searchParams.get('pendingAiConfirmation') === 'true';
+    const assignedToMe = searchParams.get('assignedToMe') === 'true';
 
-    // Filter by citizenId if role is CITIZEN
+    // Role-based scope enforcement
     const citizenId = payload.role === 'CITIZEN' ? payload.sub : undefined;
+
+    // Scoping for Department Head and Department Officer
+    if (['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER'].includes(payload.role)) {
+      if (payload.departmentId) {
+        departmentId = payload.departmentId;
+      }
+    }
+
+    let assignedFieldWorkerId: string | undefined = undefined;
+    if (assignedToMe) {
+      assignedFieldWorkerId = payload.sub;
+    }
 
     const result = await listComplaints({
       citizenId,
+      departmentId,
+      assignedFieldWorkerId,
       status,
+      priority,
       categoryId,
       search,
       fromDate,
       toDate,
+      needsTriage,
+      pendingAiConfirmation,
       page,
       limit,
     });
