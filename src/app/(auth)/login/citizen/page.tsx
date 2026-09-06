@@ -203,63 +203,61 @@ export default function CitizenLoginPage() {
       <div className="w-full max-w-md space-y-4">
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 mb-2 font-medium transition-colors"
+          className="inline-flex items-center gap-1.5 text-sm text-[#475569] hover:text-[#0F2747] mb-2 font-medium transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Home
         </Link>
 
-        <Card className="shadow-xs border border-slate-200 bg-white rounded-xl">
-          <CardHeader className="text-center space-y-2">
+        <Card className="shadow-xs border border-[#E2E8F0] bg-white rounded-xl">
+          <CardHeader className="text-center space-y-2 pb-4">
             <div className="mx-auto h-12 w-12 rounded-xl bg-[#0F2747] flex items-center justify-center text-white mb-1 shadow-xs">
               <ShieldCheck className="h-6 w-6" />
             </div>
 
             {/* OTP Auth Mode Status Badge */}
             <div className="flex justify-center pb-1">
-              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                authMode === 'firebase'
-                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-              }`}>
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#EEF2FF] text-[#4338CA] border border-indigo-200/60">
                 {authMode === 'firebase' ? (
                   <>
                     <Smartphone className="h-3 w-3" />
-                    <span>Firebase Phone Auth (Real SMS)</span>
+                    <span>Firebase Phone Auth (SMS)</span>
                   </>
                 ) : (
                   <>
                     <Terminal className="h-3 w-3" />
-                    <span>Console Mode (Dev Prototype)</span>
+                    <span>Development Mode</span>
                   </>
                 )}
               </span>
             </div>
 
-            <CardTitle className="text-2xl font-bold text-[#172033]">Citizen Verification</CardTitle>
-            <CardDescription className="text-xs text-slate-500 leading-relaxed">
+            <CardTitle className="text-2xl font-bold text-[#0F2747] tracking-tight">
+              Citizen Verification
+            </CardTitle>
+            <CardDescription className="text-xs text-[#475569] leading-relaxed">
               {step === 'PHONE'
                 ? 'Enter your 10-digit mobile number to receive a verification OTP'
-                : `Enter the 6-digit verification code for +91 ${mobileNumber}`}
+                : `Enter the 6-digit verification code sent to +91 ${mobileNumber}`}
             </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-4">
             {error && (
-              <Alert variant="destructive">
-                <AlertTitle>Authentication Error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
+              <Alert variant="destructive" className="border-rose-200 bg-rose-50 text-rose-900">
+                <AlertTitle className="text-xs font-bold text-rose-900">Authentication Error</AlertTitle>
+                <AlertDescription className="text-xs text-rose-800">{error}</AlertDescription>
               </Alert>
             )}
 
             {step === 'PHONE' ? (
               <form onSubmit={handleSendOtp} className="space-y-4">
-                <div className="space-y-2">
-                  <label htmlFor="mobileNumber" className="text-sm font-medium">
+                <div className="space-y-1.5 text-left">
+                  <label htmlFor="mobileNumber" className="text-xs sm:text-sm font-semibold text-[#172033] block">
                     Mobile Number
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-sm text-muted-foreground font-medium">
+                    <span className="absolute left-3.5 top-3 text-sm text-[#475569] font-semibold">
                       +91
                     </span>
                     <Input
@@ -268,7 +266,7 @@ export default function CitizenLoginPage() {
                       placeholder="9876543210"
                       value={mobileNumber}
                       onChange={(e) => setMobileNumber(e.target.value)}
-                      className="pl-12"
+                      className="pl-12 h-11 border-[#CBD5E1] bg-white text-[#172033] placeholder:text-[#64748B] focus:border-[#1769AA] focus:ring-[#1769AA]/20 font-medium"
                       maxLength={10}
                       disabled={loading}
                       required
@@ -276,7 +274,11 @@ export default function CitizenLoginPage() {
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button
+                  type="submit"
+                  className="w-full bg-[#1769AA] hover:bg-[#12558a] text-white font-semibold h-11 text-sm rounded-lg shadow-xs transition-colors"
+                  disabled={loading}
+                >
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -289,25 +291,25 @@ export default function CitizenLoginPage() {
               </form>
             ) : (
               <form onSubmit={handleVerifyOtp} className="space-y-5">
-                {/* Console Mode Prototype OTP Banner */}
+                {/* Console Mode Development Notice Banner */}
                 {authMode === 'console' && generatedOtp && (
-                  <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl space-y-2 text-center text-emerald-900 dark:text-emerald-200">
-                    <div className="flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
-                      <KeyRound className="h-4 w-4" />
-                      <span>Prototype Verification Code</span>
+                  <div className="p-3 bg-indigo-50/70 border border-indigo-200/80 rounded-lg text-center space-y-1.5">
+                    <div className="flex items-center justify-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-indigo-900">
+                      <KeyRound className="h-3.5 w-3.5 text-indigo-600" />
+                      <span>Development Notice — Verification Code</span>
                     </div>
-                    <div className="text-3xl font-extrabold font-mono tracking-widest text-emerald-600 dark:text-emerald-400 select-all py-1">
+                    <div className="text-2xl font-bold font-mono tracking-widest text-[#0F2747] select-all py-0.5">
                       {generatedOtp}
                     </div>
-                    <div className="flex justify-center pt-1">
+                    <div className="flex justify-center pt-0.5">
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         onClick={() => setOtp(generatedOtp)}
-                        className="text-xs h-8 px-3 border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300 gap-1.5"
+                        className="text-xs h-7 px-3 border-indigo-200 text-indigo-700 hover:bg-indigo-100/60 font-medium gap-1"
                       >
-                        <Check className="h-3.5 w-3.5" />
+                        <Check className="h-3.5 w-3.5 text-indigo-600" />
                         Auto-fill OTP ({generatedOtp})
                       </Button>
                     </div>
@@ -315,7 +317,9 @@ export default function CitizenLoginPage() {
                 )}
 
                 <div className="space-y-2 text-center">
-                  <label className="text-sm font-medium block">Enter 6-Digit OTP</label>
+                  <label className="text-xs sm:text-sm font-semibold text-[#172033] block">
+                    Enter 6-Digit OTP Code
+                  </label>
                   <OtpInput
                     value={otp}
                     onChange={setOtp}
@@ -323,7 +327,11 @@ export default function CitizenLoginPage() {
                   />
                 </div>
 
-                <Button type="submit" className="w-full" disabled={loading || otp.length !== 6}>
+                <Button
+                  type="submit"
+                  className="w-full bg-[#1769AA] hover:bg-[#12558a] text-white font-semibold h-11 text-sm rounded-lg shadow-xs transition-colors"
+                  disabled={loading || otp.length !== 6}
+                >
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -334,7 +342,7 @@ export default function CitizenLoginPage() {
                   )}
                 </Button>
 
-                <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+                <div className="flex items-center justify-between text-xs pt-1">
                   <button
                     type="button"
                     onClick={() => {
@@ -342,7 +350,7 @@ export default function CitizenLoginPage() {
                       setError(null);
                       setOtp('');
                     }}
-                    className="hover:underline text-primary font-medium"
+                    className="hover:underline text-[#1769AA] font-semibold"
                   >
                     Change Mobile Number
                   </button>
@@ -352,12 +360,12 @@ export default function CitizenLoginPage() {
                       <button
                         type="button"
                         onClick={() => handleSendOtp()}
-                        className="hover:underline text-primary font-medium"
+                        className="hover:underline text-[#1769AA] font-semibold"
                       >
                         Resend OTP
                       </button>
                     ) : (
-                      `Resend in ${timer}s`
+                      <span className="text-[#64748B] font-medium">Resend in {timer}s</span>
                     )}
                   </span>
                 </div>

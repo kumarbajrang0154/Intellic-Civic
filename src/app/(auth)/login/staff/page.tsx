@@ -26,19 +26,21 @@ function StaffLoginContent() {
       <div className="w-full max-w-md space-y-4">
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 mb-2 transition-colors font-medium"
+          className="inline-flex items-center gap-1.5 text-sm text-[#475569] hover:text-[#0F2747] mb-2 font-medium transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Home
         </Link>
 
-        <Card className="shadow-xs border border-slate-200 bg-white rounded-xl">
-          <CardHeader className="text-center space-y-2">
+        <Card className="shadow-xs border border-[#E2E8F0] bg-white rounded-xl">
+          <CardHeader className="text-center space-y-2 pb-4">
             <div className="mx-auto h-12 w-12 rounded-xl bg-[#0F2747] flex items-center justify-center text-white mb-1 shadow-xs">
               <Building2 className="h-6 w-6" />
             </div>
-            <CardTitle className="text-2xl font-bold text-[#172033]">Staff & Admin Access</CardTitle>
-            <CardDescription className="text-xs text-slate-500 leading-relaxed">
+            <CardTitle className="text-2xl font-bold text-[#0F2747] tracking-tight">
+              Staff & Admin Access
+            </CardTitle>
+            <CardDescription className="text-xs text-[#475569] leading-relaxed">
               Department Officers, Department Heads, Field Workers, and Super Admin sign in
               using their authorized Google account
             </CardDescription>
@@ -47,16 +49,16 @@ function StaffLoginContent() {
           <CardContent className="space-y-5">
             {/* Error Banner */}
             {errorMessage && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-md text-left">
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium rounded-lg text-left">
                 {errorMessage}
               </div>
             )}
 
-            {/* Google Sign In */}
+            {/* Google Sign In Button */}
             <a href="/api/auth/google" className="block w-full">
               <Button
                 size="lg"
-                className="w-full flex items-center justify-center gap-3 bg-white text-slate-800 border border-slate-300 hover:bg-slate-50 shadow-sm font-semibold py-6 text-base transition-all"
+                className="w-full h-11 flex items-center justify-center gap-3 bg-white text-[#172033] border border-[#CBD5E1] hover:bg-slate-50 shadow-xs font-semibold text-sm rounded-lg transition-colors"
               >
                 <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24">
                   <path
@@ -80,12 +82,15 @@ function StaffLoginContent() {
               </Button>
             </a>
 
-            {/* Info Box */}
-            <div className="p-3.5 bg-muted/60 rounded-md border text-xs text-muted-foreground flex items-start gap-2.5 text-left leading-relaxed">
-              <ShieldAlert className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
-              <span>
-                When you sign in with Google, we verify your account email against the system database and automatically route you to your assigned portal. Unregistered accounts are placed in a pending approval queue.
-              </span>
+            {/* Security Info Box */}
+            <div className="p-4 bg-[#F0F7FF] rounded-lg border border-[#BFDBFE] text-left space-y-1.5">
+              <div className="flex items-center gap-2 font-semibold text-xs text-[#0F2747]">
+                <ShieldAlert className="h-4 w-4 text-[#1769AA] shrink-0" />
+                <span>Secure Staff Access</span>
+              </div>
+              <p className="text-xs text-[#475569] leading-relaxed">
+                When you sign in with Google, we verify your account email against authorized staff records before access is granted. Unregistered accounts are placed in a pending approval queue.
+              </p>
             </div>
           </CardContent>
         </Card>
