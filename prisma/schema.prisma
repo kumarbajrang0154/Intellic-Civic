@@ -78,6 +78,8 @@ model User {
   avatarUrl    String?
   isAuthorized Boolean      @default(false)
   isSuspended  Boolean      @default(false)
+  suspendedAt  DateTime?
+  deletedAt    DateTime?
   lastLoginAt  DateTime?
   departmentId String?
   createdAt    DateTime     @default(now())

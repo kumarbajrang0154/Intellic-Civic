@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createJwtToken } from '@/lib/auth-jwt';
 import { verifySavedOtp } from '@/lib/otp-store';
 import { getOrCreateCitizenProfile, normalizeMobileNumber } from '@/lib/user-store';
+import prisma from '@/lib/prisma';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -96,6 +97,14 @@ export async function POST(req: NextRequest) {
           const profile = await getOrCreateCitizenProfile(cleanNumber);
           log('after-user-lookup', { userId: profile.id });
 
+          const dbUser = await prisma.user.findUnique({ where: { id: profile.id } });
+          if (dbUser?.isSuspended || dbUser?.deletedAt) {
+            return NextResponse.json(
+              { statusCode: 403, message: 'Your account has been suspended or deactivated by administration.' },
+              { status: 403 },
+            );
+          }
+
           const userPayload = {
             sub: profile.id,
             mobileNumber: cleanNumber,
@@ -176,6 +185,14 @@ export async function POST(req: NextRequest) {
         log('before-user-lookup');
         const profile = await getOrCreateCitizenProfile(cleanNumber);
         log('after-user-lookup', { userId: profile.id });
+
+        const dbUser = await prisma.user.findUnique({ where: { id: profile.id } });
+        if (dbUser?.isSuspended || dbUser?.deletedAt) {
+          return NextResponse.json(
+            { statusCode: 403, message: 'Your account has been suspended or deactivated by administration.' },
+            { status: 403 },
+          );
+        }
 
         const userPayload = {
           sub: profile.id,
