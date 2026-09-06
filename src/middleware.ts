@@ -86,6 +86,12 @@ export function middleware(request: NextRequest) {
     return addCacheControlHeaders(NextResponse.redirect(new URL('/pending-approval', request.url)));
   }
 
+  // If an authorized user visits /pending-approval, redirect to their role dashboard
+  if (isAuthenticated && payload?.isAuthorized !== false && pathname === '/pending-approval') {
+    const targetDashboard = getDashboardForRole(role);
+    return addCacheControlHeaders(NextResponse.redirect(new URL(targetDashboard, request.url)));
+  }
+
   // 3. Authenticated users attempting login pages -> redirect to their role home
   if (isAuthenticated && (pathname === '/login/citizen' || pathname === '/login/staff')) {
     const targetDashboard = getDashboardForRole(role);

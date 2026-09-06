@@ -1,14 +1,14 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { createJwtToken } from '@/lib/auth-jwt';
-import { addUser, ensureSuperAdminUser, getUserByEmail } from '@/lib/staff-dept-store';
+import { addUser, ensureSuperAdminUser, getSuperAdminEmail, getUserByEmail, isSuperAdminEmail } from '@/lib/staff-dept-store';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { code, email } = body;
 
-    let userEmail = email || 'kumarbajrang325@gmail.com';
+    let userEmail = email || getSuperAdminEmail();
 
     // Extract email from code string if passed like `code_email@domain.com`
     if (code && typeof code === 'string' && code.includes('_')) {
@@ -19,10 +19,9 @@ export async function POST(request: Request) {
       }
     }
 
-    const SUPER_ADMIN_EMAIL = 'kumarbajrang325@gmail.com';
     let user;
 
-    if (userEmail.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) {
+    if (isSuperAdminEmail(userEmail)) {
       user = await ensureSuperAdminUser(userEmail, 'Bajrang Kumar (Super Admin)');
     } else {
       user = await getUserByEmail(userEmail);

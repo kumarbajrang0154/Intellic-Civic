@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createJwtToken } from '@/lib/auth-jwt';
-import { addUser, ensureSuperAdminUser, getUserByEmail } from '@/lib/staff-dept-store';
+import { addUser, ensureSuperAdminUser, getUserByEmail, isSuperAdminEmail } from '@/lib/staff-dept-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic';
 function getPortalRouteForRole(role?: string | null): string {
   switch (role) {
     case 'ADMIN':
+    case 'SUPER_ADMIN':
       return '/admin';
     case 'DEPARTMENT_HEAD':
       return '/dept-head';
@@ -35,10 +36,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const SUPER_ADMIN_EMAIL = 'kumarbajrang325@gmail.com';
     let user;
 
-    if (email === SUPER_ADMIN_EMAIL.toLowerCase()) {
+    if (isSuperAdminEmail(email)) {
       user = await ensureSuperAdminUser(email, googleName || 'Bajrang Kumar (Super Admin)');
     } else {
       user = await getUserByEmail(email);

@@ -37,17 +37,20 @@ function CallbackContent() {
             router.push('/citizen');
             break;
           case 'DEPARTMENT_HEAD':
+            router.push('/dept-head');
+            break;
           case 'DEPARTMENT_OFFICER':
-            router.push('/staff');
+            router.push('/officer');
             break;
           case 'FIELD_WORKER':
             router.push('/field-worker');
             break;
           case 'ADMIN':
+          case 'SUPER_ADMIN':
             router.push('/admin');
             break;
           default:
-            router.push('/');
+            router.push('/pending-approval');
             break;
         }
       } catch (err) {

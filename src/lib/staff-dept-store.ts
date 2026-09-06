@@ -15,7 +15,7 @@ export interface UserItem {
   id: string;
   name: string;
   email: string;
-  role: 'ADMIN' | 'DEPARTMENT_HEAD' | 'DEPARTMENT_OFFICER' | 'FIELD_WORKER' | 'CITIZEN' | null;
+  role: 'ADMIN' | 'SUPER_ADMIN' | 'DEPARTMENT_HEAD' | 'DEPARTMENT_OFFICER' | 'FIELD_WORKER' | 'CITIZEN' | null;
   departmentId: string | null;
   isAuthorized: boolean;
   isSuspended: boolean;
@@ -24,7 +24,14 @@ export interface UserItem {
   updatedAt: string;
 }
 
-const SUPER_ADMIN_EMAIL = 'kumarbajrang325@gmail.com';
+export function getSuperAdminEmail(): string {
+  return (process.env.SUPER_ADMIN_BOOTSTRAP_EMAIL || 'kumarbajrang325@gmail.com').trim().toLowerCase();
+}
+
+export function isSuperAdminEmail(email?: string | null): boolean {
+  if (!email) return false;
+  return email.trim().toLowerCase() === getSuperAdminEmail();
+}
 
 function formatDepartmentItem(dept: any): DepartmentItem {
   return {
@@ -178,19 +185,22 @@ export async function getUserByEmail(email: string): Promise<UserItem | undefine
 }
 
 export async function ensureSuperAdminUser(
-  email: string = SUPER_ADMIN_EMAIL,
+  email?: string,
   name: string = 'Bajrang Kumar (Super Admin)',
 ): Promise<UserItem> {
-  const cleanEmail = email.toLowerCase().trim();
+  const targetEmail = (email || getSuperAdminEmail()).toLowerCase().trim();
 
   let admin = await prisma.user.findFirst({
-    where: { email: cleanEmail },
+    where: {
+      OR: [{ email: targetEmail }, { id: 'usr_super_admin' }],
+    },
   });
 
   if (admin) {
     admin = await prisma.user.update({
       where: { id: admin.id },
       data: {
+        email: targetEmail,
         role: UserRole.SUPER_ADMIN,
         isAuthorized: true,
         isSuspended: false,
@@ -202,7 +212,7 @@ export async function ensureSuperAdminUser(
       data: {
         id: 'usr_super_admin',
         name,
-        email: cleanEmail,
+        email: targetEmail,
         role: UserRole.SUPER_ADMIN,
         authProvider: AuthProvider.GOOGLE,
         departmentId: null,
@@ -263,7 +273,7 @@ export async function updateUser(
     let updatedAuthorized = updates.isAuthorized !== undefined ? updates.isAuthorized : current.isAuthorized;
     let updatedSuspended = updates.isSuspended !== undefined ? updates.isSuspended : current.isSuspended;
 
-    if (current.email && current.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) {
+    if (current.email && isSuperAdminEmail(current.email)) {
       updatedRole = UserRole.SUPER_ADMIN;
       updatedAuthorized = true;
       updatedSuspended = false;
@@ -296,7 +306,7 @@ export async function deleteUser(id: string): Promise<boolean> {
     const user = await getUser(id);
     if (!user) return false;
 
-    if (user.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) {
+    if (isSuperAdminEmail(user.email)) {
       return false;
     }
 

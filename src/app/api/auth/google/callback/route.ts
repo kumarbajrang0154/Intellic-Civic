@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { createJwtToken } from '@/lib/auth-jwt';
-import { addUser, ensureSuperAdminUser, getUserByEmail } from '@/lib/staff-dept-store';
+import { addUser, ensureSuperAdminUser, getUserByEmail, isSuperAdminEmail } from '@/lib/staff-dept-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic';
 function getDashboardForRole(role: string | null | undefined): string {
   switch (role) {
     case 'ADMIN':
+    case 'SUPER_ADMIN':
       return '/admin';
     case 'DEPARTMENT_HEAD':
       return '/dept-head';
@@ -70,20 +71,18 @@ export async function GET(req: NextRequest) {
     }
 
     const googleUser = await userInfoRes.json();
-    const googleEmail = googleUser.email?.toLowerCase();
+    const googleEmail = googleUser.email?.toLowerCase().trim();
     const googleName = googleUser.name || googleUser.email?.split('@')[0] || 'Staff Member';
 
     if (!googleEmail) {
       return NextResponse.redirect(new URL('/login/staff?error=no_email', frontendUrl));
     }
 
-    const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_BOOTSTRAP_EMAIL || 'kumarbajrang325@gmail.com';
-
     // Step 3: Look up the user in the staff database
     let staffUser;
 
-    if (googleEmail === SUPER_ADMIN_EMAIL.toLowerCase()) {
-      // Super Admin bootstrap — always elevate as ADMIN, authorized
+    if (isSuperAdminEmail(googleEmail)) {
+      // Super Admin bootstrap — always elevate as SUPER_ADMIN, authorized
       staffUser = await ensureSuperAdminUser(googleEmail, googleName);
     } else {
       staffUser = await getUserByEmail(googleEmail);
