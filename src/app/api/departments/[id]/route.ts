@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin-auth';
 import {
   deleteDepartment,
   getDepartment,
@@ -28,6 +29,9 @@ export async function PATCH(
   { params }: { params: { id: string } },
 ) {
   try {
+    const auth = await requireAdmin();
+    if (!auth.authorized) return auth.response;
+
     const body = await req.json();
     const updated = await updateDepartment(params.id, body);
 
@@ -49,6 +53,8 @@ export async function DELETE(
   { params }: { params: { id: string } },
 ) {
   try {
+    const auth = await requireAdmin();
+    if (!auth.authorized) return auth.response;
     const deleted = await deleteDepartment(params.id);
     if (!deleted) {
       return NextResponse.json({ message: 'Department not found' }, { status: 404 });

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin-auth';
 import { deleteUser, getUser, updateUser } from '@/lib/staff-dept-store';
 
 export async function GET(
@@ -6,6 +7,9 @@ export async function GET(
   { params }: { params: { id: string } },
 ) {
   try {
+    const auth = await requireAdmin();
+    if (!auth.authorized) return auth.response;
+
     const user = await getUser(params.id);
     if (!user) {
       return NextResponse.json({ message: 'User not found' }, { status: 404 });
@@ -24,6 +28,9 @@ export async function PATCH(
   { params }: { params: { id: string } },
 ) {
   try {
+    const auth = await requireAdmin();
+    if (!auth.authorized) return auth.response;
+
     const body = await req.json();
     const updated = await updateUser(params.id, body);
 
@@ -51,6 +58,8 @@ export async function DELETE(
   { params }: { params: { id: string } },
 ) {
   try {
+    const auth = await requireAdmin();
+    if (!auth.authorized) return auth.response;
     const deleted = await deleteUser(params.id);
     if (!deleted) {
       return NextResponse.json(

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin-auth';
 import { rejectUser } from '@/lib/staff-dept-store';
 
 export async function PATCH(
@@ -6,6 +7,8 @@ export async function PATCH(
   { params }: { params: { id: string } },
 ) {
   try {
+    const auth = await requireAdmin();
+    if (!auth.authorized) return auth.response;
     const success = await rejectUser(params.id);
     if (!success) {
       return NextResponse.json({ message: 'User not found' }, { status: 404 });

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin-auth';
 import { suspendUser } from '@/lib/staff-dept-store';
 
 export async function PATCH(
@@ -6,6 +7,8 @@ export async function PATCH(
   { params }: { params: { id: string } },
 ) {
   try {
+    const auth = await requireAdmin();
+    if (!auth.authorized) return auth.response;
     const body = await req.json().catch(() => ({}));
     const isSuspended = body.isSuspended !== undefined ? Boolean(body.isSuspended) : true;
 

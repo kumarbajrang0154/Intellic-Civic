@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin-auth';
 import { addUser, getDepartment, listUsers } from '@/lib/staff-dept-store';
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireAdmin();
+    if (!auth.authorized) return auth.response;
+
     const { searchParams } = new URL(req.url);
     const role = searchParams.get('role') || undefined;
     const departmentId = searchParams.get('departmentId') || undefined;
@@ -32,6 +36,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAdmin();
+    if (!auth.authorized) return auth.response;
     const body = await req.json();
     const { name, email, role, departmentId } = body;
 

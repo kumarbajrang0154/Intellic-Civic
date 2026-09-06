@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin-auth';
 import { listComplaints } from '@/lib/complaints-store';
 import { addDepartment, listDepartments, listUsers } from '@/lib/staff-dept-store';
 
@@ -37,6 +38,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAdmin();
+    if (!auth.authorized) return auth.response;
     const body = await req.json();
     const { name, description, headOfficeAddress } = body;
 

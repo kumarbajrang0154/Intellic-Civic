@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin-auth';
 import { listComplaints } from '@/lib/complaints-store';
 import { listDepartments, listUsers } from '@/lib/staff-dept-store';
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireAdmin();
+    if (!auth.authorized) return auth.response;
     const statusBreakdown: Record<string, number> = {
       SUBMITTED: 0,
       PENDING_DEPT_REVIEW: 0,
