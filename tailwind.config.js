@@ -18,7 +18,13 @@ module.exports = {
         
         // Exact brand hex utility shortcuts
         'civic-navy': '#0F2747',
+        'nav-parent': '#284A70',
+        'nav-hover': '#183A5F',
         'civic-blue': '#1769AA',
+        'nav-icon': '#7FA9CC',
+        'nav-muted': '#A8BDD1',
+        'nav-section': '#8FAAC2',
+        'nav-secondary': '#C4D3E0',
         'civic-teal': '#0F8B8D',
         'ai-indigo': '#6366F1',
         'success-green': '#16A34A',
