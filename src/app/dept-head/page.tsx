@@ -13,12 +13,14 @@ import {
   ArrowRight,
   TrendingUp,
   ShieldAlert,
+  ClipboardList,
 } from 'lucide-react';
-import { AppShell } from '@/components/layout/app-shell';
+import { AppShell } from '@/components/shared/app-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AICard } from '@/components/ui/ai-card';
 
 interface Stats {
   total: number;
@@ -105,181 +107,180 @@ export default function DepartmentHeadDashboardPage() {
 
   return (
     <AppShell user={user}>
-      <div className="space-y-6">
+      <div className="space-y-6 p-6 max-w-7xl mx-auto">
         {/* Header */}
-        <div className="border-b pb-4">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+        <div className="border-b border-slate-200 pb-4">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             Department Head Command Center
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Manage department queue, review AI triage recommendations, and assign complaints to officers.
+          <p className="text-slate-500 text-xs mt-1">
+            Manage municipal department queue, verify AI triage recommendations, and direct operational flow.
           </p>
         </div>
 
         {/* AI Action Alert Banner if pending suggestions exist */}
         {stats.pendingAi > 0 && (
-          <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-primary">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold">
-                <Sparkles className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="font-bold text-sm">
-                  {stats.pendingAi} AI Complaint Suggestion(s) Awaiting Confirmation
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Gemini AI identified complaints likely belonging to your department (SUGGEST_ONLY tier).
-                </p>
-              </div>
+          <AICard
+            title={`${stats.pendingAi} AI Complaint Suggestion(s) Awaiting Confirmation`}
+            subtitle="Gemini AI identified complaints likely belonging to your department (SUGGEST_ONLY tier)."
+            badgeText="Action Required"
+            variant="outline"
+          >
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-1">
+              <p className="text-xs text-slate-600 dark:text-slate-300">
+                Review and confirm complaints automatically triaged by the AI engine before assigning field workers.
+              </p>
+              <Link href="/dept-head/ai-suggestions">
+                <Button variant="ai" size="sm" className="whitespace-nowrap flex items-center gap-2 shrink-0">
+                  Review AI Suggestions <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
             </div>
-            <Link href="/department-head/ai-suggestions">
-              <Button size="sm" className="whitespace-nowrap flex items-center gap-1.5">
-                Review Suggestions <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
-          </div>
+          </AICard>
         )}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          <Card className="shadow-sm">
+          <Card className="shadow-xs border border-slate-200 bg-white rounded-xl">
             <CardContent className="p-4 space-y-1">
-              <span className="text-xs font-semibold text-muted-foreground uppercase">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
                 Total Queue
               </span>
               {loading ? (
                 <Skeleton className="h-8 w-16" />
               ) : (
-                <div className="text-2xl font-bold text-foreground">{stats.total}</div>
+                <div className="text-2xl font-bold text-slate-900">{stats.total}</div>
               )}
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm">
+          <Card className="shadow-xs border border-slate-200 bg-white rounded-xl border-l-4 border-l-amber-500">
             <CardContent className="p-4 space-y-1">
-              <span className="text-xs font-semibold text-sky-600 dark:text-sky-400 uppercase">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
                 Pending Review
               </span>
               {loading ? (
                 <Skeleton className="h-8 w-16" />
               ) : (
-                <div className="text-2xl font-bold text-sky-600 dark:text-sky-400">
+                <div className="text-2xl font-bold text-slate-900">
                   {stats.pendingReview}
                 </div>
               )}
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm">
+          <Card className="shadow-xs border border-slate-200 bg-white rounded-xl border-l-4 border-l-sky-600">
             <CardContent className="p-4 space-y-1">
-              <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
                 In Progress
               </span>
               {loading ? (
                 <Skeleton className="h-8 w-16" />
               ) : (
-                <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                <div className="text-2xl font-bold text-slate-900">
                   {stats.inProgress}
                 </div>
               )}
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm">
+          <Card className="shadow-xs border border-slate-200 bg-white rounded-xl border-l-4 border-l-emerald-600">
             <CardContent className="p-4 space-y-1">
-              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
                 Resolved
               </span>
               {loading ? (
                 <Skeleton className="h-8 w-16" />
               ) : (
-                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                <div className="text-2xl font-bold text-slate-900">
                   {stats.resolved}
                 </div>
               )}
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm border-primary/30 bg-primary/5">
+          <Card className="shadow-xs border border-slate-200 bg-white rounded-xl border-l-4 border-l-indigo-600">
             <CardContent className="p-4 space-y-1">
-              <span className="text-xs font-semibold text-primary uppercase">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
                 AI Suggestions
               </span>
               {loading ? (
                 <Skeleton className="h-8 w-16" />
               ) : (
-                <div className="text-2xl font-bold text-primary">{stats.pendingAi}</div>
+                <div className="text-2xl font-bold text-slate-900">{stats.pendingAi}</div>
               )}
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm">
+          <Card className="shadow-xs border border-slate-200 bg-slate-50/50 rounded-xl">
             <CardContent className="p-4 space-y-1">
-              <span className="text-xs font-semibold text-muted-foreground uppercase">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
                 Duplicates
               </span>
               {loading ? (
                 <Skeleton className="h-8 w-16" />
               ) : (
-                <div className="text-2xl font-bold text-muted-foreground">{stats.duplicates}</div>
+                <div className="text-2xl font-bold text-slate-600">{stats.duplicates}</div>
               )}
             </CardContent>
           </Card>
         </div>
 
         {/* Quick Access Modules */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
-          <Card className="hover:shadow-md transition-shadow border-muted hover:border-primary/30 flex flex-col justify-between">
-            <CardHeader>
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-2">
-                <Building2 className="h-6 w-6" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+          <Card className="hover:shadow-md transition-shadow border border-slate-200 bg-white rounded-xl flex flex-col justify-between">
+            <CardHeader className="p-5">
+              <div className="h-10 w-10 rounded-lg bg-ic-blue/10 flex items-center justify-center text-ic-blue mb-2">
+                <Building2 className="h-5 w-5" />
               </div>
-              <CardTitle className="text-xl">Department Queue</CardTitle>
-              <CardDescription>
-                View dense table queue of all active complaints assigned to your department.
+              <CardTitle className="text-lg font-bold text-slate-900">Department Queue</CardTitle>
+              <CardDescription className="text-xs text-slate-500">
+                View table registry of active complaints assigned to your municipal department.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Link href="/department-head/complaints">
-                <Button className="w-full flex items-center justify-between">
+            <CardContent className="p-5 pt-0">
+              <Link href="/dept-head/complaints">
+                <Button className="w-full bg-ic-blue hover:bg-blue-700 text-white flex items-center justify-between">
                   Open Queue <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
             </CardContent>
           </Card>
 
-          <Card className="hover:shadow-md transition-shadow border-muted hover:border-primary/30 flex flex-col justify-between">
-            <CardHeader>
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-2">
-                <Sparkles className="h-6 w-6" />
+          <Card className="hover:shadow-md transition-shadow border border-indigo-200 bg-white rounded-xl flex flex-col justify-between">
+            <CardHeader className="p-5">
+              <div className="h-10 w-10 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 mb-2">
+                <Sparkles className="h-5 w-5" />
               </div>
-              <CardTitle className="text-xl">AI Suggestions ({stats.pendingAi})</CardTitle>
-              <CardDescription>
-                Review and confirm complaints suggested by Gemini AI for your department.
+              <CardTitle className="text-lg font-bold text-slate-900">
+                AI Suggestions ({stats.pendingAi})
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-500">
+                Review and confirm complaints triaged by Gemini AI for your department.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Link href="/department-head/ai-suggestions">
-                <Button variant="outline" className="w-full flex items-center justify-between">
+            <CardContent className="p-5 pt-0">
+              <Link href="/dept-head/ai-suggestions">
+                <Button variant="ai" className="w-full flex items-center justify-between">
                   Review Suggestions <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
             </CardContent>
           </Card>
 
-          <Card className="hover:shadow-md transition-shadow border-muted hover:border-primary/30 flex flex-col justify-between">
-            <CardHeader>
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-2">
-                <Users className="h-6 w-6" />
+          <Card className="hover:shadow-md transition-shadow border border-slate-200 bg-white rounded-xl flex flex-col justify-between">
+            <CardHeader className="p-5">
+              <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 mb-2">
+                <Users className="h-5 w-5" />
               </div>
-              <CardTitle className="text-xl">Team Roster</CardTitle>
-              <CardDescription>
-                View officers and active field workers belonging to your department.
+              <CardTitle className="text-lg font-bold text-slate-900">Team Roster</CardTitle>
+              <CardDescription className="text-xs text-slate-500">
+                Manage department officers and field workers assigned to your jurisdiction.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Link href="/department-head/team">
-                <Button variant="outline" className="w-full flex items-center justify-between">
+            <CardContent className="p-5 pt-0">
+              <Link href="/dept-head/team">
+                <Button variant="outline" className="w-full border-slate-200 flex items-center justify-between">
                   View Team Roster <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
@@ -290,3 +291,4 @@ export default function DepartmentHeadDashboardPage() {
     </AppShell>
   );
 }
+

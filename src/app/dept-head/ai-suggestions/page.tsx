@@ -12,13 +12,16 @@ import {
   Brain,
   ArrowRight,
   HelpCircle,
+  Check,
+  X,
 } from 'lucide-react';
-import { AppShell } from '@/components/layout/app-shell';
+import { AppShell } from '@/components/shared/app-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AICard } from '@/components/ui/ai-card';
 
 interface AiSuggestedComplaint {
   id: string;
@@ -93,7 +96,6 @@ export default function AiSuggestionsPage() {
     setError(null);
 
     try {
-      // Call assign endpoint with own departmentId to confirm AI suggestion
       const res = await fetch(`/api/complaints/${complaintId}/assign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -123,7 +125,6 @@ export default function AiSuggestionsPage() {
     setError(null);
 
     try {
-      // Reject AI suggestion: persist isRejected flag in backend and keep in Admin Triage queue
       const res = await fetch(`/api/complaints/${complaintId}/reject-suggestion`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -145,25 +146,25 @@ export default function AiSuggestionsPage() {
 
   return (
     <AppShell user={user}>
-      <div className="space-y-6">
+      <div className="space-y-6 p-6 max-w-7xl mx-auto">
         {/* Top Header */}
-        <div className="border-b pb-4">
-          <div className="flex items-center gap-2 font-bold text-lg text-primary mb-1">
-            <Sparkles className="h-5 w-5" />
-            <span>AI Triage Confirmations (SUGGEST_ONLY Tier)</span>
+        <div className="border-b border-slate-200 pb-4">
+          <div className="flex items-center gap-2 font-bold text-sm text-ai-indigo mb-1">
+            <Sparkles className="h-4 w-4" />
+            <span>AI Triage Verification (SUGGEST_ONLY Tier)</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            AI Suggestions Pending Confirmation
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            AI Suggestions Pending Department Confirmation
           </h1>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Review complaints where Gemini AI suggested your department with moderate confidence. Confirming will assign the complaint to your department queue.
           </p>
         </div>
 
         {actionSuccess && (
-          <Alert className="border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300">
+          <Alert className="border-emerald-200 bg-emerald-50 text-emerald-800">
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            <AlertTitle>Action Completed</AlertTitle>
+            <AlertTitle className="text-xs font-bold">Action Completed</AlertTitle>
             <AlertDescription className="text-xs">{actionSuccess}</AlertDescription>
           </Alert>
         )}
@@ -171,7 +172,7 @@ export default function AiSuggestionsPage() {
         {error && (
           <Alert variant="destructive">
             <XCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
+            <AlertTitle className="text-xs font-bold">Error</AlertTitle>
             <AlertDescription className="text-xs">{error}</AlertDescription>
           </Alert>
         )}
@@ -187,17 +188,17 @@ export default function AiSuggestionsPage() {
             ))}
           </div>
         ) : suggestions.length === 0 ? (
-          <Card className="border-dashed py-12 text-center">
+          <Card className="border-dashed py-16 text-center bg-white rounded-xl">
             <CardContent className="flex flex-col items-center justify-center space-y-3">
-              <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                <CheckCircle2 className="h-7 w-7" />
+              <div className="h-12 w-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+                <CheckCircle2 className="h-6 w-6" />
               </div>
-              <CardTitle className="text-lg">No Pending AI Suggestions</CardTitle>
-              <CardDescription className="text-xs max-w-sm">
+              <CardTitle className="text-base font-bold text-slate-800">No Pending AI Suggestions</CardTitle>
+              <CardDescription className="text-xs text-slate-500 max-w-sm">
                 All AI complaint suggestions for your department have been reviewed and confirmed.
               </CardDescription>
-              <Link href="/department-head/complaints">
-                <Button size="sm" variant="outline">
+              <Link href="/dept-head/complaints">
+                <Button size="sm" variant="outline" className="mt-2">
                   Go to Department Queue
                 </Button>
               </Link>
@@ -211,51 +212,32 @@ export default function AiSuggestionsPage() {
                 : 75;
 
               return (
-                <Card
+                <AICard
                   key={item.id}
-                  className="shadow-sm border-primary/20 hover:border-primary/40 transition-colors"
+                  title={item.title}
+                  subtitle={`Ticket #${item.ticketId} • ${item.category?.name || 'General Issue'}`}
+                  badgeText={`${confidence}% Confidence`}
+                  variant="subtle"
                 >
-                  <CardHeader className="p-5 pb-3">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-primary">
-                          {item.ticketId}
-                        </span>
-                        <Badge variant="outline" className="text-xs">
-                          {item.category?.name || 'General Issue'}
-                        </Badge>
-                      </div>
-                      <Badge variant="warning" className="text-xs">
-                        AI Confidence: {confidence}%
-                      </Badge>
-                    </div>
-
-                    <CardTitle className="text-base font-bold text-foreground">
-                      {item.title}
-                    </CardTitle>
-                  </CardHeader>
-
-                  <CardContent className="p-5 pt-0 space-y-4">
-                    <p className="text-xs text-muted-foreground leading-relaxed">
+                  <div className="space-y-3 text-xs">
+                    <p className="text-slate-700 leading-relaxed bg-white p-3 rounded-lg border border-slate-100">
                       {item.description}
                     </p>
 
-                    {/* AI Reasoning Box */}
                     {item.aiSuggestion?.reasoning && (
-                      <div className="p-3 rounded-lg border bg-primary/5 space-y-1">
-                        <div className="flex items-center gap-1.5 font-semibold text-xs text-primary">
-                          <Brain className="h-4 w-4" />
-                          <span>Gemini AI Triage Reasoning</span>
+                      <div className="p-3 rounded-lg border border-indigo-100 bg-indigo-50/50 space-y-1">
+                        <div className="flex items-center gap-1.5 font-bold text-indigo-900">
+                          <Brain className="h-4 w-4 text-indigo-600" />
+                          <span>Gemini AI Reason Code</span>
                         </div>
-                        <p className="text-xs text-foreground/90 italic leading-normal">
-                          &quot;{item.aiSuggestion.reasoning}&quot;
+                        <p className="text-indigo-800 italic leading-normal">
+                          "{item.aiSuggestion.reasoning}"
                         </p>
                       </div>
                     )}
 
-                    {/* Actions */}
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t">
-                      <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-200/60">
+                      <span className="text-[11px] text-slate-400 flex items-center gap-1">
                         <Calendar className="h-3.5 w-3.5" />
                         Submitted {new Date(item.createdAt).toLocaleDateString()}
                       </span>
@@ -266,11 +248,13 @@ export default function AiSuggestionsPage() {
                           size="sm"
                           disabled={processingId === item.id}
                           onClick={() => handleRejectSuggestion(item.id)}
-                          className="w-full sm:w-auto text-xs text-destructive hover:bg-destructive/10"
+                          className="w-full sm:w-auto text-xs text-rose-600 hover:bg-rose-50 border-rose-200"
                         >
+                          <X className="w-3.5 h-3.5 mr-1" />
                           Not My Department
                         </Button>
                         <Button
+                          variant="ai"
                           size="sm"
                           disabled={processingId === item.id}
                           onClick={() => handleConfirmSuggestion(item.id)}
@@ -282,13 +266,16 @@ export default function AiSuggestionsPage() {
                               Confirming...
                             </>
                           ) : (
-                            'Confirm & Assign to My Dept'
+                            <>
+                              <Check className="w-3.5 h-3.5 mr-1" />
+                              Confirm & Assign to My Dept
+                            </>
                           )}
                         </Button>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </AICard>
               );
             })}
           </div>
@@ -297,3 +284,4 @@ export default function AiSuggestionsPage() {
     </AppShell>
   );
 }
+

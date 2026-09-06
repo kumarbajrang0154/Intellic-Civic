@@ -4,38 +4,39 @@
 
 @layer base {
   :root {
-    --background: 210 40% 98%;
-    --foreground: 222 47% 11%;
+    /* IntelliCivic Design System Tokens */
+    --background: 218 43% 97%;   /* #F6F8FB Background */
+    --foreground: 222 38% 15%;   /* #172033 Primary Text */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card: 0 0% 100%;           /* #FFFFFF Surface */
+    --card-foreground: 222 38% 15%;
 
-    --primary: 217 91% 48%; /* Trustworthy Civic Blue */
-    --primary-foreground: 210 40% 98%;
+    --primary: 206 76% 38%;       /* #1769AA Civic Blue */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 215 25% 90%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 214 32% 91%;     /* #E2E8F0 Border Tints */
+    --secondary-foreground: 222 38% 15%;
 
-    --muted: 210 40% 94%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 214 32% 94%;
+    --muted-foreground: 215 16% 47%; /* #64748B Secondary Text */
 
-    --accent: 210 40% 92%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 181 81% 31%;        /* #0F8B8D Civic Teal */
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 72% 51%;     /* #DC2626 Danger Red */
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214 32% 91%;
+    --border: 214 32% 91%;        /* #E2E8F0 Border */
     --input: 214 32% 91%;
-    --ring: 217 91% 48%;
+    --ring: 206 76% 38%;
 
-    --radius: 0.5rem;
+    --radius: 0.5rem;             /* 8px radius */
 
-    /* IntelliCivic Brand Colors */
-    --ic-navy: 217 57% 13%;   /* #0B1730 */
-    --ic-blue: 214 53% 36%;   /* #28528E */
-    --ic-action: 207 55% 48%; /* #3A83BD */
-    --ic-light: 207 47% 95%; /* #E8F1F7 */
+    /* IntelliCivic Brand Palette */
+    --ic-navy: 214 65% 17%;       /* #0F2747 Deep Navy */
+    --ic-blue: 206 76% 38%;       /* #1769AA Civic Blue */
+    --ic-teal: 181 81% 31%;       /* #0F8B8D Civic Teal */
+    --ic-indigo: 239 84% 67%;     /* #6366F1 AI Indigo */
   }
 
   .dark {
@@ -45,24 +46,29 @@
     --card: 222 47% 14%;
     --card-foreground: 210 40% 98%;
 
-    --primary: 217 91% 55%;
-    --primary-foreground: 222 47% 11%;
+    --primary: 206 76% 48%;
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 217 19% 27%;
     --secondary-foreground: 210 40% 98%;
 
     --muted: 217 19% 20%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted-foreground: 215 20% 65%;
 
-    --accent: 217 19% 24%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 181 81% 35%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 0 0% 100%;
 
     --border: 217 19% 27%;
     --input: 217 19% 27%;
-    --ring: 224.3 76.3% 48%;
+    --ring: 206 76% 48%;
+
+    --ic-navy: 214 65% 12%;
+    --ic-blue: 206 76% 45%;
+    --ic-teal: 181 81% 35%;
+    --ic-indigo: 239 84% 67%;
   }
 }
 
@@ -71,6 +77,22 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-foreground antialiased font-sans;
   }
+}
+
+/* Custom scrollbar & UI utilities */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }

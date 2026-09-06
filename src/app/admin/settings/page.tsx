@@ -22,7 +22,7 @@ import {
   ShieldAlert,
   Sparkles,
 } from 'lucide-react';
-import { AppShell } from '@/components/layout/app-shell';
+import { AppShell } from '@/components/shared/app-shell';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -337,7 +337,7 @@ export default function PlatformSettingsPage() {
               size="sm"
               onClick={handleSave}
               disabled={loading || saving}
-              className="gap-1.5 text-xs font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow"
+              className="gap-1.5 text-xs font-semibold bg-ic-blue hover:bg-ic-blue/90 text-white shadow-xs"
             >
               {saving ? (
                 <>

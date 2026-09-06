@@ -8,11 +8,23 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // IntelliCivic brand palette
+        // IntelliCivic design system palette
         'ic-navy': 'hsl(var(--ic-navy))',
         'ic-blue': 'hsl(var(--ic-blue))',
-        'ic-action': 'hsl(var(--ic-action))',
-        'ic-light': 'hsl(var(--ic-light))',
+        'ic-teal': 'hsl(var(--ic-teal))',
+        'ic-indigo': 'hsl(var(--ic-indigo))',
+        'ic-action': 'hsl(var(--ic-blue))',
+        'ic-light': 'hsl(var(--background))',
+        
+        // Exact brand hex utility shortcuts
+        'civic-navy': '#0F2747',
+        'civic-blue': '#1769AA',
+        'civic-teal': '#0F8B8D',
+        'ai-indigo': '#6366F1',
+        'success-green': '#16A34A',
+        'warning-amber': '#F59E0B',
+        'danger-red': '#DC2626',
+
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',

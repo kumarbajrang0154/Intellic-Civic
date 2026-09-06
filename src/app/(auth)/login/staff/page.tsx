@@ -22,23 +22,23 @@ function StaffLoginContent() {
   const errorMessage = errorKey ? (ERROR_MESSAGES[errorKey] || 'An error occurred during Google sign-in.') : null;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-[#F6F8FB] flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md space-y-4">
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-2 transition-colors"
+          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 mb-2 transition-colors font-medium"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Home
         </Link>
 
-        <Card className="shadow-lg border-primary/20">
-          <CardHeader className="text-center space-y-1">
-            <div className="mx-auto h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-2">
-              <Building2 className="h-7 w-7" />
+        <Card className="shadow-xs border border-slate-200 bg-white rounded-xl">
+          <CardHeader className="text-center space-y-2">
+            <div className="mx-auto h-12 w-12 rounded-xl bg-[#0F2747] flex items-center justify-center text-white mb-1 shadow-xs">
+              <Building2 className="h-6 w-6" />
             </div>
-            <CardTitle className="text-2xl font-bold">Staff & Admin Access</CardTitle>
-            <CardDescription className="text-sm leading-relaxed">
+            <CardTitle className="text-2xl font-bold text-[#172033]">Staff & Admin Access</CardTitle>
+            <CardDescription className="text-xs text-slate-500 leading-relaxed">
               Department Officers, Department Heads, Field Workers, and Super Admin sign in
               using their authorized Google account
             </CardDescription>

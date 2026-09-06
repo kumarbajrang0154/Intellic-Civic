@@ -14,7 +14,7 @@ import {
   RefreshCw,
   X,
 } from 'lucide-react';
-import { AppShell } from '@/components/layout/app-shell';
+import { AppShell } from '@/components/shared/app-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -54,13 +54,12 @@ export default function CitizenDashboardPage() {
   const [totalPages, setTotalPages] = React.useState(1);
   const [statusFilter, setStatusFilter] = React.useState<string>('ALL');
 
-  // Batch D — Search & Date Range Filters
+  // Search & Date Range Filters
   const [searchQuery, setSearchQuery] = React.useState('');
   const [debouncedSearch, setDebouncedSearch] = React.useState('');
   const [fromDate, setFromDate] = React.useState('');
   const [toDate, setToDate] = React.useState('');
 
-  // Debounce search query input (300ms)
   React.useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
@@ -131,7 +130,6 @@ export default function CitizenDashboardPage() {
     fetchComplaints();
   }, [fetchComplaints]);
 
-  // Batch D — 30-Second Polling Fallback for Dashboard Status Updates
   React.useEffect(() => {
     const interval = setInterval(() => {
       fetchComplaints(true);
@@ -152,37 +150,35 @@ export default function CitizenDashboardPage() {
     switch (status) {
       case 'SUBMITTED':
       case 'AI_PROCESSING':
-        return <Badge variant="info">Submitted</Badge>;
+        return <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-blue-50 text-blue-700 border border-blue-200">Submitted</span>;
       case 'PENDING_DEPT_REVIEW':
-        return <Badge variant="secondary">Under Review</Badge>;
+        return <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-amber-50 text-amber-700 border border-amber-200">Under Review</span>;
       case 'ASSIGNED':
-        return <Badge variant="outline">Assigned</Badge>;
+        return <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-sky-50 text-sky-700 border border-sky-200">Assigned</span>;
       case 'IN_PROGRESS':
-        return <Badge variant="warning">In Progress</Badge>;
+        return <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">In Progress</span>;
       case 'RESOLVED':
       case 'CLOSED':
-        return <Badge variant="success">Resolved</Badge>;
+        return <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Resolved</span>;
       case 'REJECTED':
-        return <Badge variant="destructive" className="font-bold">Rejected</Badge>;
-      case 'DUPLICATE':
-        return <Badge variant="secondary">Duplicate</Badge>;
+        return <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-rose-100 text-rose-800 border border-rose-300">Rejected</span>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-slate-100 text-slate-700 border border-slate-200">{status}</span>;
     }
   };
 
   return (
     <AppShell user={user}>
-      <div className="space-y-6">
+      <div className="space-y-6 p-6 max-w-7xl mx-auto">
         {/* Profile Completion Alert */}
         {!user.isProfileComplete && (
-          <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 dark:text-amber-200">
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900">
             <div>
-              <div className="font-semibold text-sm">Your Citizen Profile is Incomplete</div>
-              <div className="text-xs text-muted-foreground mt-0.5">Please fill out your Full Name, Gmail, Address, and Profile Picture to get started.</div>
+              <div className="font-bold text-sm">Your Citizen Profile is Incomplete</div>
+              <div className="text-xs text-amber-700 mt-0.5">Please fill out your Full Name, Gmail, Address, and Profile Picture to get started.</div>
             </div>
             <Link href="/citizen/profile?firstTime=true">
-              <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white text-xs shrink-0">
+              <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white text-xs shrink-0 font-medium">
                 Complete Profile Now
               </Button>
             </Link>
@@ -190,44 +186,43 @@ export default function CitizenDashboardPage() {
         )}
 
         {/* Top Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground break-words">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 break-words">
               Welcome to Citizen Portal
             </h1>
-            <p className="text-muted-foreground text-xs sm:text-sm mt-1">
+            <p className="text-slate-500 text-xs mt-1">
               Submit complaints, track real-time resolution progress, and view ticket history.
             </p>
           </div>
           <Link href="/citizen/complaints/new" className="w-full sm:w-auto">
-            <Button className="flex items-center justify-center gap-2 w-full sm:w-auto">
+            <Button className="flex items-center justify-center gap-2 w-full sm:w-auto bg-ic-blue hover:bg-blue-700 text-white font-medium">
               <PlusCircle className="h-4 w-4 shrink-0" />
               File New Complaint
             </Button>
           </Link>
         </div>
 
-        {/* Batch D — Filter & Search Controls Card */}
-        <Card className="border shadow-sm">
+        {/* Filter & Search Controls Card */}
+        <Card className="border border-slate-200 shadow-xs bg-white rounded-xl">
           <CardContent className="p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm font-bold text-foreground">
-                <Filter className="h-4 w-4 text-primary" />
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
+                <Filter className="h-4 w-4 text-ic-blue" />
                 <span>Search &amp; Filter Complaints</span>
               </div>
 
               {lastUpdated && (
-                <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                  <RefreshCw className="h-3 w-3 text-primary animate-spin" />
+                <span className="text-[11px] text-slate-400 flex items-center gap-1 font-mono">
+                  <RefreshCw className="h-3 w-3 text-ic-blue animate-spin" />
                   Live (Updated {lastUpdated})
                 </span>
               )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {/* Search Keyword Input */}
               <div className="relative">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 <Input
                   placeholder="Search title or ID..."
                   value={searchQuery}
@@ -239,7 +234,6 @@ export default function CitizenDashboardPage() {
                 />
               </div>
 
-              {/* Status Select */}
               <Select
                 value={statusFilter}
                 onChange={(e) => {
@@ -259,9 +253,8 @@ export default function CitizenDashboardPage() {
                 <option value="DUPLICATE">Duplicate</option>
               </Select>
 
-              {/* From Date Picker */}
               <div className="space-y-0.5">
-                <label className="text-[10px] font-semibold text-muted-foreground uppercase">From Date</label>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">From Date</label>
                 <Input
                   type="date"
                   value={fromDate}
@@ -273,9 +266,8 @@ export default function CitizenDashboardPage() {
                 />
               </div>
 
-              {/* To Date Picker */}
               <div className="space-y-0.5">
-                <label className="text-[10px] font-semibold text-muted-foreground uppercase">To Date</label>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">To Date</label>
                 <Input
                   type="date"
                   value={toDate}
@@ -294,7 +286,7 @@ export default function CitizenDashboardPage() {
                   variant="ghost"
                   size="sm"
                   onClick={clearFilters}
-                  className="text-xs text-muted-foreground hover:text-foreground h-7 gap-1"
+                  className="text-xs text-slate-500 hover:text-slate-900 h-7 gap-1"
                 >
                   <X className="h-3 w-3" />
                   Clear All Filters
@@ -316,34 +308,32 @@ export default function CitizenDashboardPage() {
             ))}
           </div>
         ) : error ? (
-          <Card className="p-6 text-center border-destructive/20 bg-destructive/5">
-            <CardDescription className="text-destructive font-medium">{error}</CardDescription>
-            <Button variant="outline" size="sm" onClick={() => fetchComplaints()} className="mt-4">
+          <Card className="p-6 text-center border-rose-200 bg-rose-50 text-rose-800 rounded-xl">
+            <CardDescription className="text-xs font-semibold text-rose-800">{error}</CardDescription>
+            <Button variant="outline" size="sm" onClick={() => fetchComplaints()} className="mt-4 border-rose-200">
               Retry
             </Button>
           </Card>
         ) : complaints.length === 0 ? (
-          /* Empty State */
-          <Card className="border-dashed py-12 text-center">
+          <Card className="border-dashed py-16 text-center bg-white rounded-xl">
             <CardContent className="flex flex-col items-center justify-center space-y-4">
-              <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                <FileText className="h-8 w-8" />
+              <div className="h-14 w-14 rounded-full bg-ic-blue/10 flex items-center justify-center text-ic-blue">
+                <FileText className="h-7 w-7" />
               </div>
               <div className="space-y-1 max-w-sm">
-                <CardTitle className="text-xl">No Complaints Found</CardTitle>
-                <CardDescription>
+                <CardTitle className="text-base font-bold text-slate-800">No Complaints Found</CardTitle>
+                <CardDescription className="text-xs text-slate-500">
                   {searchQuery || fromDate || toDate || statusFilter !== 'ALL'
                     ? 'No complaints match your active filter criteria. Try clearing search parameters.'
                     : "You haven't submitted any civic complaints yet. Click below to file your first report."}
                 </CardDescription>
               </div>
               <Link href="/citizen/complaints/new">
-                <Button size="sm">Submit Your First Complaint</Button>
+                <Button size="sm" className="bg-ic-blue text-white font-medium">Submit Your First Complaint</Button>
               </Link>
             </CardContent>
           </Card>
         ) : (
-          /* Complaint Cards Grid */
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {complaints.map((complaint) => {
@@ -353,27 +343,27 @@ export default function CitizenDashboardPage() {
                     href={`/citizen/complaints/${complaint.id}`}
                     className="block group"
                   >
-                    <Card className="h-full hover:shadow-md transition-shadow border-muted hover:border-primary/30 flex flex-col justify-between overflow-hidden">
+                    <Card className="h-full hover:shadow-md transition-shadow border border-slate-200 bg-white rounded-xl hover:border-ic-blue/40 flex flex-col justify-between overflow-hidden">
                       <CardHeader className="p-5 pb-3">
                         <div className="flex items-center justify-between gap-2 mb-1.5">
-                          <span className="font-mono text-xs font-semibold text-primary">
-                            {complaint.ticketId}
+                          <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                            #{complaint.ticketId}
                           </span>
                           {getStatusBadge(complaint.status)}
                         </div>
-                        <CardTitle className="text-base font-bold text-foreground line-clamp-1 group-hover:text-primary transition-colors">
+                        <CardTitle className="text-base font-bold text-slate-900 line-clamp-1 group-hover:text-ic-blue transition-colors">
                           {complaint.title}
                         </CardTitle>
                       </CardHeader>
 
                       <CardContent className="p-5 pt-0 space-y-3 flex-1 flex flex-col justify-between">
-                        <p className="text-xs text-muted-foreground line-clamp-2">
+                        <p className="text-xs text-slate-600 line-clamp-2">
                           {complaint.description}
                         </p>
 
-                        <div className="flex items-center justify-between pt-3 border-t text-xs text-muted-foreground">
+                        <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs text-slate-500">
                           <div className="flex items-center gap-1.5">
-                            <Calendar className="h-3.5 w-3.5" />
+                            <Calendar className="h-3.5 w-3.5 text-ic-blue" />
                             <span>
                               {new Date(complaint.createdAt).toLocaleDateString(undefined, {
                                 month: 'short',
@@ -384,7 +374,7 @@ export default function CitizenDashboardPage() {
                           </div>
 
                           {complaint.category && (
-                            <span className="bg-muted px-2 py-0.5 rounded text-[11px] font-medium text-foreground">
+                            <span className="bg-slate-50 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-semibold text-slate-700">
                               {complaint.category.name}
                             </span>
                           )}
@@ -398,8 +388,8 @@ export default function CitizenDashboardPage() {
 
             {/* Pagination Controls */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between pt-4 border-t">
-                <span className="text-xs text-muted-foreground">
+              <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+                <span className="text-xs text-slate-500">
                   Page {page} of {totalPages}
                 </span>
                 <div className="flex items-center gap-2">
@@ -408,6 +398,7 @@ export default function CitizenDashboardPage() {
                     size="sm"
                     disabled={page <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="border-slate-200 text-xs"
                   >
                     <ChevronLeft className="h-4 w-4 mr-1" />
                     Previous
@@ -417,6 +408,7 @@ export default function CitizenDashboardPage() {
                     size="sm"
                     disabled={page >= totalPages}
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    className="border-slate-200 text-xs"
                   >
                     Next
                     <ChevronRight className="h-4 w-4 ml-1" />
@@ -430,3 +422,4 @@ export default function CitizenDashboardPage() {
     </AppShell>
   );
 }
+

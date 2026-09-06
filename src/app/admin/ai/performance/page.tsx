@@ -153,18 +153,29 @@ export default function AiPerformancePage() {
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
           <h2 className="text-base font-semibold text-slate-800 mb-4">Prediction Acceptance</h2>
           <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
-            <div className="flex flex-col items-center gap-1">
-              <div
-                className="w-28 h-28 rounded-full"
-                style={{
-                  background: `conic-gradient(#10b981 0% ${acceptanceRate}%, #ef4444 ${acceptanceRate}% 100%)`,
-                  WebkitMask: 'radial-gradient(circle at center, transparent 36%, black 37%)',
-                  mask: 'radial-gradient(circle at center, transparent 36%, black 37%)',
-                }}
-              />
-              <div className="text-2xl font-bold text-slate-800">{acceptanceRate}%</div>
-              <div className="text-xs text-slate-400">Acceptance Rate</div>
-            </div>
+              <div className="relative w-28 h-28 flex items-center justify-center">
+                <svg className="w-28 h-28 transform -rotate-90" viewBox="0 0 36 36">
+                  <path
+                    className="text-slate-100"
+                    strokeWidth="3.8"
+                    stroke="currentColor"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                  <path
+                    className="text-emerald-500"
+                    strokeDasharray={`${acceptanceRate}, 100`}
+                    strokeWidth="3.8"
+                    strokeLinecap="round"
+                    stroke="currentColor"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                </svg>
+                <div className="absolute text-center">
+                  <div className="text-xl font-bold text-slate-900">{acceptanceRate}%</div>
+                </div>
+              </div>
             <div className="space-y-3 flex-1">
               <div className="flex items-center gap-3">
                 <div className="w-3 h-3 rounded-sm bg-emerald-400 shrink-0" />

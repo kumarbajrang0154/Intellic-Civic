@@ -27,7 +27,7 @@ import { Select } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PhotoUpload } from '@/components/ui/photo-upload';
-import { AppShell } from '@/components/layout/app-shell';
+import { AppShell } from '@/components/shared/app-shell';
 import { toast } from 'sonner';
 
 interface Category {
@@ -136,9 +136,7 @@ export default function NewComplaintPage() {
     }
   }, []);
 
-  // ---------------------------------------------------------------------------
-  // REVERSE GEOCODING (Auto-fetch Landmark Address from GPS)
-  // ---------------------------------------------------------------------------
+  // Reverse Geocoding (Auto-fetch Landmark Address from GPS)
   const reverseGeocode = async (lat: number, lng: number) => {
     setFetchingLandmark(true);
     try {
@@ -189,9 +187,7 @@ export default function NewComplaintPage() {
     );
   };
 
-  // ---------------------------------------------------------------------------
-  // VOICE ASSISTANT & SPEECH-TO-TEXT DICTATION
-  // ---------------------------------------------------------------------------
+  // Voice Assistant & Speech-to-Text Dictation
   const startListening = (target: 'title' | 'description' | 'address' | 'full') => {
     if (listeningTarget === target) {
       stopListening();
@@ -271,9 +267,7 @@ export default function NewComplaintPage() {
     toast.success('Voice dictation stopped.');
   };
 
-  // ---------------------------------------------------------------------------
-  // FORM VALIDATION & SUBMISSION
-  // ---------------------------------------------------------------------------
+  // Form Validation & Submission
   const validateForm = () => {
     const newErrors: { title?: string; description?: string } = {};
 
@@ -332,7 +326,6 @@ export default function NewComplaintPage() {
       setCreatedComplaintId(complaintId);
       setCreatedTicketId(ticketId);
 
-      // Attach evidence photos if uploaded
       if (evidenceUrls.length > 0) {
         let uploadFailedCount = 0;
 
@@ -367,7 +360,6 @@ export default function NewComplaintPage() {
     e.preventDefault();
     if (!validateForm()) return;
 
-    // Check for duplicates first unless bypassed
     if (!bypassDuplicateCheck) {
       setCheckingDuplicates(true);
       setSubmitError(null);
@@ -388,7 +380,7 @@ export default function NewComplaintPage() {
           if (dupData.matched && dupData.potentialDuplicates?.length > 0) {
             setDuplicateWarning(dupData.potentialDuplicates);
             setCheckingDuplicates(false);
-            return; // Show warning UI to user
+            return;
           }
         }
       } catch (err) {
@@ -403,24 +395,24 @@ export default function NewComplaintPage() {
 
   if (createdTicketId && createdComplaintId) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-        <Card className="w-full max-w-lg shadow-lg border-primary/20 text-center">
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+        <Card className="w-full max-w-lg shadow-md border border-slate-200 bg-white rounded-xl text-center">
           <CardHeader className="space-y-2">
-            <div className="mx-auto h-16 w-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-2">
+            <div className="mx-auto h-16 w-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2">
               <CheckCircle2 className="h-10 w-10" />
             </div>
-            <CardTitle className="text-2xl font-bold">Complaint Submitted Successfully!</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-2xl font-bold text-slate-900">Complaint Submitted Successfully!</CardTitle>
+            <CardDescription className="text-xs text-slate-500">
               Your ticket has been logged in the system and is queued for automated AI triage.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="p-4 bg-muted/60 rounded-lg border inline-block w-full">
-              <span className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 inline-block w-full">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                 Ticket Reference ID
               </span>
-              <span className="text-2xl font-extrabold text-primary font-mono">
-                {createdTicketId}
+              <span className="text-2xl font-extrabold text-ic-blue font-mono">
+                #{createdTicketId}
               </span>
             </div>
 
@@ -434,10 +426,10 @@ export default function NewComplaintPage() {
 
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <Link href={`/citizen/complaints/${createdComplaintId}`} className="w-full">
-                <Button className="w-full">Track This Complaint</Button>
+                <Button className="w-full bg-ic-blue hover:bg-blue-700 text-white font-medium">Track This Complaint</Button>
               </Link>
               <Link href="/citizen" className="w-full">
-                <Button variant="outline" className="w-full">
+                <Button variant="outline" className="w-full border-slate-200">
                   Return to Dashboard
                 </Button>
               </Link>
@@ -450,33 +442,33 @@ export default function NewComplaintPage() {
 
   return (
     <AppShell user={user}>
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="max-w-3xl mx-auto space-y-6 p-6">
         {/* Header */}
-        <div className="flex items-center gap-4 border-b pb-4">
+        <div className="flex items-center gap-4 border-b border-slate-200 pb-4">
           <Link href="/citizen">
-            <Button variant="ghost" size="icon" aria-label="Back to Dashboard">
+            <Button variant="ghost" size="icon" aria-label="Back to Dashboard" className="text-slate-600">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">File a New Complaint</h1>
-            <p className="text-xs text-muted-foreground">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">File a New Complaint</h1>
+            <p className="text-xs text-slate-500 mt-0.5">
               Report municipal issues via text typing or Voice Assistant for automated AI triage.
             </p>
           </div>
         </div>
 
-        {/* BATCH B — Duplicate Complaint Warning Modal Card */}
+        {/* Duplicate Complaint Warning Modal Card */}
         {duplicateWarning && duplicateWarning.length > 0 && (
-          <Card className="border-2 border-amber-500/60 bg-amber-500/10 shadow-lg">
+          <Card className="border border-amber-300 bg-amber-50/60 shadow-xs rounded-xl">
             <CardHeader className="pb-3">
-              <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
+              <div className="flex items-center gap-2 text-amber-900">
                 <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0" />
                 <CardTitle className="text-base font-bold">
                   Similar Complaint Already Reported Nearby
                 </CardTitle>
               </div>
-              <CardDescription className="text-xs text-amber-900/80 dark:text-amber-200">
+              <CardDescription className="text-xs text-amber-800">
                 Our system detected potential duplicate complaints matching your issue and location:
               </CardDescription>
             </CardHeader>
@@ -484,33 +476,33 @@ export default function NewComplaintPage() {
               {duplicateWarning.map((dup) => (
                 <div
                   key={dup.id}
-                  className="p-3 bg-background border rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs"
+                  className="p-3 bg-white border border-amber-200 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs"
                 >
                   <div className="space-y-1 min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-primary">{dup.ticketId}</span>
+                      <span className="font-mono font-bold text-ic-blue">#{dup.ticketId}</span>
                       <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200">
                         {Math.round(dup.similarityScore * 100)}% Match
                       </span>
                     </div>
-                    <div className="font-semibold text-foreground truncate">{dup.title}</div>
-                    {dup.address && <div className="text-muted-foreground truncate">{dup.address}</div>}
+                    <div className="font-semibold text-slate-900 truncate">{dup.title}</div>
+                    {dup.address && <div className="text-slate-500 truncate">{dup.address}</div>}
                   </div>
                   <Link href={`/citizen/complaints/${dup.id}`} target="_blank">
-                    <Button variant="outline" size="sm" className="text-xs gap-1 shrink-0">
+                    <Button variant="outline" size="sm" className="text-xs gap-1 shrink-0 border-slate-200">
                       View Ticket <ExternalLink className="h-3 w-3" />
                     </Button>
                   </Link>
                 </div>
               ))}
 
-              <div className="pt-2 flex flex-col sm:flex-row items-center justify-end gap-3 border-t border-amber-500/20">
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-end gap-3 border-t border-amber-200">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => setDuplicateWarning(null)}
-                  className="w-full sm:w-auto text-xs"
+                  className="w-full sm:w-auto text-xs border-slate-200"
                 >
                   Edit My Complaint
                 </Button>
@@ -533,19 +525,19 @@ export default function NewComplaintPage() {
 
         {/* Smart Voice Assistant Banner Card */}
         {speechSupported && (
-          <div className="p-4 rounded-xl border border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-background shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-l-4 border-l-indigo-600">
             <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary shrink-0 mt-0.5">
+              <div className="h-10 w-10 rounded-lg bg-indigo-100 flex items-center justify-center text-ai-indigo shrink-0 mt-0.5">
                 <Wand2 className="h-5 w-5" />
               </div>
               <div>
-                <div className="font-semibold text-sm flex items-center gap-2">
+                <div className="font-bold text-sm text-slate-900 flex items-center gap-2">
                   <span>Smart AI Voice Assistant</span>
-                  <span className="text-[10px] px-2 py-0.5 bg-primary/20 text-primary font-bold rounded-full uppercase">
+                  <span className="text-[10px] px-2 py-0.5 bg-indigo-100 text-ai-indigo font-bold rounded-full uppercase">
                     Voice Dictation
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Click the mic to dictate your whole complaint by speaking naturally. Our AI fills out title and description automatically.
                 </p>
               </div>
@@ -553,10 +545,10 @@ export default function NewComplaintPage() {
 
             <Button
               type="button"
-              variant={listeningTarget === 'full' ? 'destructive' : 'default'}
+              variant={listeningTarget === 'full' ? 'destructive' : 'ai'}
               size="sm"
               onClick={() => startListening('full')}
-              className="shrink-0 gap-2 font-semibold shadow-md w-full sm:w-auto"
+              className="shrink-0 gap-2 font-semibold shadow-xs w-full sm:w-auto text-xs"
             >
               {listeningTarget === 'full' ? (
                 <>
@@ -578,17 +570,17 @@ export default function NewComplaintPage() {
 
         {/* Live Speech Dictation Transcript Box */}
         {listeningTarget && transcriptPreview && (
-          <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg text-xs flex items-start gap-2">
-            <Volume2 className="h-4 w-4 text-primary shrink-0 mt-0.5 animate-pulse" />
+          <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-xs flex items-start gap-2">
+            <Volume2 className="h-4 w-4 text-ai-indigo shrink-0 mt-0.5 animate-pulse" />
             <div>
-              <span className="font-bold text-primary block">Live Speech Transcript:</span>
-              <span className="italic text-foreground">{transcriptPreview}</span>
+              <span className="font-bold text-ai-indigo block">Live Speech Transcript:</span>
+              <span className="italic text-slate-700">{transcriptPreview}</span>
             </div>
           </div>
         )}
 
         {/* Main Form Card */}
-        <Card className="shadow-md">
+        <Card className="shadow-xs border border-slate-200 bg-white rounded-xl">
           <CardContent className="p-6 space-y-6">
             {submitError && (
               <Alert variant="destructive">
@@ -602,8 +594,8 @@ export default function NewComplaintPage() {
               {/* Title with Voice Dictation */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label htmlFor="title" className="text-sm font-semibold text-foreground">
-                    Complaint Title <span className="text-destructive">*</span>
+                  <label htmlFor="title" className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                    Complaint Title <span className="text-rose-500">*</span>
                   </label>
 
                   {speechSupported && (
@@ -612,7 +604,7 @@ export default function NewComplaintPage() {
                       variant={listeningTarget === 'title' ? 'destructive' : 'ghost'}
                       size="sm"
                       onClick={() => startListening('title')}
-                      className="h-7 text-xs px-2 gap-1 text-primary hover:text-primary"
+                      className="h-7 text-xs px-2 gap-1 text-ai-indigo hover:text-indigo-700"
                     >
                       {listeningTarget === 'title' ? (
                         <>
@@ -637,12 +629,12 @@ export default function NewComplaintPage() {
                   maxLength={200}
                   required
                 />
-                {errors.title && <p className="text-xs text-destructive">{errors.title}</p>}
+                {errors.title && <p className="text-xs text-rose-600">{errors.title}</p>}
               </div>
 
               {/* Category Dropdown */}
               <div className="space-y-2">
-                <label htmlFor="category" className="text-sm font-semibold text-foreground">
+                <label htmlFor="category" className="text-xs font-bold text-slate-700 uppercase tracking-wide">
                   Category (Optional)
                 </label>
                 <Select
@@ -658,7 +650,7 @@ export default function NewComplaintPage() {
                     </option>
                   ))}
                 </Select>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-slate-400">
                   If omitted, our Gemini AI will analyze your description to auto-categorize.
                 </p>
               </div>
@@ -666,8 +658,8 @@ export default function NewComplaintPage() {
               {/* Description with Voice Dictation */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label htmlFor="description" className="text-sm font-semibold text-foreground">
-                    Detailed Description <span className="text-destructive">*</span>
+                  <label htmlFor="description" className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                    Detailed Description <span className="text-rose-500">*</span>
                   </label>
 
                   {speechSupported && (
@@ -676,7 +668,7 @@ export default function NewComplaintPage() {
                       variant={listeningTarget === 'description' ? 'destructive' : 'ghost'}
                       size="sm"
                       onClick={() => startListening('description')}
-                      className="h-7 text-xs px-2 gap-1 text-primary hover:text-primary"
+                      className="h-7 text-xs px-2 gap-1 text-ai-indigo hover:text-indigo-700"
                     >
                       {listeningTarget === 'description' ? (
                         <>
@@ -702,15 +694,15 @@ export default function NewComplaintPage() {
                   required
                 />
                 {errors.description && (
-                  <p className="text-xs text-destructive">{errors.description}</p>
+                  <p className="text-xs text-rose-600">{errors.description}</p>
                 )}
               </div>
 
               {/* Location Section with Auto-Fetch Landmark & GPS */}
-              <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
+              <div className="space-y-3 p-4 rounded-xl border border-slate-200 bg-slate-50/50">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 font-semibold text-sm">
-                    <MapPin className="h-4 w-4 text-primary shrink-0" />
+                  <div className="flex items-center gap-2 font-bold text-xs text-slate-800 uppercase tracking-wide">
+                    <MapPin className="h-4 w-4 text-ic-blue shrink-0" />
                     <span>Issue Location / Landmark</span>
                   </div>
 
@@ -721,7 +713,7 @@ export default function NewComplaintPage() {
                         variant={listeningTarget === 'address' ? 'destructive' : 'outline'}
                         size="sm"
                         onClick={() => startListening('address')}
-                        className="text-xs gap-1 h-8"
+                        className="text-xs gap-1 h-8 border-slate-200"
                       >
                         <Mic className="h-3.5 w-3.5" />
                         <span>Dictate Landmark</span>
@@ -734,7 +726,7 @@ export default function NewComplaintPage() {
                       size="sm"
                       onClick={handleGetCurrentLocation}
                       disabled={gettingLocation || fetchingLandmark}
-                      className="text-xs gap-1.5 h-8"
+                      className="text-xs gap-1.5 h-8 border-slate-200 text-ic-blue"
                     >
                       {gettingLocation || fetchingLandmark ? (
                         <>
@@ -743,7 +735,7 @@ export default function NewComplaintPage() {
                         </>
                       ) : (
                         <>
-                          <Navigation className="h-3.5 w-3.5 text-primary" />
+                          <Navigation className="h-3.5 w-3.5 text-ic-blue" />
                           <span>Use My Location & Fetch Landmark</span>
                         </>
                       )}
@@ -758,7 +750,7 @@ export default function NewComplaintPage() {
                 />
 
                 {locationSuccess && (
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                  <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
                     <CheckCircle2 className="h-3.5 w-3.5" />
                     GPS Coordinates captured ({latitude?.toFixed(5)}, {longitude?.toFixed(5)})
                   </p>
@@ -768,10 +760,10 @@ export default function NewComplaintPage() {
               {/* Photo Evidence Upload */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-semibold text-foreground">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">
                     Photo Evidence (Optional)
                   </label>
-                  <span className="text-xs text-primary font-medium flex items-center gap-1">
+                  <span className="text-xs text-ai-indigo font-semibold flex items-center gap-1">
                     <Sparkles className="h-3.5 w-3.5" />
                     Photos speed up AI triage
                   </span>
@@ -785,13 +777,13 @@ export default function NewComplaintPage() {
               </div>
 
               {/* Form Actions */}
-              <div className="flex items-center justify-end gap-3 pt-4">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                 <Link href="/citizen">
-                  <Button variant="outline" type="button" disabled={isSubmitting || checkingDuplicates}>
+                  <Button variant="outline" type="button" disabled={isSubmitting || checkingDuplicates} className="border-slate-200">
                     Cancel
                   </Button>
                 </Link>
-                <Button type="submit" disabled={isSubmitting || checkingDuplicates} className="min-w-[140px]">
+                <Button type="submit" disabled={isSubmitting || checkingDuplicates} className="min-w-[140px] bg-ic-blue hover:bg-blue-700 text-white font-medium">
                   {checkingDuplicates ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -814,3 +806,4 @@ export default function NewComplaintPage() {
     </AppShell>
   );
 }
+

@@ -716,7 +716,7 @@ export function AppShell({ children, user }: AppShellProps) {
       {/* ── Main Area ── */}
       <div className="flex-1 flex flex-col lg:pl-64">
         {/* Top Header */}
-        <header className="sticky top-0 z-20 bg-white border-b border-slate-200 shadow-sm px-4 sm:px-6 py-3 flex items-center justify-between">
+        <header className="sticky top-0 z-20 bg-white border-b border-slate-200 shadow-xs px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Mobile menu toggle */}
             <button
@@ -728,10 +728,16 @@ export function AppShell({ children, user }: AppShellProps) {
               <Menu className="w-5 h-5" />
             </button>
 
-            {/* Breadcrumb area — brand name for mobile */}
-            <div className="flex items-center gap-2 lg:hidden">
-              <Shield className="w-5 h-5 text-ic-action" />
-              <span className="font-bold text-ic-navy text-sm">{platformInfo.platformName}</span>
+            {/* Breadcrumb area */}
+            <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-slate-500">
+              <span className="text-slate-900 font-bold tracking-tight">{platformInfo.platformName}</span>
+              <span>/</span>
+              <span className="text-ic-blue font-semibold uppercase tracking-wider text-[11px]">{getRoleLabel(user.role)} Portal</span>
+            </div>
+
+            <div className="flex items-center gap-2 sm:hidden">
+              <Shield className="w-5 h-5 text-ic-blue" />
+              <span className="font-bold text-slate-900 text-sm">{platformInfo.platformName}</span>
             </div>
           </div>
 
@@ -748,14 +754,14 @@ export function AppShell({ children, user }: AppShellProps) {
 
             {/* User info */}
             <div className="hidden sm:flex items-center gap-2.5 pl-3 border-l border-slate-200">
-              <div className="w-8 h-8 rounded-full bg-ic-action flex items-center justify-center text-white text-sm font-bold shrink-0">
+              <div className="w-8 h-8 rounded-full bg-ic-blue flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-xs">
                 {(user.name || 'U').charAt(0).toUpperCase()}
               </div>
               <div className="hidden md:block">
-                <div className="text-sm font-semibold text-slate-800 leading-tight">
+                <div className="text-sm font-semibold text-slate-900 leading-tight">
                   {user.name || 'User'}
                 </div>
-                <div className="text-[11px] text-slate-400 font-mono uppercase leading-tight">
+                <div className="text-[11px] text-slate-500 font-mono uppercase leading-tight">
                   {getRoleLabel(user.role)}
                 </div>
               </div>
@@ -764,7 +770,7 @@ export function AppShell({ children, user }: AppShellProps) {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden bg-[#F6F8FB]">
           {children}
         </main>
       </div>

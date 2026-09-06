@@ -22,10 +22,7 @@ export function PwaInstallBanner({
 
   return (
     <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:bottom-6 z-50 max-w-md animate-in slide-in-from-bottom-5 duration-300">
-      <div className="relative overflow-hidden rounded-2xl border border-primary/30 bg-slate-900/90 p-4 shadow-2xl backdrop-blur-xl text-slate-100 dark:border-primary/40 dark:bg-slate-950/95">
-        {/* Ambient Gradient Glow */}
-        <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-blue-500/20 blur-2xl pointer-events-none" />
-
+      <div className="relative overflow-hidden rounded-xl border border-slate-700 bg-[#0F2747] p-4 shadow-lg text-slate-100">
         <button
           onClick={onDismiss}
           className="absolute right-2.5 top-2.5 rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
@@ -69,7 +66,7 @@ export function PwaInstallBanner({
             <Button
               size="sm"
               onClick={() => setShowIosTooltip(!showIosTooltip)}
-              className="h-8 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-md gap-1.5"
+              className="h-8 text-xs font-semibold bg-[#1769AA] hover:bg-[#1769AA]/90 text-white shadow-xs gap-1.5"
             >
               <Share className="h-3.5 w-3.5" />
               How to Install (iOS)
@@ -78,7 +75,7 @@ export function PwaInstallBanner({
             <Button
               size="sm"
               onClick={onInstall}
-              className="h-8 text-xs font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-md gap-1.5"
+              className="h-8 text-xs font-semibold bg-[#1769AA] hover:bg-[#1769AA]/90 text-white shadow-xs gap-1.5"
             >
               <Download className="h-3.5 w-3.5" />
               Install App

@@ -8,16 +8,24 @@ import {
   Building2,
   Calendar,
   CheckCircle2,
+  Clock,
   FileText,
   MapPin,
   RefreshCw,
   Sparkles,
   User,
+  ShieldCheck,
+  AlertTriangle,
+  Tag,
+  Phone,
+  Mail,
 } from 'lucide-react';
-import { AppShell } from '@/components/layout/app-shell';
+import { AppShell } from '@/components/shared/app-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
+import { AICard } from '@/components/ui/ai-card';
+import { EvidenceTimeline, EvidenceItem } from '@/components/ui/evidence-timeline';
 
 interface Department {
   id: string;
@@ -55,6 +63,8 @@ interface ComplaintDetail {
     stage: string;
     imageUrl: string;
     uploadedAt: string;
+    notes?: string | null;
+    uploadedByName?: string | null;
   }>;
   statusHistory?: Array<{
     id: string;
@@ -63,6 +73,23 @@ interface ComplaintDetail {
     changedAt: string;
   }>;
 }
+
+const STATUS_BADGES: Record<string, { bg: string; text: string }> = {
+  SUBMITTED: { bg: 'bg-blue-50 text-blue-700 border-blue-200', text: 'Submitted' },
+  PENDING_TRIAGE: { bg: 'bg-purple-50 text-purple-700 border-purple-200', text: 'Pending AI Triage' },
+  DEPARTMENT_PENDING: { bg: 'bg-amber-50 text-amber-700 border-amber-200', text: 'Dept Action Needed' },
+  ASSIGNED: { bg: 'bg-sky-50 text-sky-700 border-sky-200', text: 'Assigned to Field' },
+  IN_PROGRESS: { bg: 'bg-indigo-50 text-indigo-700 border-indigo-200', text: 'In Progress' },
+  RESOLVED: { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', text: 'Resolved' },
+  REJECTED: { bg: 'bg-rose-50 text-rose-700 border-rose-200', text: 'Rejected' },
+};
+
+const PRIORITY_BADGES: Record<string, { bg: string; text: string }> = {
+  EMERGENCY: { bg: 'bg-rose-100 text-rose-800 font-bold border-rose-300', text: 'EMERGENCY' },
+  HIGH: { bg: 'bg-amber-100 text-amber-800 font-semibold border-amber-300', text: 'HIGH' },
+  MEDIUM: { bg: 'bg-blue-100 text-blue-800 font-medium border-blue-300', text: 'MEDIUM' },
+  LOW: { bg: 'bg-slate-100 text-slate-700 border-slate-300', text: 'LOW' },
+};
 
 export default function AdminComplaintDetailPage() {
   const params = useParams();
@@ -129,7 +156,10 @@ export default function AdminComplaintDetailPage() {
   if (loading) {
     return (
       <AppShell user={{ name: 'Super Admin', role: 'ADMIN' }}>
-        <div className="p-12 text-center text-slate-500">Loading complaint detail...</div>
+        <div className="p-16 text-center space-y-3">
+          <div className="w-8 h-8 border-4 border-ic-blue border-t-transparent rounded-full animate-spin mx-auto" />
+          <div className="text-sm font-semibold text-slate-600">Loading Case Detail...</div>
+        </div>
       </AppShell>
     );
   }
@@ -147,165 +177,209 @@ export default function AdminComplaintDetailPage() {
     );
   }
 
+  const formattedEvidence: EvidenceItem[] = (complaint.evidence || []).map((ev) => ({
+    id: ev.id,
+    stage: (ev.stage.toUpperCase() as 'BEFORE' | 'DURING' | 'AFTER') || 'BEFORE',
+    imageUrl: ev.imageUrl,
+    uploadedAt: ev.uploadedAt,
+    notes: ev.notes,
+    uploadedByName: ev.uploadedByName,
+  }));
+
+  const statusBadge = STATUS_BADGES[complaint.status] || {
+    bg: 'bg-slate-100 text-slate-800 border-slate-200',
+    text: complaint.status,
+  };
+
+  const priorityBadge = complaint.priority ? PRIORITY_BADGES[complaint.priority] : null;
+
   return (
     <AppShell user={{ name: 'Super Admin', role: 'ADMIN' }}>
       <div className="space-y-6 p-6 max-w-7xl mx-auto">
-        <div className="flex items-center gap-4">
-          <Link href="/admin/complaints">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
-          </Link>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-sm font-bold text-slate-500">
-                {complaint.ticketId}
-              </span>
-              <span className="text-xs bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full font-medium">
-                {complaint.status}
-              </span>
+        {/* Header navigation & title */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200">
+          <div className="flex items-center gap-4">
+            <Link href="/admin/complaints">
+              <Button variant="ghost" size="sm" className="text-slate-600 hover:text-slate-900">
+                <ArrowLeft className="w-4 h-4 mr-1.5" />
+                Back to Cases
+              </Button>
+            </Link>
+            <div>
+              <div className="flex items-center gap-2.5">
+                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                  #{complaint.ticketId}
+                </span>
+                <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${statusBadge.bg}`}>
+                  {statusBadge.text}
+                </span>
+                {priorityBadge && (
+                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${priorityBadge.bg}`}>
+                    {priorityBadge.text}
+                  </span>
+                )}
+              </div>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 mt-1">
+                {complaint.title}
+              </h1>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 mt-1">
-              {complaint.title}
-            </h1>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Info */}
+          {/* Left Column: Complaint Details + AI Intelligence + Evidence */}
           <div className="lg:col-span-2 space-y-6">
-            <Card className="border shadow-sm bg-white">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold text-slate-900">
-                  Complaint Overview
+            {/* Complaint Overview Card */}
+            <Card className="border border-slate-200 shadow-xs bg-white rounded-xl">
+              <CardHeader className="border-b border-slate-100 pb-3">
+                <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-ic-blue" />
+                  Case Description & Particulars
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4 text-sm">
+              <CardContent className="p-5 space-y-5 text-sm">
                 <div>
-                  <div className="font-semibold text-slate-700 mb-1">Description</div>
-                  <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Description</h4>
+                  <p className="text-slate-700 leading-relaxed whitespace-pre-wrap bg-slate-50 p-4 rounded-lg border border-slate-100 text-sm">
                     {complaint.description}
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t text-xs">
-                  <div>
-                    <span className="text-slate-500 block">Category:</span>
-                    <span className="font-semibold text-slate-800">
-                      {complaint.category?.name || 'Uncategorized'}
-                    </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 text-xs">
+                  <div className="flex items-start gap-2.5">
+                    <Tag className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                    <div>
+                      <span className="text-slate-500 block font-medium">Category</span>
+                      <span className="font-semibold text-slate-800">
+                        {complaint.category?.name || 'Uncategorized'}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-slate-500 block">Assigned Department:</span>
-                    <span className="font-semibold text-slate-800">
-                      {complaint.department?.name || 'Unassigned (Needs Triage)'}
-                    </span>
+
+                  <div className="flex items-start gap-2.5">
+                    <Building2 className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                    <div>
+                      <span className="text-slate-500 block font-medium">Assigned Department</span>
+                      <span className="font-semibold text-slate-800">
+                        {complaint.department?.name || 'Unassigned (Needs Triage)'}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-slate-500 block">Citizen Contact:</span>
-                    <span className="font-semibold text-slate-800">
-                      {complaint.citizen?.name || 'Anonymous'} ({complaint.citizen?.email || 'N/A'})
-                    </span>
+
+                  <div className="flex items-start gap-2.5">
+                    <User className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                    <div>
+                      <span className="text-slate-500 block font-medium">Citizen Reporter</span>
+                      <span className="font-semibold text-slate-800">
+                        {complaint.citizen?.name || 'Anonymous'}
+                      </span>
+                      {complaint.citizen?.email && (
+                        <span className="text-slate-500 block text-[11px]">{complaint.citizen.email}</span>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-slate-500 block">Location Address:</span>
-                    <span className="font-semibold text-slate-800">
-                      {complaint.location?.address || 'City Center'}
-                    </span>
+
+                  <div className="flex items-start gap-2.5">
+                    <MapPin className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                    <div>
+                      <span className="text-slate-500 block font-medium">Incident Location</span>
+                      <span className="font-semibold text-slate-800">
+                        {complaint.location?.address || 'City Center / Location Unspecified'}
+                      </span>
+                    </div>
                   </div>
+
+                  <div className="flex items-start gap-2.5">
+                    <Calendar className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                    <div>
+                      <span className="text-slate-500 block font-medium">Reported Date</span>
+                      <span className="font-semibold text-slate-800">
+                        {new Date(complaint.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  {complaint.assignment?.departmentOfficer && (
+                    <div className="flex items-start gap-2.5">
+                      <ShieldCheck className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                      <div>
+                        <span className="text-slate-500 block font-medium">Assigned Officer</span>
+                        <span className="font-semibold text-slate-800">
+                          {complaint.assignment.departmentOfficer.name}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
 
-            {/* AI Reasoning Context */}
+            {/* AI Diagnostics Card */}
             {complaint.aiPrediction && (
-              <Card className="border shadow-sm bg-purple-50/50 border-purple-200">
-                <CardHeader>
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-purple-600" />
-                    <CardTitle className="text-lg font-semibold text-purple-950">
-                      Unsanitized AI Diagnostic Prediction
-                    </CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3 text-xs text-purple-900">
-                  <div className="grid grid-cols-2 gap-3">
+              <AICard
+                title="AI Triage & Classification Analysis"
+                subtitle="Automated LLM Categorization & Priority Recommendation"
+                badgeText={complaint.aiPrediction.confidenceScore ? `${(complaint.aiPrediction.confidenceScore * 100).toFixed(0)}% Confidence` : 'AI Analyzed'}
+                variant="subtle"
+              >
+                <div className="space-y-4 text-xs">
+                  <div className="grid grid-cols-2 gap-4 p-3 bg-white dark:bg-slate-900 rounded-lg border border-indigo-100">
                     <div>
-                      <span className="text-purple-700 block">Suggested Department:</span>
-                      <span className="font-bold">
+                      <span className="text-slate-500 block font-medium mb-0.5">Suggested Department</span>
+                      <span className="font-bold text-indigo-950 dark:text-indigo-200 text-sm">
                         {complaint.aiPrediction.suggestedDepartment?.name || 'Unmapped'}
                       </span>
                     </div>
                     <div>
-                      <span className="text-purple-700 block">Confidence Score:</span>
-                      <span className="font-bold">
-                        {complaint.aiPrediction.confidenceScore
-                          ? `${(complaint.aiPrediction.confidenceScore * 100).toFixed(1)}%`
-                          : 'N/A'}
+                      <span className="text-slate-500 block font-medium mb-0.5">Suggested Category</span>
+                      <span className="font-bold text-indigo-950 dark:text-indigo-200 text-sm">
+                        {complaint.aiPrediction.suggestedCategory?.name || 'Uncategorized'}
                       </span>
                     </div>
                   </div>
+
                   {complaint.aiPrediction.rawResponse && (
-                    <div className="pt-2 border-t border-purple-200">
-                      <span className="text-purple-700 font-semibold block mb-1">
-                        Raw LLM Reasoning Metadata:
+                    <div className="space-y-1.5">
+                      <span className="text-slate-600 font-semibold block">
+                        Raw Intelligence Output & Reason Code:
                       </span>
-                      <pre className="p-3 bg-purple-900 text-purple-100 rounded text-[11px] overflow-x-auto">
+                      <pre className="p-3 bg-slate-900 text-indigo-200 rounded-lg text-[11px] font-mono overflow-x-auto border border-slate-800 max-h-48">
                         {JSON.stringify(complaint.aiPrediction.rawResponse, null, 2)}
                       </pre>
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              </AICard>
             )}
 
-            {/* Work Evidence Gallery */}
-            {complaint.evidence && complaint.evidence.length > 0 && (
-              <Card className="border shadow-sm bg-white">
-                <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-slate-900">
-                    Resolution Work Evidence
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {complaint.evidence.map((ev) => (
-                      <div key={ev.id} className="border rounded overflow-hidden">
-                        <img src={ev.imageUrl} alt={ev.stage} className="w-full h-32 object-cover" />
-                        <div className="p-2 text-[11px] bg-slate-50 flex justify-between">
-                          <span className="font-bold text-slate-700">{ev.stage} Stage</span>
-                          <span className="text-slate-400">
-                            {new Date(ev.uploadedAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* Evidence Progression Timeline Component */}
+            <Card className="border border-slate-200 shadow-xs bg-white rounded-xl">
+              <CardContent className="p-5">
+                <EvidenceTimeline evidence={formattedEvidence} />
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Right Admin Controls */}
+          {/* Right Column: Super Admin Controls & Audit Log */}
           <div className="space-y-6">
-            <Card className="border shadow-sm bg-white border-blue-200">
-              <CardHeader>
+            <Card className="border border-ic-blue/30 shadow-xs bg-white rounded-xl overflow-hidden">
+              <div className="h-1 bg-ic-blue" />
+              <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
-                  <Building2 className="w-5 h-5 text-blue-600" />
+                  <Building2 className="w-5 h-5 text-ic-blue" />
                   <CardTitle className="text-base font-bold text-slate-900">
-                    Super Admin Department Override
+                    Department Override
                   </CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p className="text-xs text-slate-500">
-                  Reassign this complaint to a different municipal department at any stage.
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Super Admin authority: Reassign this complaint to any municipal department at any stage of resolution.
                 </p>
 
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-slate-700 block">
-                    Target Department
+                    Target Municipal Department
                   </label>
                   <Select value={selectedDeptId} onChange={(e) => setSelectedDeptId(e.target.value)}>
                     <option value="">Select Department</option>
@@ -318,17 +392,53 @@ export default function AdminComplaintDetailPage() {
                 </div>
 
                 <Button
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  variant="default"
+                  className="w-full bg-ic-blue hover:bg-blue-700 text-white font-medium"
                   onClick={handleReassignDepartment}
                   disabled={!selectedDeptId || reassigning}
                 >
-                  {reassigning ? 'Reassigning...' : 'Confirm Reassignment'}
+                  {reassigning ? (
+                    <span className="flex items-center gap-2">
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Reassigning...
+                    </span>
+                  ) : (
+                    'Confirm Department Override'
+                  )}
                 </Button>
               </CardContent>
             </Card>
+
+            {/* Audit Log / History Card */}
+            {complaint.statusHistory && complaint.statusHistory.length > 0 && (
+              <Card className="border border-slate-200 shadow-xs bg-white rounded-xl">
+                <CardHeader className="pb-2 border-b border-slate-100">
+                  <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-slate-500" />
+                    Status Change Trail
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 space-y-3">
+                  {complaint.statusHistory.map((hist) => (
+                    <div key={hist.id} className="text-xs pb-2 border-b border-slate-100 last:border-0 last:pb-0">
+                      <div className="flex items-center justify-between font-medium text-slate-700">
+                        <span>
+                          {hist.fromStatus ? `${hist.fromStatus} → ` : ''}
+                          <span className="font-bold text-ic-blue">{hist.toStatus}</span>
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          {new Date(hist.changedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>
     </AppShell>
   );
 }
+

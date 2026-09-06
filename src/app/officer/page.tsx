@@ -14,7 +14,7 @@ import {
   Loader2,
   UserCheck,
 } from 'lucide-react';
-import { AppShell } from '@/components/layout/app-shell';
+import { AppShell } from '@/components/shared/app-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -60,7 +60,6 @@ export default function OfficerDashboardPage() {
     setError(null);
 
     try {
-      // 1. Fetch current officer user profile
       const meRes = await fetch('/api/auth/me');
       if (meRes.ok) {
         const meData = await meRes.json();
@@ -74,7 +73,6 @@ export default function OfficerDashboardPage() {
         }
       }
 
-      // 2. Fetch complaints assigned to this officer
       const res = await fetch('/api/complaints?assignedToMe=true&limit=50');
       if (!res.ok) {
         throw new Error('Failed to load assigned complaints');
@@ -83,7 +81,6 @@ export default function OfficerDashboardPage() {
       const data = await res.json();
       const list: AssignedComplaint[] = data.data || [];
 
-      // Calculate stats
       const totalAssigned = list.length;
       const needsAction = list.filter((c) => c.status === 'ASSIGNED').length;
       const inProgress = list.filter((c) => c.status === 'IN_PROGRESS').length;
@@ -105,53 +102,54 @@ export default function OfficerDashboardPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'ASSIGNED':
-        return <Badge variant="warning">Assigned (Action Required)</Badge>;
+        return <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-amber-50 text-amber-700 border border-amber-200">Assigned</span>;
       case 'IN_PROGRESS':
-        return <Badge variant="default" className="bg-blue-600 hover:bg-blue-700">In Progress</Badge>;
+        return <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-sky-50 text-sky-700 border border-sky-200">In Progress</span>;
       case 'RESOLVED':
-        return <Badge variant="success">Resolved</Badge>;
+        return <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Resolved</span>;
       case 'CLOSED':
-        return <Badge variant="outline">Closed</Badge>;
+        return <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-slate-100 text-slate-700 border border-slate-200">Closed</span>;
       default:
-        return <Badge variant="secondary">{status}</Badge>;
+        return <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-slate-100 text-slate-700 border border-slate-200">{status}</span>;
     }
   };
 
   const getPriorityBadge = (priority: string) => {
     switch (priority) {
       case 'CRITICAL':
-        return <Badge variant="destructive">Critical</Badge>;
+      case 'EMERGENCY':
+        return <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-rose-100 text-rose-800 border border-rose-300">EMERGENCY</span>;
       case 'HIGH':
-        return <Badge variant="destructive" className="bg-orange-600 hover:bg-orange-700">High</Badge>;
+        return <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-800 border border-amber-300">HIGH</span>;
       case 'MEDIUM':
-        return <Badge variant="warning">Medium</Badge>;
+        return <span className="text-xs px-2.5 py-0.5 rounded-full font-medium bg-blue-100 text-blue-800 border border-blue-300">MEDIUM</span>;
       default:
-        return <Badge variant="secondary">Low</Badge>;
+        return <span className="text-xs px-2.5 py-0.5 rounded-full font-medium bg-slate-100 text-slate-700 border border-slate-300">LOW</span>;
     }
   };
 
   return (
     <AppShell user={user}>
-      <div className="space-y-6">
+      <div className="space-y-6 p-6 max-w-7xl mx-auto">
         {/* Header */}
-        <div className="border-b pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="border-b border-slate-200 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-sm font-semibold text-primary mb-1">
+            <div className="flex items-center gap-2 text-xs font-bold text-ic-blue mb-1">
               <UserCheck className="h-4 w-4" />
               <span>Officer Workstation</span>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
               Welcome back, {user.name}
             </h1>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-slate-500 mt-1">
               Track and resolve citizen complaints assigned to you by your Department Head.
             </p>
           </div>
 
           <Link href="/officer/complaints">
-            <Button size="sm" className="flex items-center gap-1.5 text-xs">
+            <Button size="sm" className="bg-ic-blue hover:bg-blue-700 text-white flex items-center gap-1.5 text-xs">
               <FileText className="h-4 w-4" />
-              <span>View All Assigned Complaints</span>
+              <span>View All Assigned Tasks</span>
               <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           </Link>
@@ -159,63 +157,63 @@ export default function OfficerDashboardPage() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="border-l-4 border-l-primary">
+          <Card className="border border-slate-200 bg-white rounded-xl shadow-xs">
             <CardHeader className="p-4 pb-2">
-              <CardDescription className="text-xs">Assigned to Me</CardDescription>
-              <CardTitle className="text-2xl font-bold text-foreground">
+              <CardDescription className="text-xs text-slate-500 font-medium">Assigned to Me</CardDescription>
+              <CardTitle className="text-2xl font-bold text-slate-900">
                 {loading ? <Skeleton className="h-8 w-16" /> : stats.totalAssigned}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 pt-0">
-              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <span className="text-[11px] text-slate-400 flex items-center gap-1">
                 <FileText className="h-3 w-3" />
                 Active workload count
               </span>
             </CardContent>
           </Card>
 
-          <Card className="border-l-4 border-l-amber-500">
+          <Card className="border border-slate-200 bg-white rounded-xl shadow-xs border-l-4 border-l-amber-500">
             <CardHeader className="p-4 pb-2">
-              <CardDescription className="text-xs font-medium text-amber-600 dark:text-amber-400">
+              <CardDescription className="text-xs font-semibold text-slate-500">
                 Needs Action (Assigned)
               </CardDescription>
-              <CardTitle className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+              <CardTitle className="text-2xl font-bold text-slate-900">
                 {loading ? <Skeleton className="h-8 w-16" /> : stats.needsAction}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 pt-0">
-              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <span className="text-[11px] text-slate-500 flex items-center gap-1">
                 <AlertTriangle className="h-3 w-3 text-amber-500" />
                 Awaiting transition to In Progress
               </span>
             </CardContent>
           </Card>
 
-          <Card className="border-l-4 border-l-blue-500">
+          <Card className="border border-slate-200 bg-white rounded-xl shadow-xs border-l-4 border-l-sky-600">
             <CardHeader className="p-4 pb-2">
-              <CardDescription className="text-xs">In Progress</CardDescription>
-              <CardTitle className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+              <CardDescription className="text-xs font-semibold text-slate-500">In Progress</CardDescription>
+              <CardTitle className="text-2xl font-bold text-slate-900">
                 {loading ? <Skeleton className="h-8 w-16" /> : stats.inProgress}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 pt-0">
-              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                <Clock className="h-3 w-3" />
+              <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                <Clock className="h-3 w-3 text-sky-600" />
                 Currently under field resolution
               </span>
             </CardContent>
           </Card>
 
-          <Card className="border-l-4 border-l-emerald-500">
+          <Card className="border border-slate-200 bg-white rounded-xl shadow-xs border-l-4 border-l-emerald-600">
             <CardHeader className="p-4 pb-2">
-              <CardDescription className="text-xs">Resolved</CardDescription>
-              <CardTitle className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+              <CardDescription className="text-xs font-semibold text-slate-500">Resolved</CardDescription>
+              <CardTitle className="text-2xl font-bold text-slate-900">
                 {loading ? <Skeleton className="h-8 w-16" /> : stats.resolved}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 pt-0">
-              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+              <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3 text-emerald-600" />
                 Successfully completed tasks
               </span>
             </CardContent>
@@ -225,10 +223,10 @@ export default function OfficerDashboardPage() {
         {/* Recent Workload Section */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold tracking-tight text-foreground">
+            <h2 className="text-base font-bold tracking-tight text-slate-900">
               Recent Assigned Tasks
             </h2>
-            <Link href="/officer/complaints" className="text-xs text-primary hover:underline">
+            <Link href="/officer/complaints" className="text-xs text-ic-blue font-semibold hover:underline">
               View all tasks &rarr;
             </Link>
           </div>
@@ -243,11 +241,11 @@ export default function OfficerDashboardPage() {
               ))}
             </div>
           ) : recentComplaints.length === 0 ? (
-            <Card className="border-dashed py-8 text-center">
+            <Card className="border-dashed py-12 text-center bg-white rounded-xl">
               <CardContent className="flex flex-col items-center justify-center space-y-2">
-                <CheckCircle2 className="h-8 w-8 text-muted-foreground" />
-                <CardTitle className="text-base">No Pending Assignments</CardTitle>
-                <CardDescription className="text-xs max-w-sm">
+                <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+                <CardTitle className="text-base font-bold text-slate-800">No Pending Assignments</CardTitle>
+                <CardDescription className="text-xs text-slate-500 max-w-sm">
                   You currently have no active complaints assigned to you. Check back later or notify your Department Head.
                 </CardDescription>
               </CardContent>
@@ -257,29 +255,29 @@ export default function OfficerDashboardPage() {
               {recentComplaints.map((item) => (
                 <Card
                   key={item.id}
-                  className="hover:border-primary/50 transition-colors shadow-sm"
+                  className="hover:border-ic-blue/40 transition-colors shadow-xs bg-white rounded-xl border border-slate-200"
                 >
                   <CardContent className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-xs font-bold text-primary">
-                          {item.ticketId}
+                        <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                          #{item.ticketId}
                         </span>
                         {getStatusBadge(item.status)}
                         {getPriorityBadge(item.priority)}
-                        <Badge variant="outline" className="text-xs">
+                        <span className="text-xs font-medium text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
                           {item.category?.name || 'General Issue'}
-                        </Badge>
+                        </span>
                       </div>
-                      <h3 className="font-semibold text-sm text-foreground">{item.title}</h3>
-                      <p className="text-xs text-muted-foreground">
+                      <h3 className="font-semibold text-sm text-slate-900">{item.title}</h3>
+                      <p className="text-xs text-slate-500">
                         {item.location?.address || 'Location provided'} &bull; Submitted {new Date(item.createdAt).toLocaleDateString()}
                       </p>
                     </div>
 
                     <div className="flex items-center gap-2 self-end md:self-center">
                       <Link href={`/officer/complaints/${item.id}`}>
-                        <Button size="sm" variant="outline" className="text-xs flex items-center gap-1">
+                        <Button size="sm" variant="outline" className="text-xs flex items-center gap-1 border-slate-200">
                           <span>Work on Complaint</span>
                           <ArrowRight className="h-3.5 w-3.5" />
                         </Button>
@@ -295,3 +293,4 @@ export default function OfficerDashboardPage() {
     </AppShell>
   );
 }
+

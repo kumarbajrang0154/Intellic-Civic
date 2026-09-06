@@ -196,22 +196,22 @@ export default function CitizenLoginPage() {
   // RENDER
   // ---------------------------------------------------------------------------
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-[#F6F8FB] flex flex-col items-center justify-center p-4">
       {/* Invisible container for Firebase reCAPTCHA */}
       <div id="recaptcha-container"></div>
 
       <div className="w-full max-w-md space-y-4">
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-2"
+          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 mb-2 font-medium transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Home
         </Link>
 
-        <Card className="shadow-lg border-primary/20">
-          <CardHeader className="text-center space-y-1">
-            <div className="mx-auto h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-2">
+        <Card className="shadow-xs border border-slate-200 bg-white rounded-xl">
+          <CardHeader className="text-center space-y-2">
+            <div className="mx-auto h-12 w-12 rounded-xl bg-[#0F2747] flex items-center justify-center text-white mb-1 shadow-xs">
               <ShieldCheck className="h-6 w-6" />
             </div>
 
@@ -219,8 +219,8 @@ export default function CitizenLoginPage() {
             <div className="flex justify-center pb-1">
               <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                 authMode === 'firebase'
-                  ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30'
-                  : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
               }`}>
                 {authMode === 'firebase' ? (
                   <>
@@ -236,8 +236,8 @@ export default function CitizenLoginPage() {
               </span>
             </div>
 
-            <CardTitle className="text-2xl">Citizen Verification</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-2xl font-bold text-[#172033]">Citizen Verification</CardTitle>
+            <CardDescription className="text-xs text-slate-500 leading-relaxed">
               {step === 'PHONE'
                 ? 'Enter your 10-digit mobile number to receive a verification OTP'
                 : `Enter the 6-digit verification code for +91 ${mobileNumber}`}
