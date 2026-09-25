@@ -28,6 +28,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PhotoUpload } from '@/components/ui/photo-upload';
 import { AppShell } from '@/components/shared/app-shell';
+import { LocationPicker } from '@/components/location-picker';
 import { toast } from 'sonner';
 
 interface Category {
@@ -136,20 +137,25 @@ export default function NewComplaintPage() {
     }
   }, []);
 
-  // Reverse Geocoding (Auto-fetch Landmark Address from GPS)
+  // Reverse Geocoding (Auto-fetch Landmark Address from GPS or Map Pin)
   const reverseGeocode = async (lat: number, lng: number) => {
     setFetchingLandmark(true);
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
-        { headers: { 'Accept-Language': 'en' } },
+        {
+          headers: {
+            'Accept-Language': 'en',
+            'User-Agent': 'IntelliCivicPlatform/1.0 (smart-city-intelligence-platform)',
+          },
+        },
       );
       if (res.ok) {
         const data = await res.json();
         const displayAddr = data.display_name;
         if (displayAddr) {
           setAddress(displayAddr);
-          toast.success('Landmark address auto-fetched from GPS location!');
+          toast.success('Landmark address auto-fetched from location coordinates!');
         }
       }
     } catch (err) {
@@ -160,8 +166,10 @@ export default function NewComplaintPage() {
   };
 
   const handleGetCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      setSubmitError('Geolocation is not supported by your browser.');
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      const err = 'Geolocation is not supported by your browser. Please select location manually on the interactive map.';
+      setSubmitError(err);
+      toast.error(err);
       return;
     }
 
@@ -176,15 +184,34 @@ export default function NewComplaintPage() {
         setLongitude(lng);
         setGettingLocation(false);
         setLocationSuccess(true);
+        setSubmitError(null);
         toast.success('GPS coordinates captured!');
 
         reverseGeocode(lat, lng);
       },
       (error) => {
         setGettingLocation(false);
-        setSubmitError('Unable to retrieve your location. You can enter an address manually.');
+        let errorMsg = 'Unable to retrieve your location.';
+        if (error.code === error.PERMISSION_DENIED) {
+          errorMsg = 'Location permission denied. You can select your incident location by clicking on the map below or typing an address.';
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          errorMsg = 'Location position is unavailable on your device. Please pick location manually on the map.';
+        } else if (error.code === error.TIMEOUT) {
+          errorMsg = 'Location request timed out. Please try again or pick location manually on the map.';
+        }
+        setSubmitError(errorMsg);
+        toast.error(errorMsg);
       },
+      { timeout: 10000, enableHighAccuracy: true },
     );
+  };
+
+  const handleMapLocationChange = (lat: number, lng: number) => {
+    setLatitude(lat);
+    setLongitude(lng);
+    setLocationSuccess(true);
+    setSubmitError(null);
+    reverseGeocode(lat, lng);
   };
 
   // Voice Assistant & Speech-to-Text Dictation
@@ -300,11 +327,12 @@ export default function NewComplaintPage() {
         complaintPayload.categoryId = categoryId;
       }
 
-      if (address.trim() || (latitude !== null && longitude !== null)) {
+      // Only attach location if valid non-zero coordinates were selected via GPS or interactive map
+      if (latitude !== null && longitude !== null && (latitude !== 0 || longitude !== 0)) {
         complaintPayload.location = {
           address: address.trim() || undefined,
-          latitude: latitude ?? 0,
-          longitude: longitude ?? 0,
+          latitude,
+          longitude,
         };
       }
 
@@ -698,12 +726,12 @@ export default function NewComplaintPage() {
                 )}
               </div>
 
-              {/* Location Section with Auto-Fetch Landmark & GPS */}
+              {/* Location Section with Auto-Fetch Landmark, GPS & Interactive Map */}
               <div className="space-y-3 p-4 rounded-xl border border-slate-200 bg-slate-50/50">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2 font-bold text-xs text-slate-800 uppercase tracking-wide">
                     <MapPin className="h-4 w-4 text-ic-blue shrink-0" />
-                    <span>Issue Location / Landmark</span>
+                    <span>Issue Location & Map Pin</span>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -736,7 +764,7 @@ export default function NewComplaintPage() {
                       ) : (
                         <>
                           <Navigation className="h-3.5 w-3.5 text-ic-blue" />
-                          <span>Use My Location & Fetch Landmark</span>
+                          <span>Use My Current Location</span>
                         </>
                       )}
                     </Button>
@@ -744,15 +772,27 @@ export default function NewComplaintPage() {
                 </div>
 
                 <Input
-                  placeholder="Street address, landmark, or area name (Auto-fetched from GPS or type manually)"
+                  placeholder="Street address, landmark, or area name (Auto-fetched from map/GPS or type manually)"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                 />
 
-                {locationSuccess && (
+                {/* Interactive Leaflet Map Pin Picker */}
+                <div className="space-y-1">
+                  <span className="text-[11px] font-semibold text-slate-500 block">
+                    Interactive Location Map (Click or drag pin to adjust exact location):
+                  </span>
+                  <LocationPicker
+                    latitude={latitude}
+                    longitude={longitude}
+                    onChange={handleMapLocationChange}
+                  />
+                </div>
+
+                {locationSuccess && latitude !== null && longitude !== null && (
                   <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    GPS Coordinates captured ({latitude?.toFixed(5)}, {longitude?.toFixed(5)})
+                    GPS / Map Coordinates selected ({latitude.toFixed(5)}, {longitude.toFixed(5)})
                   </p>
                 )}
               </div>

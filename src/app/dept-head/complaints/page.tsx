@@ -12,7 +12,11 @@ import {
   Search,
   UserCheck,
   UserX,
+  MapPin,
+  List,
+  Map as MapIcon,
 } from 'lucide-react';
+import { ComplaintsMap } from '@/components/complaints-map';
 import { AppShell } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,6 +42,11 @@ interface ComplaintItem {
   createdAt: string;
   updatedAt: string;
   category?: { id: string; name: string } | null;
+  location?: {
+    latitude: number;
+    longitude: number;
+    address?: string | null;
+  } | null;
   assignment?: {
     departmentOfficer?: { id: string; name: string; email: string };
   } | null;
@@ -54,6 +63,7 @@ export default function DepartmentQueuePage() {
   const [complaints, setComplaints] = React.useState<ComplaintItem[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [viewMode, setViewMode] = React.useState<'table' | 'map'>('table');
 
   // Filters
   const [statusFilter, setStatusFilter] = React.useState('');
@@ -171,9 +181,31 @@ export default function DepartmentQueuePage() {
               Dense staff queue for reviewing complaints, monitoring status transitions, and assigning officers.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs self-start sm:self-auto font-mono">
-            Total Tickets: {totalCount}
-          </Badge>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-lg flex items-center gap-1 border border-slate-200 dark:border-slate-700">
+              <Button
+                variant={viewMode === 'table' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-7 text-xs px-2.5 gap-1"
+                onClick={() => setViewMode('table')}
+              >
+                <List className="w-3.5 h-3.5" />
+                <span>List View</span>
+              </Button>
+              <Button
+                variant={viewMode === 'map' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-7 text-xs px-2.5 gap-1"
+                onClick={() => setViewMode('map')}
+              >
+                <MapIcon className="w-3.5 h-3.5" />
+                <span>GIS Map View</span>
+              </Button>
+            </div>
+            <Badge variant="outline" className="text-xs font-mono h-8 px-2.5">
+              Total: {totalCount}
+            </Badge>
+          </div>
         </div>
 
         {/* Filter Controls Bar */}
@@ -237,7 +269,16 @@ export default function DepartmentQueuePage() {
           </CardContent>
         </Card>
 
-        {/* Table View */}
+        {/* Content View: GIS Map or Table */}
+        {viewMode === 'map' ? (
+          <Card className="shadow-sm p-4">
+            <ComplaintsMap
+              complaints={filteredQueue}
+              detailRoutePrefix="/dept-head/complaints"
+              className="h-[520px] w-full rounded-xl overflow-hidden shadow-sm border border-slate-200"
+            />
+          </Card>
+        ) : (
         <Card className="shadow-sm">
           <CardContent className="p-0">
             {loading ? (
@@ -306,6 +347,7 @@ export default function DepartmentQueuePage() {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Pagination */}
         {totalPages > 1 && (

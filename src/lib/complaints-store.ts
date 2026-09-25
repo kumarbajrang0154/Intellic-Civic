@@ -1,5 +1,10 @@
 import prisma from '@/lib/prisma';
 import { ComplaintStatus, PriorityLevel, EvidenceStage, UserRole } from '@prisma/client';
+import {
+  classifyComplaintRouting,
+  verifyComplaintPhoto,
+  PhotoVerificationResult,
+} from '@/services/gemini-service';
 
 export interface ComplaintCategory {
   id: string;
@@ -395,36 +400,46 @@ export async function createComplaint(data: {
   citizenMobile?: string;
   isVoiceInput?: boolean;
   voiceTranscript?: string;
+  imageUrl?: string;
 }): Promise<Complaint> {
   const ticketId = generateTicketId();
 
-  let categoryId = data.categoryId;
-  if (!categoryId) {
-    const text = (data.title + ' ' + data.description).toLowerCase();
-    if (text.includes('garbage') || text.includes('waste') || text.includes('clean') || text.includes('trash')) {
-      categoryId = 'cat-sanitation';
-    } else if (text.includes('road') || text.includes('pothole') || text.includes('path') || text.includes('bridge')) {
-      categoryId = 'cat-roads';
-    } else if (text.includes('water') || text.includes('leak') || text.includes('sewer') || text.includes('drain')) {
-      categoryId = 'cat-water';
-    } else if (text.includes('light') || text.includes('wire') || text.includes('electric') || text.includes('power')) {
-      categoryId = 'cat-electricity';
-    } else {
-      categoryId = 'cat-sanitation';
-    }
+  // Load available categories from DB (or fallback to defaults)
+  const dbCategories = await prisma.category.findMany();
+  const availableCategories = dbCategories.length > 0
+    ? dbCategories.map((c) => ({ id: c.id, name: c.name, description: c.description }))
+    : DEFAULT_CATEGORIES.map((c) => ({ id: c.id, name: c.name, description: c.description }));
+
+  // AI Complaint Routing Classification (using Gemini with fallback)
+  const routingResult = await classifyComplaintRouting(data.description, data.title, availableCategories);
+
+  // Resolve Category
+  let targetCategoryId = data.categoryId;
+  if (!targetCategoryId) {
+    targetCategoryId = routingResult.category;
   }
 
-  // Ensure category exists
-  const targetCategory = await prisma.category.findUnique({ where: { id: categoryId } });
-  const finalCategoryId = targetCategory ? targetCategory.id : (await prisma.category.findFirst())?.id || null;
+  let targetCategory = dbCategories.find(
+    (c) => c.id === targetCategoryId || c.name.toLowerCase() === targetCategoryId?.toLowerCase(),
+  );
+  if (!targetCategory && dbCategories.length > 0) {
+    targetCategory = dbCategories[0];
+  }
 
-  // AI Priority Heuristic
-  const descLower = data.description.toLowerCase();
-  let priority: PriorityLevel = PriorityLevel.MEDIUM;
-  if (descLower.includes('danger') || descLower.includes('hazard') || descLower.includes('emergency') || descLower.includes('fire')) {
-    priority = PriorityLevel.CRITICAL;
-  } else if (descLower.includes('severe') || descLower.includes('urgent') || descLower.includes('block')) {
-    priority = PriorityLevel.HIGH;
+  const finalCategoryId = targetCategory ? targetCategory.id : (data.categoryId || 'cat-sanitation');
+  const suggestedCategoryId = targetCategory ? targetCategory.id : routingResult.category;
+
+  // Resolve Priority
+  const priority = (routingResult.priority as PriorityLevel) || PriorityLevel.MEDIUM;
+
+  // Photo Evidence Verification (using Gemini Vision API with fallback)
+  let photoVerification: PhotoVerificationResult | null = null;
+  if (data.imageUrl) {
+    photoVerification = await verifyComplaintPhoto(
+      data.imageUrl,
+      data.description,
+      targetCategory?.name || 'General',
+    );
   }
 
   // Ensure citizen user exists
@@ -472,13 +487,27 @@ export async function createComplaint(data: {
       },
       aiPrediction: {
         create: {
-          suggestedCategoryId: finalCategoryId || undefined,
+          suggestedCategoryId: suggestedCategoryId || undefined,
           suggestedDepartmentId: targetCategory?.departmentId || undefined,
           suggestedPriority: priority,
-          confidenceScore: 0.92,
+          confidenceScore: photoVerification ? photoVerification.confidence : 0.92,
           rawResponse: {
-            recommendation: `Automated AI Triage assigned issue. Priority evaluated as ${priority}.`,
+            recommendation: photoVerification
+              ? `AI Triage & Photo Verification completed. Photo Verified: ${photoVerification.verified}.`
+              : `Automated AI Triage assigned issue. Priority evaluated as ${priority}.`,
             statusMessage: 'AI Triage completed successfully.',
+            aiRouting: {
+              category: routingResult.category,
+              priority: routingResult.priority,
+              reasoning: routingResult.reasoning,
+            },
+            photoVerification: photoVerification
+              ? {
+                  verified: photoVerification.verified,
+                  confidence: photoVerification.confidence,
+                  reasoning: photoVerification.reasoning,
+                }
+              : null,
           },
         },
       },
@@ -703,14 +732,49 @@ export async function addEvidenceToComplaint(
   const complaint = await getComplaintById(complaintId);
   if (!complaint) return null;
 
+  // Trigger Gemini Photo Verification
+  const verificationResult = await verifyComplaintPhoto(
+    evidenceData.imageUrl,
+    complaint.description,
+    complaint.category?.name || 'General',
+  );
+
   const newEv = await prisma.evidence.create({
     data: {
       complaintId: complaint.id,
       stage: (evidenceData.stage as EvidenceStage) || EvidenceStage.BEFORE,
       imageUrl: evidenceData.imageUrl,
       uploadedByUserId: complaint.citizenId,
+      notes: verificationResult.reasoning
+        ? `[AI Photo Verification: ${verificationResult.verified ? 'VERIFIED' : 'UNVERIFIED'} (Confidence: ${Math.round(verificationResult.confidence * 100)}%)] ${verificationResult.reasoning}`
+        : undefined,
     },
   });
+
+  // Update existing AiPrediction rawResponse if present
+  try {
+    const existingPrediction = await prisma.aiPrediction.findUnique({ where: { complaintId: complaint.id } });
+    if (existingPrediction) {
+      const raw = (existingPrediction.rawResponse as Record<string, any>) || {};
+      await prisma.aiPrediction.update({
+        where: { complaintId: complaint.id },
+        data: {
+          confidenceScore: verificationResult.confidence,
+          rawResponse: {
+            ...raw,
+            photoVerification: {
+              verified: verificationResult.verified,
+              confidence: verificationResult.confidence,
+              reasoning: verificationResult.reasoning,
+              imageUrl: evidenceData.imageUrl,
+            },
+          },
+        },
+      });
+    }
+  } catch (err) {
+    console.warn('[Complaints Store] Failed to update AiPrediction photoVerification metadata:', err);
+  }
 
   return {
     id: newEv.id,

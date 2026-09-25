@@ -31,13 +31,24 @@ export async function PATCH(
     const auth = await requireAdmin();
     if (!auth.authorized) return auth.response;
 
-    const body = await req.json();
-    const updated = await updateUser(params.id, body);
-
-    if (!updated) {
+    const targetUser = await getUser(params.id);
+    if (!targetUser) {
       return NextResponse.json({ message: 'User not found' }, { status: 404 });
     }
 
+    const body = await req.json();
+
+    if (
+      (targetUser.role === 'ADMIN' || targetUser.role === 'SUPER_ADMIN') &&
+      (body.isSuspended === true || body.isAuthorized === false || (body.role && body.role !== 'ADMIN' && body.role !== 'SUPER_ADMIN'))
+    ) {
+      return NextResponse.json(
+        { message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' },
+        { status: 403 },
+      );
+    }
+
+    const updated = await updateUser(params.id, body);
     return NextResponse.json(updated);
   } catch (error: any) {
     if (error?.code === 'P2002' || error?.message?.includes('P2002') || error?.message?.includes('Unique constraint failed')) {
@@ -60,11 +71,24 @@ export async function DELETE(
   try {
     const auth = await requireAdmin();
     if (!auth.authorized) return auth.response;
+
+    const targetUser = await getUser(params.id);
+    if (!targetUser) {
+      return NextResponse.json({ message: 'User not found' }, { status: 404 });
+    }
+
+    if (targetUser.role === 'ADMIN' || targetUser.role === 'SUPER_ADMIN') {
+      return NextResponse.json(
+        { message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' },
+        { status: 403 },
+      );
+    }
+
     const deleted = await deleteUser(params.id);
     if (!deleted) {
       return NextResponse.json(
-        { message: 'Failed to delete user or Super Admin protected' },
-        { status: 400 },
+        { message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' },
+        { status: 403 },
       );
     }
 

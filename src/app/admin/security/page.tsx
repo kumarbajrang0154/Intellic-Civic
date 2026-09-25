@@ -78,6 +78,7 @@ export default function SecurityPage() {
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingAudit, setLoadingAudit] = useState(false);
   const [user, setUser] = useState({ name: 'Admin', role: 'ADMIN' });
   const [activeTab, setActiveTab] = useState<'overview' | 'accounts' | 'audit'>('overview');
 
@@ -104,6 +105,21 @@ export default function SecurityPage() {
     }
     load();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'audit' && auditLogs.length === 0) {
+      setLoadingAudit(true);
+      fetch('/api/admin/audit-logs')
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && data.items) {
+            setAuditLogs(data.items);
+          }
+        })
+        .catch(console.error)
+        .finally(() => setLoadingAudit(false));
+    }
+  }, [activeTab, auditLogs.length]);
 
   const authorizedCount = staff.filter((s) => s.isActive && s.isAuthorized).length;
   const suspendedCount = staff.filter((s) => !s.isActive).length;
@@ -253,23 +269,60 @@ export default function SecurityPage() {
         {/* Audit Logs Tab */}
         {activeTab === 'audit' && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-slate-100">
-              <p className="text-sm text-slate-500">
-                Audit logs are available per staff member on their activity pages.
-              </p>
-            </div>
-            <div className="p-5">
-              <EmptyState
-                icon={FileSearch}
-                title="View per-staff audit logs"
-                description="Navigate to Staff Management and select a team member to view their activity and audit trail."
-                action={
-                  <Link href="/admin/staff">
-                    <Button size="sm">Go to Staff Management</Button>
-                  </Link>
-                }
-              />
-            </div>
+            {loadingAudit ? (
+              <div className="py-20 text-center text-sm text-slate-400">Loading audit logs…</div>
+            ) : auditLogs.length === 0 ? (
+              <div className="p-5">
+                <EmptyState
+                  icon={FileSearch}
+                  title="No activity logged yet"
+                  description="System events, administrative actions, and staff activity trails will appear here as they occur."
+                />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50">
+                      {['Timestamp', 'User / Actor', 'Role', 'Action', 'Entity Type', 'Target ID'].map((h) => (
+                        <th
+                          key={h}
+                          className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide"
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {auditLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3 text-xs text-slate-500 font-mono whitespace-nowrap">
+                          {new Date(log.createdAt).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-slate-800">
+                          {log.user?.name || 'System / Automated'}
+                        </td>
+                        <td className="px-4 py-3 text-xs">
+                          <span className="inline-flex px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-700">
+                            {log.user?.role || 'SYSTEM'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs font-semibold text-ic-action">
+                          {log.action}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-slate-600 font-mono">
+                          {log.entityType}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-slate-400 font-mono">
+                          {log.entityId || '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>

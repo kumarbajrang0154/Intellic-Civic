@@ -624,7 +624,7 @@ export function AppShell({ children, user }: AppShellProps) {
             <div className="flex items-center gap-3">
               {/* Notifications Link */}
               <Link
-                href="/citizen"
+                href="/citizen/notifications"
                 className="relative p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
                 aria-label="Notifications"
                 title="Notifications"

@@ -15,7 +15,10 @@ import {
   Clock,
   ClipboardList,
   RefreshCw,
+  List,
+  Map as MapIcon,
 } from 'lucide-react';
+import { ComplaintsMap } from '@/components/complaints-map';
 
 interface Complaint {
   id: string;
@@ -27,6 +30,11 @@ interface Complaint {
   citizen?: { name: string; mobileNumber?: string };
   category?: { name: string };
   department?: { name: string };
+  location?: {
+    latitude: number;
+    longitude: number;
+    address?: string | null;
+  } | null;
 }
 
 interface FilteredComplaintsPageProps {
@@ -49,6 +57,7 @@ export function FilteredComplaintsPage({
   const [filtered, setFiltered] = React.useState<Complaint[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [search, setSearch] = React.useState('');
+  const [viewMode, setViewMode] = React.useState<'table' | 'map'>('table');
   const [user, setUser] = React.useState<{ name: string; role: string }>({ name: 'Admin', role: 'ADMIN' });
 
   const statuses = Array.isArray(filterStatus) ? filterStatus : [filterStatus];
@@ -121,7 +130,7 @@ export function FilteredComplaintsPage({
           }
         />
 
-        {/* Search + count */}
+        {/* Search + count + List/Map toggle */}
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
           <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -132,13 +141,44 @@ export function FilteredComplaintsPage({
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <span className="text-sm text-slate-500 shrink-0">
-            {filtered.length} complaint{filtered.length !== 1 ? 's' : ''}
-          </span>
+          <div className="flex items-center gap-3">
+            <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-lg flex items-center gap-1 border border-slate-200 dark:border-slate-700">
+              <Button
+                variant={viewMode === 'table' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-7 text-xs px-2.5 gap-1"
+                onClick={() => setViewMode('table')}
+              >
+                <List className="w-3.5 h-3.5" />
+                <span>List View</span>
+              </Button>
+              <Button
+                variant={viewMode === 'map' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-7 text-xs px-2.5 gap-1"
+                onClick={() => setViewMode('map')}
+              >
+                <MapIcon className="w-3.5 h-3.5" />
+                <span>GIS Map View</span>
+              </Button>
+            </div>
+            <span className="text-sm text-slate-500 shrink-0">
+              {filtered.length} complaint{filtered.length !== 1 ? 's' : ''}
+            </span>
+          </div>
         </div>
 
-        {/* Table */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        {/* Table or GIS Map */}
+        {viewMode === 'map' ? (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            <ComplaintsMap
+              complaints={filtered}
+              detailRoutePrefix="/officer/complaints"
+              className="h-[520px] w-full rounded-xl overflow-hidden shadow-sm border border-slate-200"
+            />
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           {loading ? (
             <div className="py-20 text-center text-slate-400 text-sm">Loading…</div>
           ) : filtered.length === 0 ? (
@@ -238,6 +278,7 @@ export function FilteredComplaintsPage({
             </div>
           )}
         </div>
+        )}
       </div>
     </AppShell>
   );

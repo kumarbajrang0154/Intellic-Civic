@@ -14,7 +14,10 @@ import {
   Calendar,
   MapPin,
   Loader2,
+  List,
+  Map as MapIcon,
 } from 'lucide-react';
+import { ComplaintsMap } from '@/components/complaints-map';
 import { AppShell } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,7 +36,11 @@ interface AssignedComplaint {
   priority: string;
   createdAt: string;
   category?: { name: string };
-  location?: { address?: string };
+  location?: {
+    latitude: number;
+    longitude: number;
+    address?: string | null;
+  } | null;
 }
 
 export default function OfficerComplaintsPage() {
@@ -51,6 +58,7 @@ export default function OfficerComplaintsPage() {
   const [complaints, setComplaints] = React.useState<AssignedComplaint[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [viewMode, setViewMode] = React.useState<'table' | 'map'>('table');
 
   // Filters
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -146,18 +154,40 @@ export default function OfficerComplaintsPage() {
     <AppShell user={user}>
       <div className="space-y-6">
         {/* Header */}
-        <div className="border-b pb-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-primary mb-1">
-            <FileText className="h-4 w-4" />
-            <span>My Assigned Complaints</span>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-primary mb-1">
+                <FileText className="h-4 w-4" />
+                <span>My Assigned Complaints</span>
+              </div>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                Assigned Workload Queue
+              </h1>
+              <p className="text-xs text-muted-foreground mt-1">
+                Complaints directly assigned to you for investigation, field resolution, and status updates.
+              </p>
+            </div>
+            <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-lg flex items-center gap-1 border border-slate-200 dark:border-slate-700 shrink-0">
+              <Button
+                variant={viewMode === 'table' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-7 text-xs px-2.5 gap-1"
+                onClick={() => setViewMode('table')}
+              >
+                <List className="w-3.5 h-3.5" />
+                <span>List View</span>
+              </Button>
+              <Button
+                variant={viewMode === 'map' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-7 text-xs px-2.5 gap-1"
+                onClick={() => setViewMode('map')}
+              >
+                <MapIcon className="w-3.5 h-3.5" />
+                <span>GIS Map View</span>
+              </Button>
+            </div>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Assigned Workload Queue
-          </h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            Complaints directly assigned to you for investigation, field resolution, and status updates.
-          </p>
-        </div>
 
         {/* Informational Banner on Self-Assignment */}
         <Alert className="border-blue-500/30 bg-blue-500/10 text-blue-900 dark:text-blue-200">
@@ -216,8 +246,16 @@ export default function OfficerComplaintsPage() {
           </Alert>
         )}
 
-        {/* Complaints Table/Cards */}
-        {loading ? (
+        {/* Complaints View: GIS Map or Table/Cards */}
+        {viewMode === 'map' ? (
+          <Card className="shadow-sm p-4">
+            <ComplaintsMap
+              complaints={filteredComplaints}
+              detailRoutePrefix="/officer/complaints"
+              className="h-[520px] w-full rounded-xl overflow-hidden shadow-sm border border-slate-200"
+            />
+          </Card>
+        ) : loading ? (
           <div className="space-y-3">
             {[1, 2, 3, 4].map((n) => (
               <Card key={n} className="p-4 space-y-2">

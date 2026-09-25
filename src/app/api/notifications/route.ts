@@ -1,21 +1,34 @@
+import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-import { requireStaff } from '@/lib/admin-auth';
+import { decodeJwtToken } from '@/lib/auth-jwt';
 import {
   listUserNotifications,
   markAllNotificationsRead,
   markNotificationRead,
 } from '@/lib/notifications-store';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireStaff();
-    if (!auth.authorized) return auth.response;
+    const cookieStore = cookies();
+    const accessToken = cookieStore.get('ic_access_token')?.value;
 
+    if (!accessToken) {
+      return NextResponse.json({ message: 'Authentication required' }, { status: 401 });
+    }
+
+    const payload = decodeJwtToken(accessToken);
+    if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
+      return NextResponse.json({ message: 'Session expired' }, { status: 401 });
+    }
+
+    const userId = payload.sub;
     const { searchParams } = new URL(req.url);
     const unreadOnly = searchParams.get('unreadOnly') === 'true';
     const limit = parseInt(searchParams.get('limit') || '50', 10);
 
-    const result = await listUserNotifications(auth.user.id, { unreadOnly, limit });
+    const result = await listUserNotifications(userId, { unreadOnly, limit });
     return NextResponse.json(result);
   } catch (error: any) {
     return NextResponse.json(
@@ -27,14 +40,24 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const auth = await requireStaff();
-    if (!auth.authorized) return auth.response;
+    const cookieStore = cookies();
+    const accessToken = cookieStore.get('ic_access_token')?.value;
 
+    if (!accessToken) {
+      return NextResponse.json({ message: 'Authentication required' }, { status: 401 });
+    }
+
+    const payload = decodeJwtToken(accessToken);
+    if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
+      return NextResponse.json({ message: 'Session expired' }, { status: 401 });
+    }
+
+    const userId = payload.sub;
     const body = await req.json();
     const { notificationId, markAll } = body;
 
     if (markAll) {
-      const count = await markAllNotificationsRead(auth.user.id);
+      const count = await markAllNotificationsRead(userId);
       return NextResponse.json({ success: true, updatedCount: count });
     }
 
@@ -42,7 +65,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ message: 'notificationId is required' }, { status: 400 });
     }
 
-    const success = await markNotificationRead(notificationId, auth.user.id);
+    const success = await markNotificationRead(notificationId, userId);
     if (!success) {
       return NextResponse.json({ message: 'Notification not found or already read' }, { status: 404 });
     }

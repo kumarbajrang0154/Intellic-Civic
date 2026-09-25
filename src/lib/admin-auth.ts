@@ -199,3 +199,36 @@ export async function requireStaff(allowedRoles?: string[]): Promise<RequireStaf
   };
 }
 
+/**
+ * Shared Super Admin Protection Guard
+ * Ensures no SUPER_ADMIN account can be suspended, deactivated, soft-deleted, hard-deleted, or demoted.
+ */
+export interface UserRoleCheckTarget {
+  role?: string | null;
+  email?: string | null;
+}
+
+export function isSuperAdminTarget(target: UserRoleCheckTarget | null | undefined): boolean {
+  if (!target) return false;
+  return target.role === 'SUPER_ADMIN' || target.role === 'ADMIN';
+}
+
+export function protectSuperAdminTarget(
+  target: UserRoleCheckTarget | null | undefined,
+  actionDescription: string = 'suspended, deactivated, or deleted',
+): { allowed: true } | { allowed: false; response: NextResponse; message: string } {
+  if (isSuperAdminTarget(target)) {
+    const message = `Super Admin accounts cannot be ${actionDescription}.`;
+    return {
+      allowed: false,
+      message,
+      response: NextResponse.json(
+        { success: false, statusCode: 403, message },
+        { status: 403 },
+      ),
+    };
+  }
+  return { allowed: true };
+}
+
+

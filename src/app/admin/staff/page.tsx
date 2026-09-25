@@ -396,17 +396,25 @@ export default function AdminStaffPage() {
                               <Activity className="w-4 h-4 text-slate-500" />
                             </Button>
                           </Link>
-                          <Button variant="ghost" size="sm" title="Reassign" onClick={() => openReassign(staff)}>
-                            <Users className="w-4 h-4 text-blue-600" />
-                          </Button>
-                          {staff.isActive ? (
-                            <Button variant="ghost" size="sm" title="Deactivate" onClick={() => setDeactivateTarget(staff)}>
-                              <UserX className="w-4 h-4 text-rose-600" />
-                            </Button>
+                          {staff.role !== 'ADMIN' && staff.role !== 'SUPER_ADMIN' ? (
+                            <>
+                              <Button variant="ghost" size="sm" title="Reassign" onClick={() => openReassign(staff)}>
+                                <Users className="w-4 h-4 text-blue-600" />
+                              </Button>
+                              {staff.isActive ? (
+                                <Button variant="ghost" size="sm" title="Deactivate" onClick={() => setDeactivateTarget(staff)}>
+                                  <UserX className="w-4 h-4 text-rose-600" />
+                                </Button>
+                              ) : (
+                                <Button variant="ghost" size="sm" title="Reactivate" onClick={() => handleReactivate(staff)}>
+                                  <UserCheck className="w-4 h-4 text-emerald-600" />
+                                </Button>
+                              )}
+                            </>
                           ) : (
-                            <Button variant="ghost" size="sm" title="Reactivate" onClick={() => handleReactivate(staff)}>
-                              <UserCheck className="w-4 h-4 text-emerald-600" />
-                            </Button>
+                            <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded" title="Super Admin accounts are permanent and protected">
+                              Protected
+                            </span>
                           )}
                         </div>
                       </td>

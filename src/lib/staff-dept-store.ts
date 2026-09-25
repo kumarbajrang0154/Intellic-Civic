@@ -273,7 +273,11 @@ export async function updateUser(
     let updatedAuthorized = updates.isAuthorized !== undefined ? updates.isAuthorized : current.isAuthorized;
     let updatedSuspended = updates.isSuspended !== undefined ? updates.isSuspended : current.isSuspended;
 
-    if (current.email && isSuperAdminEmail(current.email)) {
+    if (
+      current.role === UserRole.SUPER_ADMIN ||
+      current.role === UserRole.ADMIN ||
+      (current.email && isSuperAdminEmail(current.email))
+    ) {
       updatedRole = UserRole.SUPER_ADMIN;
       updatedAuthorized = true;
       updatedSuspended = false;
@@ -298,6 +302,10 @@ export async function updateUser(
 }
 
 export async function suspendUser(id: string, isSuspended: boolean): Promise<UserItem | null> {
+  const target = await getUser(id);
+  if (target && (target.role === 'SUPER_ADMIN' || target.role === 'ADMIN' || (target.email && isSuperAdminEmail(target.email))) && isSuspended) {
+    return null; // Protected
+  }
   return updateUser(id, { isSuspended });
 }
 
@@ -306,7 +314,11 @@ export async function deleteUser(id: string): Promise<boolean> {
     const user = await getUser(id);
     if (!user) return false;
 
-    if (isSuperAdminEmail(user.email)) {
+    if (
+      user.role === 'SUPER_ADMIN' ||
+      user.role === 'ADMIN' ||
+      (user.email && isSuperAdminEmail(user.email))
+    ) {
       return false;
     }
 

@@ -14,7 +14,10 @@ export async function PATCH(
 
     const updated = await suspendUser(params.id, isSuspended);
     if (!updated) {
-      return NextResponse.json({ message: 'User not found or protected' }, { status: 404 });
+      return NextResponse.json(
+        { message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' },
+        { status: 403 },
+      );
     }
 
     return NextResponse.json(updated);

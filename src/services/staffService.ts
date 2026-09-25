@@ -214,13 +214,17 @@ export async function deactivateStaff(
   targetId: string,
   actor: { id: string; name: string },
 ): Promise<ServiceResult<StaffSummary>> {
-  if (targetId === actor.id) {
-    return { ok: false, status: 400, message: 'You cannot deactivate your own account.' };
-  }
-
   const user = await getUser(targetId);
   if (!user || user.role === 'CITIZEN') {
     return { ok: false, status: 404, message: 'Staff member not found.' };
+  }
+
+  if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') {
+    return { ok: false, status: 403, message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' };
+  }
+
+  if (targetId === actor.id) {
+    return { ok: false, status: 400, message: 'You cannot deactivate your own account.' };
   }
 
   if (user.isSuspended) {
@@ -294,6 +298,10 @@ export async function reassignStaff(
     return { ok: false, status: 404, message: 'Staff member not found.' };
   }
 
+  if ((user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') && input.newRole && input.newRole !== 'ADMIN') {
+    return { ok: false, status: 403, message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' };
+  }
+
   const newRole = (input.newRole ?? user.role) as StaffRole;
   const newDepartmentId = input.newDepartmentId !== undefined ? input.newDepartmentId : user.departmentId;
 
@@ -347,18 +355,22 @@ export async function removeStaff(
   targetId: string,
   actor: { id: string; name: string },
 ): Promise<ServiceResult<{ deleted: boolean }>> {
-  if (targetId === actor.id) {
-    return { ok: false, status: 400, message: 'You cannot delete your own account.' };
-  }
-
   const user = await getUser(targetId);
   if (!user) {
     return { ok: false, status: 404, message: 'Staff member not found.' };
   }
 
+  if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') {
+    return { ok: false, status: 403, message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' };
+  }
+
+  if (targetId === actor.id) {
+    return { ok: false, status: 400, message: 'You cannot delete your own account.' };
+  }
+
   const deleted = await deleteUser(targetId);
   if (!deleted) {
-    return { ok: false, status: 403, message: 'Cannot delete this account (Super Admin is protected).' };
+    return { ok: false, status: 403, message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' };
   }
 
   await addAuditLog({

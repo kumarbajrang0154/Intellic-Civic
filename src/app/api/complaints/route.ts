@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, description, categoryId, location, isVoiceInput, voiceTranscript } = body;
+    const { title, description, categoryId, location, isVoiceInput, voiceTranscript, imageUrl, imageUrls } = body;
 
     if (!title || !title.trim()) {
       return NextResponse.json(
@@ -102,6 +102,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const firstImage = imageUrl || (Array.isArray(imageUrls) && imageUrls.length > 0 ? imageUrls[0] : undefined);
+
     const newComplaint = await createComplaint({
       title: title.trim(),
       description: description.trim(),
@@ -112,6 +114,7 @@ export async function POST(request: NextRequest) {
       citizenMobile: payload.mobileNumber,
       isVoiceInput: Boolean(isVoiceInput),
       voiceTranscript: voiceTranscript || undefined,
+      imageUrl: firstImage,
     });
 
     return NextResponse.json(newComplaint, { status: 201 });

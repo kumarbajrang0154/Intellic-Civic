@@ -11,7 +11,10 @@ export async function PATCH(
     if (!auth.authorized) return auth.response;
     const success = await rejectUser(params.id);
     if (!success) {
-      return NextResponse.json({ message: 'User not found' }, { status: 404 });
+      return NextResponse.json(
+        { message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' },
+        { status: 403 },
+      );
     }
 
     return NextResponse.json({ success: true, message: 'User rejected and removed' });
