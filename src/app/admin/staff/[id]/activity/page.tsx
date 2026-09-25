@@ -133,30 +133,30 @@ export default function StaffActivityPage({ params }: { params: { id: string } }
 
         {/* Summary Card */}
         {staff && (
-          <Card className="border shadow-sm">
+          <Card className="border border-slate-200 bg-white shadow-sm">
             <CardContent className="pt-4 pb-3">
-              <div className="flex flex-wrap items-center gap-4 text-sm">
+              <div className="flex flex-wrap items-center gap-6 text-sm">
                 <div>
-                  <span className="text-muted-foreground text-xs">Staff ID</span>
-                  <div className="font-mono text-xs text-slate-700 mt-0.5">{staff.id}</div>
+                  <span className="text-slate-600 text-xs font-semibold block">Staff ID</span>
+                  <div className="font-mono text-xs text-slate-900 font-bold mt-0.5">{staff.id}</div>
                 </div>
                 <div>
-                  <span className="text-muted-foreground text-xs">Role</span>
-                  <div className="font-semibold text-slate-700 mt-0.5">{staff.role ?? 'Unassigned'}</div>
+                  <span className="text-slate-600 text-xs font-semibold block">Role</span>
+                  <div className="font-bold text-slate-900 mt-0.5">{staff.role ?? 'Unassigned'}</div>
                 </div>
                 <div>
-                  <span className="text-muted-foreground text-xs">Status</span>
-                  <div className="mt-0.5">
+                  <span className="text-slate-600 text-xs font-semibold block mb-0.5">Status</span>
+                  <div>
                     {staff.isActive ? (
-                      <span className="text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full">Active</span>
+                      <span className="text-[11px] font-semibold bg-emerald-100 text-emerald-950 border border-emerald-300 px-2.5 py-0.5 rounded-full">Active</span>
                     ) : (
-                      <span className="text-[11px] font-semibold bg-rose-100 text-rose-800 border border-rose-200 px-2 py-0.5 rounded-full">Inactive</span>
+                      <span className="text-[11px] font-semibold bg-rose-100 text-rose-950 border border-rose-300 px-2.5 py-0.5 rounded-full">Inactive</span>
                     )}
                   </div>
                 </div>
                 <div>
-                  <span className="text-muted-foreground text-xs">Total Events</span>
-                  <div className="font-bold text-slate-900 mt-0.5">{activity.length}</div>
+                  <span className="text-slate-600 text-xs font-semibold block">Total Events</span>
+                  <div className="font-extrabold text-slate-900 mt-0.5">{activity.length}</div>
                 </div>
               </div>
             </CardContent>

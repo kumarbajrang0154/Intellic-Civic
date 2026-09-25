@@ -260,15 +260,16 @@ function isAdminRole(role: UserRole) {
 function getRoleBadgeClass(role: string): string {
   switch (role) {
     case 'SUPER_ADMIN':
-      return 'bg-amber-400/20 text-amber-300 border border-amber-400/30';
     case 'ADMIN':
-      return 'bg-blue-400/20 text-blue-300 border border-blue-400/30';
+      return 'bg-indigo-100 text-indigo-950 border border-indigo-300 font-semibold';
     case 'DEPARTMENT_HEAD':
-      return 'bg-purple-400/20 text-purple-300 border border-purple-400/30';
+      return 'bg-purple-100 text-purple-950 border border-purple-300 font-semibold';
     case 'DEPARTMENT_OFFICER':
-      return 'bg-emerald-400/20 text-emerald-300 border border-emerald-400/30';
+      return 'bg-emerald-100 text-emerald-950 border border-emerald-300 font-semibold';
+    case 'FIELD_WORKER':
+      return 'bg-cyan-100 text-cyan-950 border border-cyan-300 font-semibold';
     default:
-      return 'bg-slate-400/20 text-slate-300 border border-slate-400/30';
+      return 'bg-slate-100 text-slate-900 border border-slate-300 font-semibold';
   }
 }
 
@@ -309,17 +310,17 @@ function SidebarLeaf({
       onClick={onClick}
       className={cn(
         'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 group select-none',
-        indent ? 'ml-3 pl-3.5 border-l border-white/10' : '',
+        indent ? 'ml-3 pl-3.5 border-l border-slate-200' : '',
         isActive
-          ? 'bg-[#1769AA] text-white font-semibold shadow-xs'
-          : 'text-[#C4D3E0] hover:bg-[#183A5F] hover:text-white',
+          ? 'bg-blue-50 text-[#2563EB] font-bold border-l-4 border-[#2563EB] shadow-2xs'
+          : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900',
       )}
     >
       {Icon && (
         <Icon
           className={cn(
             'w-4 h-4 shrink-0 transition-colors',
-            isActive ? 'text-white' : 'text-[#7FA9CC] group-hover:text-white',
+            isActive ? 'text-[#2563EB]' : 'text-slate-500 group-hover:text-slate-900',
           )}
         />
       )}
@@ -359,21 +360,21 @@ function SidebarGroup({
         className={cn(
           'w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 group select-none',
           isGroupActive
-            ? 'bg-[#284A70] text-white font-semibold shadow-xs'
-            : 'text-[#FFFFFF] hover:bg-[#183A5F] hover:text-white',
+            ? 'bg-slate-100 text-slate-900 font-bold border-l-4 border-[#2563EB]'
+            : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900',
         )}
       >
         <Icon
           className={cn(
             'w-4 h-4 shrink-0 transition-colors',
-            isGroupActive ? 'text-[#7FA9CC]' : 'text-[#7FA9CC] group-hover:text-white',
+            isGroupActive ? 'text-[#2563EB]' : 'text-slate-500 group-hover:text-slate-900',
           )}
         />
         <span className="flex-1 text-left truncate">{item.title}</span>
         {open ? (
-          <ChevronDown className="w-3.5 h-3.5 text-[#A8BDD1]" />
+          <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
         ) : (
-          <ChevronRight className="w-3.5 h-3.5 text-[#A8BDD1]" />
+          <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
         )}
       </button>
 
@@ -412,11 +413,11 @@ function SidebarContent({
   const sections = getNavSections(user.role);
 
   return (
-    <div className="flex flex-col h-full bg-[#0F2747]">
+    <div className="flex flex-col h-full bg-white border-r border-slate-200">
       {/* Logo Header */}
-      <div className="px-4 py-4.5 border-b border-white/10">
+      <div className="px-4 py-4 border-b border-slate-200">
         <Link href="/" className="flex items-center gap-3 group" onClick={onLinkClick}>
-          <div className="w-9 h-9 rounded-lg bg-[#1769AA] flex items-center justify-center shrink-0 shadow-xs">
+          <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-[#2563EB] to-[#0891B2] flex items-center justify-center shrink-0 shadow-xs text-white">
             {platformInfo.logoUrl ? (
               <Image
                 src={platformInfo.logoUrl}
@@ -430,10 +431,10 @@ function SidebarContent({
             )}
           </div>
           <div className="min-w-0">
-            <div className="text-white font-extrabold text-sm leading-tight tracking-wide truncate">
+            <div className="text-slate-900 font-extrabold text-sm leading-tight tracking-wide truncate">
               {platformInfo.platformName.toUpperCase()}
             </div>
-            <div className="text-[#A8BDD1] text-[10px] font-semibold tracking-widest uppercase leading-tight mt-0.5">
+            <div className="text-slate-500 text-[10px] font-semibold tracking-widest uppercase leading-tight mt-0.5">
               Civic Intelligence Platform
             </div>
           </div>
@@ -445,7 +446,7 @@ function SidebarContent({
         {sections.map((section, sIdx) => (
           <div key={sIdx}>
             {section.label && (
-              <div className="px-3 pb-1.5 pt-1 text-[11px] font-bold tracking-widest text-[#8FAAC2] uppercase">
+              <div className="px-3 pb-1.5 pt-1 text-[11px] font-bold tracking-widest text-slate-500 uppercase">
                 {section.label}
               </div>
             )}
@@ -477,19 +478,19 @@ function SidebarContent({
       </nav>
 
       {/* Bottom Profile + Actions */}
-      <div className="border-t border-white/10 p-3 space-y-2">
+      <div className="border-t border-slate-200 p-3 space-y-2">
         {/* Profile Card */}
-        <div className="flex items-center gap-3 p-2.5 rounded-lg bg-[#183A5F]/60 border border-white/10">
-          <div className="w-8 h-8 rounded-full bg-[#1769AA] flex items-center justify-center shrink-0 text-white font-bold text-xs shadow-xs">
+        <div className="flex items-center gap-3 p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#2563EB] to-[#0891B2] flex items-center justify-center shrink-0 text-white font-bold text-xs shadow-xs">
             {(user.name || 'U').charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold text-white truncate">
+            <div className="text-xs font-semibold text-slate-900 truncate">
               {user.name || 'Admin'}
             </div>
             <span
               className={cn(
-                'inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-0.5',
+                'inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full mt-0.5',
                 getRoleBadgeClass(user.role),
               )}
             >
@@ -503,10 +504,10 @@ function SidebarContent({
           <Link
             href="/citizen"
             target="_blank"
-            className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-[#C4D3E0] hover:text-white hover:bg-[#183A5F] rounded-lg transition-colors w-full"
+            className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors w-full"
             onClick={onLinkClick}
           >
-            <Globe className="w-4 h-4 text-[#7FA9CC] shrink-0" />
+            <Globe className="w-4 h-4 text-[#2563EB] shrink-0" />
             <span>View Citizen Portal</span>
           </Link>
         )}
@@ -515,9 +516,9 @@ function SidebarContent({
         <button
           type="button"
           onClick={onLogout}
-          className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-[#C4D3E0] hover:text-rose-300 hover:bg-rose-500/10 rounded-lg transition-colors w-full"
+          className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-rose-700 hover:text-rose-900 hover:bg-rose-50 rounded-lg transition-colors w-full"
         >
-          <LogOut className="w-4 h-4 text-[#7FA9CC] shrink-0" />
+          <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
           <span>Sign Out</span>
         </button>
       </div>

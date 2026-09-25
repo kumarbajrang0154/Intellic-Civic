@@ -22,25 +22,25 @@ function StaffLoginContent() {
   const errorMessage = errorKey ? (ERROR_MESSAGES[errorKey] || 'An error occurred during Google sign-in.') : null;
 
   return (
-    <div className="min-h-screen bg-[#F6F8FB] flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-brand-wash flex flex-col items-center justify-center p-4 font-sans">
       <div className="w-full max-w-md space-y-4">
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 text-sm text-[#475569] hover:text-[#0F2747] mb-2 font-medium transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs sm:text-sm text-slate-600 hover:text-slate-900 mb-2 font-medium transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Home
         </Link>
 
-        <Card className="shadow-xs border border-[#E2E8F0] bg-white rounded-xl">
+        <Card className="shadow-md border border-slate-200/90 bg-white/95 backdrop-blur-md rounded-xl">
           <CardHeader className="text-center space-y-2 pb-4">
-            <div className="mx-auto h-12 w-12 rounded-xl bg-[#0F2747] flex items-center justify-center text-white mb-1 shadow-xs">
+            <div className="mx-auto h-12 w-12 rounded-xl bg-gradient-to-tr from-[#2563EB] to-[#0891B2] flex items-center justify-center text-white mb-1 shadow-xs">
               <Building2 className="h-6 w-6" />
             </div>
-            <CardTitle className="text-2xl font-bold text-[#0F2747] tracking-tight">
+            <CardTitle className="typo-h2 font-extrabold text-slate-900 tracking-tight">
               Staff & Admin Access
             </CardTitle>
-            <CardDescription className="text-xs text-[#475569] leading-relaxed">
+            <CardDescription className="typo-caption text-slate-600 leading-relaxed">
               Department Officers, Department Heads, Field Workers, and Super Admin sign in
               using their authorized Google account
             </CardDescription>
@@ -49,7 +49,7 @@ function StaffLoginContent() {
           <CardContent className="space-y-5">
             {/* Error Banner */}
             {errorMessage && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium rounded-lg text-left">
+              <div className="p-3 bg-rose-100 border border-rose-300 text-rose-950 text-xs font-semibold rounded-lg text-left">
                 {errorMessage}
               </div>
             )}
@@ -57,8 +57,9 @@ function StaffLoginContent() {
             {/* Google Sign In Button */}
             <a href="/api/auth/google" className="block w-full">
               <Button
+                variant="outline"
                 size="lg"
-                className="w-full h-11 flex items-center justify-center gap-3 bg-white text-[#172033] border border-[#CBD5E1] hover:bg-slate-50 shadow-xs font-semibold text-sm rounded-lg transition-colors"
+                className="w-full h-11 flex items-center justify-center gap-3 bg-white text-slate-900 border border-slate-300 hover:bg-slate-50 shadow-xs font-semibold text-sm rounded-lg transition-colors"
               >
                 <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24">
                   <path
@@ -83,12 +84,12 @@ function StaffLoginContent() {
             </a>
 
             {/* Security Info Box */}
-            <div className="p-4 bg-[#F0F7FF] rounded-lg border border-[#BFDBFE] text-left space-y-1.5">
-              <div className="flex items-center gap-2 font-semibold text-xs text-[#0F2747]">
-                <ShieldAlert className="h-4 w-4 text-[#1769AA] shrink-0" />
+            <div className="p-4 bg-blue-50/80 rounded-lg border border-blue-200 text-left space-y-1.5">
+              <div className="flex items-center gap-2 font-semibold text-xs text-blue-950">
+                <ShieldAlert className="h-4 w-4 text-[#2563EB] shrink-0" />
                 <span>Secure Staff Access</span>
               </div>
-              <p className="text-xs text-[#475569] leading-relaxed">
+              <p className="text-xs text-slate-700 leading-relaxed">
                 When you sign in with Google, we verify your account email against authorized staff records before access is granted. Unregistered accounts are placed in a pending approval queue.
               </p>
             </div>

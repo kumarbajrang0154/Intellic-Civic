@@ -74,18 +74,20 @@ const STATUSES = [
 
 function roleBadge(role: string | null) {
   const map: Record<string, string> = {
-    ADMIN: 'bg-purple-100 text-purple-800 border-purple-200',
-    DEPARTMENT_HEAD: 'bg-blue-100 text-blue-800 border-blue-200',
-    DEPARTMENT_OFFICER: 'bg-sky-100 text-sky-800 border-sky-200',
-    FIELD_WORKER: 'bg-amber-100 text-amber-800 border-amber-200',
+    ADMIN: 'bg-indigo-100 text-indigo-950 border-indigo-300',
+    SUPER_ADMIN: 'bg-indigo-100 text-indigo-950 border-indigo-300',
+    DEPARTMENT_HEAD: 'bg-purple-100 text-purple-950 border-purple-300',
+    DEPARTMENT_OFFICER: 'bg-emerald-100 text-emerald-950 border-emerald-300',
+    FIELD_WORKER: 'bg-cyan-100 text-cyan-950 border-cyan-300',
   };
   const labels: Record<string, string> = {
     ADMIN: 'Super Admin',
+    SUPER_ADMIN: 'Super Admin',
     DEPARTMENT_HEAD: 'Dept Head',
     DEPARTMENT_OFFICER: 'Officer',
     FIELD_WORKER: 'Field Worker',
   };
-  const cls = role ? (map[role] ?? 'bg-slate-100 text-slate-600 border-slate-200') : 'bg-slate-100 text-slate-400 border-slate-200';
+  const cls = role ? (map[role] ?? 'bg-slate-100 text-slate-900 border-slate-300') : 'bg-slate-100 text-slate-600 border-slate-300';
   return (
     <span className={`inline-block text-[11px] font-semibold border px-2 py-0.5 rounded-full ${cls}`}>
       {role ? (labels[role] ?? role) : 'Unassigned'}
@@ -379,12 +381,12 @@ export default function AdminStaffPage() {
                       </td>
                       <td className="px-4 py-3">
                         {staff.isActive ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-100 text-emerald-950 border border-emerald-300 px-2 py-0.5 rounded-full">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span> Active
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-rose-100 text-rose-800 border border-rose-200 px-2 py-0.5 rounded-full">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Inactive
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-rose-100 text-rose-950 border border-rose-300 px-2 py-0.5 rounded-full">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span> Inactive
                           </span>
                         )}
                       </td>
@@ -412,7 +414,7 @@ export default function AdminStaffPage() {
                               )}
                             </>
                           ) : (
-                            <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded" title="Super Admin accounts are permanent and protected">
+                            <span className="text-[11px] font-semibold text-indigo-950 bg-indigo-100 border border-indigo-300 px-2.5 py-0.5 rounded-full shadow-2xs" title="Super Admin accounts are permanent and protected">
                               Protected
                             </span>
                           )}

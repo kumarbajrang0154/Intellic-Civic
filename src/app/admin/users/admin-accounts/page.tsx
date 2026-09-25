@@ -21,10 +21,10 @@ interface AdminAccount {
 }
 
 const ROLE_LABELS: Record<string, { label: string; color: string }> = {
-  SUPER_ADMIN: { label: 'Super Admin', color: 'bg-amber-50 text-amber-700 border-amber-200' },
-  ADMIN: { label: 'Admin', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  DEPARTMENT_HEAD: { label: 'Dept. Head', color: 'bg-purple-50 text-purple-700 border-purple-200' },
-  DEPARTMENT_OFFICER: { label: 'Officer', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+  SUPER_ADMIN: { label: 'Super Admin', color: 'bg-indigo-100 text-indigo-950 border-indigo-300 font-semibold' },
+  ADMIN: { label: 'Admin', color: 'bg-indigo-100 text-indigo-950 border-indigo-300 font-semibold' },
+  DEPARTMENT_HEAD: { label: 'Dept. Head', color: 'bg-purple-100 text-purple-950 border-purple-300 font-semibold' },
+  DEPARTMENT_OFFICER: { label: 'Officer', color: 'bg-emerald-100 text-emerald-950 border-emerald-300 font-semibold' },
 };
 
 export default function AdminAccountsPage() {
@@ -157,12 +157,12 @@ export default function AdminAccountsPage() {
                         </td>
                         <td className="px-4 py-3">
                           <span
-                            className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                            className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
                               a.isSuspended
-                                ? 'bg-red-50 text-red-700'
+                                ? 'bg-rose-100 text-rose-950 border-rose-300'
                                 : a.isAuthorized
-                                ? 'bg-emerald-50 text-emerald-700'
-                                : 'bg-amber-50 text-amber-700'
+                                ? 'bg-emerald-100 text-emerald-950 border-emerald-300'
+                                : 'bg-amber-100 text-amber-950 border-amber-300'
                             }`}
                           >
                             {a.isSuspended ? 'Suspended' : a.isAuthorized ? 'Active' : 'Pending'}
