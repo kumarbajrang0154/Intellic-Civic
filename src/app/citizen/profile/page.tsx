@@ -160,6 +160,7 @@ function CitizenProfileForm() {
       user={{
         name: name || 'Citizen',
         role: 'CITIZEN',
+        avatarUrl: avatarUrl || null,
       }}
     >
       <div className="max-w-3xl mx-auto space-y-6">

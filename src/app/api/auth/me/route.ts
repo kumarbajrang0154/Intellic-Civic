@@ -38,6 +38,11 @@ export async function GET() {
     if (payload.email) {
       const staffUser = await getUserByEmail(payload.email);
       if (staffUser) {
+        // Fetch avatarUrl directly from DB since UserItem formatter doesn't include it
+        const dbUser = await (await import('@/lib/prisma')).default.user.findUnique({
+          where: { id: staffUser.id },
+          select: { avatarUrl: true },
+        });
         return NextResponse.json({
           user: {
             id: staffUser.id,
@@ -47,6 +52,7 @@ export async function GET() {
             departmentId: staffUser.departmentId,
             isAuthorized: staffUser.isAuthorized,
             isSuspended: staffUser.isSuspended,
+            avatarUrl: dbUser?.avatarUrl ?? null,
           },
         });
       }

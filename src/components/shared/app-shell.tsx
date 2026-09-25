@@ -14,7 +14,6 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardList,
-  FileText,
   Globe,
   Home,
   LayoutDashboard,
@@ -139,6 +138,7 @@ const SUPER_ADMIN_NAV: NavSection[] = [
       { type: 'leaf', title: 'Security & Access', href: '/admin/security', icon: ShieldCheck },
       { type: 'leaf', title: 'System Management', href: '/admin/system', icon: Settings },
       { type: 'leaf', title: 'Organization Settings', href: '/admin/settings', icon: Globe },
+      { type: 'leaf', title: 'My Profile', href: '/admin/profile', icon: User },
     ],
   },
 ];
@@ -177,6 +177,7 @@ const ADMIN_NAV: NavSection[] = [
       { type: 'leaf', title: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
       { type: 'leaf', title: 'Notifications', href: '/admin/notifications', icon: Bell },
       { type: 'leaf', title: 'Platform Settings', href: '/admin/settings', icon: Settings },
+      { type: 'leaf', title: 'My Profile', href: '/admin/profile', icon: User },
     ],
   },
 ];
@@ -225,12 +226,40 @@ const OFFICER_NAV: NavSection[] = [
   },
 ];
 
+const FIELD_WORKER_NAV: NavSection[] = [
+  {
+    label: 'MAIN',
+    items: [
+      { type: 'leaf', title: 'Dashboard', href: '/field-worker', icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: 'WORK',
+    items: [
+      { type: 'leaf', title: 'My Assignments', href: '/field-worker/complaints', icon: ClipboardList },
+    ],
+  },
+  {
+    label: 'ACCOUNT',
+    items: [
+      { type: 'leaf', title: 'Profile Settings', href: '/field-worker/profile', icon: User },
+    ],
+  },
+];
+
 const CITIZEN_NAV: NavSection[] = [
   {
+    label: 'PORTAL',
     items: [
-      { type: 'leaf', title: 'My Complaints', href: '/citizen', icon: FileText },
-      { type: 'leaf', title: 'New Complaint', href: '/citizen/complaints/new', icon: PlusCircle },
-      { type: 'leaf', title: 'Profile', href: '/citizen/profile', icon: User },
+      { type: 'leaf', title: 'Dashboard', href: '/citizen', icon: Home },
+      { type: 'leaf', title: 'Report Complaint', href: '/citizen/complaints/new', icon: PlusCircle },
+    ],
+  },
+  {
+    label: 'ACCOUNT',
+    items: [
+      { type: 'leaf', title: 'Notifications', href: '/citizen/notifications', icon: Bell },
+      { type: 'leaf', title: 'Profile Settings', href: '/citizen/profile', icon: User },
     ],
   },
 ];
@@ -244,6 +273,8 @@ function getNavSections(role: UserRole): NavSection[] {
       return DEPT_HEAD_NAV;
     case 'DEPARTMENT_OFFICER':
       return OFFICER_NAV;
+    case 'FIELD_WORKER':
+      return FIELD_WORKER_NAV;
     case 'CITIZEN':
       return CITIZEN_NAV;
     default:
@@ -582,112 +613,7 @@ export function AppShell({ children, user }: AppShellProps) {
     }
   };
 
-  // Citizen layout uses simple top-nav only with persistent links
-  if (user.role === 'CITIZEN') {
-    const citizenNavItems = [
-      { title: 'Dashboard', href: '/citizen', icon: FileText },
-      { title: 'New Complaint', href: '/citizen/complaints/new', icon: PlusCircle },
-      { title: 'Profile Settings', href: '/citizen/profile', icon: User },
-    ];
-
-    return (
-      <div className="min-h-screen bg-brand-wash flex flex-col">
-        <header className="sticky top-0 z-40 border-b bg-white px-4 sm:px-6 py-3 shadow-sm">
-          <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
-            {/* Logo & Navigation Links */}
-            <div className="flex items-center gap-6">
-              <Link href="/citizen" className="flex items-center gap-2 font-bold text-ic-navy group">
-                <div className="w-8 h-8 rounded-lg bg-ic-action flex items-center justify-center text-white shrink-0 shadow-sm group-hover:scale-105 transition-transform">
-                  <Shield className="h-4 w-4" />
-                </div>
-                <span className="text-base font-bold tracking-tight text-slate-900">{platformInfo.platformName}</span>
-              </Link>
-
-              {/* Desktop Nav Links */}
-              <nav className="hidden md:flex items-center gap-1.5 border-l border-slate-200 pl-5">
-                {citizenNavItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = pathname === item.href;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                        'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                        isActive
-                          ? 'bg-ic-action/10 text-ic-action font-semibold'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100',
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  );
-                })}
-              </nav>
-            </div>
-
-            {/* Right Header Actions */}
-            <div className="flex items-center gap-3">
-              {/* Notifications Link */}
-              <Link
-                href="/citizen/notifications"
-                className="relative p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
-                aria-label="Notifications"
-                title="Notifications"
-              >
-                <Bell className="w-5 h-5" />
-              </Link>
-
-              {/* User Avatar & Name */}
-              <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-slate-200">
-                <div className="w-7 h-7 rounded-full bg-ic-action flex items-center justify-center text-white text-xs font-bold shrink-0 overflow-hidden">
-                  {user.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={user.avatarUrl} alt={user.name || 'Avatar'} className="w-full h-full object-cover" />
-                  ) : (
-                    (user.name || 'C').charAt(0).toUpperCase()
-                  )}
-                </div>
-                <span className="text-sm font-medium text-slate-700 max-w-[120px] truncate">{user.name || 'Citizen'}</span>
-              </div>
-
-              {/* Logout Button */}
-              <Button variant="outline" size="sm" onClick={handleLogout} className="text-xs gap-1.5">
-                <LogOut className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Logout</span>
-              </Button>
-            </div>
-          </div>
-
-          {/* Mobile Nav Links Bar */}
-          <div className="md:hidden flex items-center justify-around border-t mt-2 pt-2 gap-1 overflow-x-auto">
-            {citizenNavItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap',
-                    isActive
-                      ? 'bg-ic-action/10 text-ic-action font-semibold'
-                      : 'text-slate-600 hover:bg-slate-100',
-                  )}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  <span>{item.title}</span>
-                </Link>
-              );
-            })}
-          </div>
-        </header>
-
-        <main className="flex-1 p-4 sm:p-6 max-w-5xl mx-auto w-full">{children}</main>
-      </div>
-    );
-  }
+  // Citizen layout: same sidebar shell as admin/staff (Part B fix)
 
   return (
     <div className="min-h-screen flex bg-brand-wash">
@@ -757,7 +683,7 @@ export function AppShell({ children, user }: AppShellProps) {
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Notifications bell */}
             <Link
-              href={isAdminRole(user.role) ? '/admin/notifications' : '#'}
+              href={isAdminRole(user.role) ? '/admin/notifications' : user.role === 'CITIZEN' ? '/citizen/notifications' : '#'}
               className="relative p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
               aria-label="Notifications"
             >

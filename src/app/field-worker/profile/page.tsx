@@ -1,25 +1,25 @@
 'use client';
 
 import * as React from 'react';
-import { UserCheck, Mail, Building2, Shield, UploadCloud, Loader2, User } from 'lucide-react';
+import { Mail, Building2, Shield, Wrench, UploadCloud, Loader2, User } from 'lucide-react';
 import { AppShell } from '@/components/layout/app-shell';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
-export default function OfficerProfilePage() {
+export default function FieldWorkerProfilePage() {
   const [user, setUser] = React.useState<{
     id?: string;
     name: string;
-    role: 'DEPARTMENT_OFFICER';
+    role: 'FIELD_WORKER';
     email?: string;
     departmentId?: string;
     avatarUrl?: string | null;
   }>({
-    name: 'Department Officer',
-    role: 'DEPARTMENT_OFFICER',
+    name: 'Field Worker',
+    role: 'FIELD_WORKER',
   });
 
   const [loading, setLoading] = React.useState(true);
@@ -37,8 +37,8 @@ export default function OfficerProfilePage() {
         if (data.user) {
           setUser({
             id: data.user.id,
-            name: data.user.name || 'Department Officer',
-            role: 'DEPARTMENT_OFFICER',
+            name: data.user.name || 'Field Worker',
+            role: 'FIELD_WORKER',
             email: data.user.email,
             departmentId: data.user.departmentId,
             avatarUrl: data.user.avatarUrl || null,
@@ -139,9 +139,9 @@ export default function OfficerProfilePage() {
     <AppShell user={{ ...user, avatarUrl: avatarUrl || user.avatarUrl }}>
       <div className="space-y-6 max-w-2xl mx-auto">
         <div className="border-b pb-4">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Officer Profile</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Field Worker Profile</h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Manage your Department Officer account details and profile picture.
+            Manage your Field Worker account details and profile picture.
           </p>
         </div>
 
@@ -149,18 +149,18 @@ export default function OfficerProfilePage() {
           <CardHeader className="p-5 pb-3">
             <div className="flex items-center gap-4">
               {/* Avatar */}
-              <div className="relative h-16 w-16 rounded-full border-2 border-primary/30 overflow-hidden bg-muted flex items-center justify-center shrink-0">
+              <div className="relative h-16 w-16 rounded-full border-2 border-cyan-300 overflow-hidden bg-cyan-50 flex items-center justify-center shrink-0">
                 {avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={avatarUrl} alt={user.name} className="h-full w-full object-cover" />
                 ) : (
-                  <User className="h-8 w-8 text-muted-foreground" />
+                  <User className="h-8 w-8 text-cyan-400" />
                 )}
               </div>
               <div>
                 <CardTitle className="text-base font-bold">{user.name}</CardTitle>
-                <Badge variant="outline" className="text-xs mt-1">
-                  DEPARTMENT OFFICER
+                <Badge variant="outline" className="text-xs mt-1 border-cyan-300 text-cyan-700 bg-cyan-50">
+                  FIELD WORKER
                 </Badge>
               </div>
             </div>
@@ -214,12 +214,12 @@ export default function OfficerProfilePage() {
               />
             </div>
 
-            {/* Email (read-only) */}
+            {/* Email */}
             <div className="flex items-center gap-3 pt-2 border-t">
               <Mail className="h-4 w-4 text-primary shrink-0" />
               <div>
                 <span className="font-semibold block">Email Address</span>
-                <span className="text-muted-foreground">{user.email || 'officer@city.gov'}</span>
+                <span className="text-muted-foreground">{user.email || 'worker@city.gov.in'}</span>
               </div>
             </div>
 
@@ -227,24 +227,24 @@ export default function OfficerProfilePage() {
             <div className="flex items-center gap-3 pt-2">
               <Building2 className="h-4 w-4 text-primary shrink-0" />
               <div>
-                <span className="font-semibold block">Department Scope</span>
+                <span className="font-semibold block">Department</span>
                 <span className="text-muted-foreground">{user.departmentId || 'Assigned Department'}</span>
               </div>
             </div>
 
-            {/* Authorization */}
+            {/* Role */}
             <div className="flex items-center gap-3 pt-2">
-              <Shield className="h-4 w-4 text-primary shrink-0" />
+              <Wrench className="h-4 w-4 text-primary shrink-0" />
               <div>
-                <span className="font-semibold block">Authorization Status</span>
-                <span className="text-emerald-600 font-semibold">Authorized Staff Account</span>
+                <span className="font-semibold block">Role</span>
+                <span className="text-cyan-700 font-semibold">Field Worker — On-Ground Operations</span>
               </div>
             </div>
 
             {/* Save Button */}
             <div className="pt-3 border-t flex justify-end">
               <Button onClick={handleSaveProfile} disabled={saving} className="gap-2">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />}
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
                 {saving ? 'Saving...' : 'Save Profile'}
               </Button>
             </div>
