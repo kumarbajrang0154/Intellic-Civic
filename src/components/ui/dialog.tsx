@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -9,6 +10,13 @@ interface DialogProps {
 }
 
 export function Dialog({ open, onOpenChange, children }: DialogProps) {
+  const [mounted, setMounted] = React.useState(false);
+
+  // Only mount the portal after hydration to avoid SSR mismatch
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Lock body scroll while modal is open
   React.useEffect(() => {
     if (open) {
@@ -19,10 +27,13 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
     return () => { document.body.style.overflow = ''; };
   }, [open]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  // createPortal renders the dialog as a direct child of <body>,
+  // completely outside any parent stacking context, overflow:hidden, or transform.
+  // This guarantees true overlay behavior regardless of where Dialog is used in the tree.
+  return createPortal(
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       {/* Backdrop — semi-transparent scrim, NOT a dark theme: temporary overlay only */}
       <div
         className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
@@ -54,9 +65,11 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
+
 
 export function DialogContent({ children, className }: { children: React.ReactNode; className?: string }) {
   return <div className={cn('space-y-4', className)}>{children}</div>;

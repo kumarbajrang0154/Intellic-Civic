@@ -481,8 +481,13 @@ function SidebarContent({
       <div className="border-t border-slate-200 p-3 space-y-2">
         {/* Profile Card */}
         <div className="flex items-center gap-3 p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#2563EB] to-[#0891B2] flex items-center justify-center shrink-0 text-white font-bold text-xs shadow-xs">
-            {(user.name || 'U').charAt(0).toUpperCase()}
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#2563EB] to-[#0891B2] flex items-center justify-center shrink-0 text-white font-bold text-xs shadow-xs overflow-hidden">
+            {user.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={user.avatarUrl} alt={user.name || 'Avatar'} className="w-full h-full object-cover" />
+            ) : (
+              (user.name || 'U').charAt(0).toUpperCase()
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-xs font-semibold text-slate-900 truncate">
@@ -534,6 +539,7 @@ interface AppShellProps {
     name?: string;
     email?: string;
     role: UserRole;
+    avatarUrl?: string | null;
   };
 }
 
@@ -635,8 +641,13 @@ export function AppShell({ children, user }: AppShellProps) {
 
               {/* User Avatar & Name */}
               <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-slate-200">
-                <div className="w-7 h-7 rounded-full bg-ic-action flex items-center justify-center text-white text-xs font-bold shrink-0">
-                  {(user.name || 'C').charAt(0).toUpperCase()}
+                <div className="w-7 h-7 rounded-full bg-ic-action flex items-center justify-center text-white text-xs font-bold shrink-0 overflow-hidden">
+                  {user.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={user.avatarUrl} alt={user.name || 'Avatar'} className="w-full h-full object-cover" />
+                  ) : (
+                    (user.name || 'C').charAt(0).toUpperCase()
+                  )}
                 </div>
                 <span className="text-sm font-medium text-slate-700 max-w-[120px] truncate">{user.name || 'Citizen'}</span>
               </div>
@@ -755,8 +766,13 @@ export function AppShell({ children, user }: AppShellProps) {
 
             {/* User info */}
             <div className="hidden sm:flex items-center gap-2.5 pl-3 border-l border-slate-200">
-              <div className="w-8 h-8 rounded-full bg-ic-blue flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-xs">
-                {(user.name || 'U').charAt(0).toUpperCase()}
+              <div className="w-8 h-8 rounded-full bg-ic-blue flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-xs overflow-hidden">
+                {user.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={user.avatarUrl} alt={user.name || 'Avatar'} className="w-full h-full object-cover" />
+                ) : (
+                  (user.name || 'U').charAt(0).toUpperCase()
+                )}
               </div>
               <div className="hidden md:block">
                 <div className="text-sm font-semibold text-slate-900 leading-tight">
