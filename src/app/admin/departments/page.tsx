@@ -168,7 +168,7 @@ export default function AdminDepartmentsPage() {
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={openCreateModal}>
+            <Button className="bg-gradient-to-r from-[#2563EB] to-[#0891B2] text-white hover:opacity-95 shadow-sm" onClick={openCreateModal}>
               <Plus className="w-4 h-4 mr-2" />
               Add Department
             </Button>
@@ -293,7 +293,7 @@ export default function AdminDepartmentsPage() {
                   Description & Operational Scope
                 </label>
                 <textarea
-                  className="w-full min-h-[100px] p-3 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full min-h-[100px] p-3 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1769AA]/20 focus:border-[#1769AA]"
                   placeholder="Describe the responsibilities of this department..."
                   value={descInput}
                   onChange={(e) => setDescInput(e.target.value)}
@@ -306,7 +306,7 @@ export default function AdminDepartmentsPage() {
                 Cancel
               </Button>
               <Button
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-gradient-to-r from-[#2563EB] to-[#0891B2] text-white hover:opacity-95 shadow-sm"
                 onClick={handleSubmit}
                 disabled={submitting}
               >

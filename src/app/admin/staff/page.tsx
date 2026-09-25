@@ -472,7 +472,7 @@ export default function AdminStaffPage() {
                 <select
                   value={createRole}
                   onChange={(e) => { setCreateRole(e.target.value); setCreateDept(''); }}
-                  className="w-full h-10 px-3 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1769AA]/20 focus:border-[#1769AA] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <option value="DEPARTMENT_HEAD">Department Head</option>
                   <option value="DEPARTMENT_OFFICER">Department Officer</option>
@@ -485,7 +485,7 @@ export default function AdminStaffPage() {
                   <select
                     value={createDept}
                     onChange={(e) => setCreateDept(e.target.value)}
-                    className="w-full h-10 px-3 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1769AA]/20 focus:border-[#1769AA] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <option value="">— Select Department —</option>
                     {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -495,7 +495,7 @@ export default function AdminStaffPage() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleCreate} disabled={creating}>
+              <Button className="bg-gradient-to-r from-[#2563EB] to-[#0891B2] text-white hover:opacity-95 shadow-sm" onClick={handleCreate} disabled={creating}>
                 {creating ? 'Creating...' : 'Create Staff'}
               </Button>
             </DialogFooter>
@@ -541,7 +541,7 @@ export default function AdminStaffPage() {
                 <select
                   value={reassignRole}
                   onChange={(e) => { setReassignRole(e.target.value); setReassignDept(''); }}
-                  className="w-full h-10 px-3 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1769AA]/20 focus:border-[#1769AA] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <option value="DEPARTMENT_HEAD">Department Head</option>
                   <option value="DEPARTMENT_OFFICER">Department Officer</option>
@@ -554,7 +554,7 @@ export default function AdminStaffPage() {
                   <select
                     value={reassignDept}
                     onChange={(e) => setReassignDept(e.target.value)}
-                    className="w-full h-10 px-3 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1769AA]/20 focus:border-[#1769AA] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <option value="">— Select Department —</option>
                     {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -564,7 +564,7 @@ export default function AdminStaffPage() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setReassignTarget(null)}>Cancel</Button>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleReassign} disabled={reassigning}>
+              <Button className="bg-gradient-to-r from-[#2563EB] to-[#0891B2] text-white hover:opacity-95 shadow-sm" onClick={handleReassign} disabled={reassigning}>
                 {reassigning ? 'Reassigning...' : 'Save Changes'}
               </Button>
             </DialogFooter>

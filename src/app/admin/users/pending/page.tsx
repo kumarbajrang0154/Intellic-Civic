@@ -220,7 +220,7 @@ export default function AdminPendingUsersPage() {
                 Cancel
               </Button>
               <Button
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="bg-gradient-to-r from-[#2563EB] to-[#0891B2] text-white hover:opacity-95 shadow-sm"
                 onClick={handleConfirmApprove}
                 disabled={submitting}
               >
