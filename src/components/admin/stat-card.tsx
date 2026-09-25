@@ -33,7 +33,7 @@ export function StatCard({
       )}
     >
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-slate-500">{title}</span>
+        <span className="text-sm font-semibold text-slate-700">{title}</span>
         <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center shrink-0', iconBg)}>
           <Icon className={cn('w-5 h-5', iconColor)} />
         </div>
@@ -43,16 +43,16 @@ export function StatCard({
         <div>
           <div className="text-2xl font-bold text-slate-900 leading-none">{value}</div>
           {description && (
-            <p className="text-xs text-slate-400 mt-1">{description}</p>
+            <p className="text-xs text-slate-600 font-medium mt-1">{description}</p>
           )}
         </div>
         {trend && (
           <div
             className={cn(
-              'flex items-center gap-1 text-xs font-medium rounded-full px-2 py-1',
+              'flex items-center gap-1 text-xs font-semibold rounded-full px-2.5 py-1 border',
               trend.value >= 0
-                ? 'bg-emerald-50 text-emerald-600'
-                : 'bg-red-50 text-red-600',
+                ? 'bg-emerald-100 text-emerald-950 border-emerald-300'
+                : 'bg-rose-100 text-rose-950 border-rose-300',
             )}
           >
             {trend.value >= 0 ? (

@@ -75,20 +75,21 @@ interface ComplaintDetail {
 }
 
 const STATUS_BADGES: Record<string, { bg: string; text: string }> = {
-  SUBMITTED: { bg: 'bg-blue-50 text-blue-700 border-blue-200', text: 'Submitted' },
-  PENDING_TRIAGE: { bg: 'bg-purple-50 text-purple-700 border-purple-200', text: 'Pending AI Triage' },
-  DEPARTMENT_PENDING: { bg: 'bg-amber-50 text-amber-700 border-amber-200', text: 'Dept Action Needed' },
-  ASSIGNED: { bg: 'bg-sky-50 text-sky-700 border-sky-200', text: 'Assigned to Field' },
-  IN_PROGRESS: { bg: 'bg-indigo-50 text-indigo-700 border-indigo-200', text: 'In Progress' },
-  RESOLVED: { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', text: 'Resolved' },
-  REJECTED: { bg: 'bg-rose-50 text-rose-700 border-rose-200', text: 'Rejected' },
+  SUBMITTED: { bg: 'bg-blue-100 text-blue-950 border-blue-300 font-semibold', text: 'Submitted' },
+  PENDING_TRIAGE: { bg: 'bg-purple-100 text-purple-950 border-purple-300 font-semibold', text: 'Pending AI Triage' },
+  DEPARTMENT_PENDING: { bg: 'bg-amber-100 text-amber-950 border-amber-300 font-semibold', text: 'Dept Action Needed' },
+  ASSIGNED: { bg: 'bg-sky-100 text-sky-950 border-sky-300 font-semibold', text: 'Assigned to Field' },
+  IN_PROGRESS: { bg: 'bg-indigo-100 text-indigo-950 border-indigo-300 font-semibold', text: 'In Progress' },
+  RESOLVED: { bg: 'bg-emerald-100 text-emerald-950 border-emerald-300 font-semibold', text: 'Resolved' },
+  REJECTED: { bg: 'bg-rose-100 text-rose-950 border-rose-300 font-semibold', text: 'Rejected' },
 };
 
 const PRIORITY_BADGES: Record<string, { bg: string; text: string }> = {
-  EMERGENCY: { bg: 'bg-rose-100 text-rose-800 font-bold border-rose-300', text: 'EMERGENCY' },
-  HIGH: { bg: 'bg-amber-100 text-amber-800 font-semibold border-amber-300', text: 'HIGH' },
-  MEDIUM: { bg: 'bg-blue-100 text-blue-800 font-medium border-blue-300', text: 'MEDIUM' },
-  LOW: { bg: 'bg-slate-100 text-slate-700 border-slate-300', text: 'LOW' },
+  EMERGENCY: { bg: 'bg-rose-100 text-rose-950 font-bold border-rose-300', text: 'EMERGENCY' },
+  CRITICAL: { bg: 'bg-rose-100 text-rose-950 font-bold border-rose-300', text: 'CRITICAL' },
+  HIGH: { bg: 'bg-orange-100 text-orange-950 font-bold border-orange-300', text: 'HIGH' },
+  MEDIUM: { bg: 'bg-amber-100 text-amber-950 font-semibold border-amber-300', text: 'MEDIUM' },
+  LOW: { bg: 'bg-blue-100 text-blue-950 font-semibold border-blue-300', text: 'LOW' },
 };
 
 export default function AdminComplaintDetailPage() {

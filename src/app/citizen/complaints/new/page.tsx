@@ -436,7 +436,7 @@ export default function NewComplaintPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 inline-block w-full">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
                 Ticket Reference ID
               </span>
               <span className="text-2xl font-extrabold text-ic-blue font-mono">
@@ -561,7 +561,7 @@ export default function NewComplaintPage() {
               <div>
                 <div className="font-bold text-sm text-slate-900 flex items-center gap-2">
                   <span>Smart AI Voice Assistant</span>
-                  <span className="text-[10px] px-2 py-0.5 bg-indigo-100 text-ai-indigo font-bold rounded-full uppercase">
+                  <span className="text-[10px] px-2 py-0.5 bg-indigo-100 text-indigo-950 border border-indigo-300 font-bold rounded-full uppercase">
                     Voice Dictation
                   </span>
                 </div>
@@ -678,7 +678,7 @@ export default function NewComplaintPage() {
                     </option>
                   ))}
                 </Select>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-600 font-medium">
                   If omitted, our Gemini AI will analyze your description to auto-categorize.
                 </p>
               </div>

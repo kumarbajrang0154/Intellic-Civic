@@ -8,23 +8,23 @@ type PriorityLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 const PRIORITY_CONFIG: Record<PriorityLevel, { label: string; className: string; dot: string }> = {
   LOW: {
     label: 'Low',
-    className: 'bg-slate-100 text-slate-600 border border-slate-200',
-    dot: 'bg-slate-400',
+    className: 'bg-blue-100 text-blue-950 border border-blue-300 font-semibold',
+    dot: 'bg-blue-600',
   },
   MEDIUM: {
     label: 'Medium',
-    className: 'bg-amber-50 text-amber-700 border border-amber-200',
-    dot: 'bg-amber-500',
+    className: 'bg-amber-100 text-amber-950 border border-amber-300 font-semibold',
+    dot: 'bg-amber-600',
   },
   HIGH: {
     label: 'High',
-    className: 'bg-orange-50 text-orange-700 border border-orange-200',
-    dot: 'bg-orange-500',
+    className: 'bg-orange-100 text-orange-950 border border-orange-300 font-bold',
+    dot: 'bg-orange-600',
   },
   CRITICAL: {
     label: 'Critical',
-    className: 'bg-red-50 text-red-700 border border-red-200',
-    dot: 'bg-red-500',
+    className: 'bg-rose-100 text-rose-950 border border-rose-300 font-bold',
+    dot: 'bg-rose-600',
   },
 };
 
@@ -37,7 +37,7 @@ interface PriorityBadgeProps {
 export function PriorityBadge({ priority, showDot = true, className }: PriorityBadgeProps) {
   if (!priority) {
     return (
-      <span className={cn('inline-flex items-center text-xs text-slate-400 italic', className)}>
+      <span className={cn('inline-flex items-center text-xs text-slate-600 italic font-medium', className)}>
         Unset
       </span>
     );
@@ -45,8 +45,8 @@ export function PriorityBadge({ priority, showDot = true, className }: PriorityB
 
   const config = PRIORITY_CONFIG[priority as PriorityLevel] ?? {
     label: priority,
-    className: 'bg-slate-100 text-slate-600 border border-slate-200',
-    dot: 'bg-slate-400',
+    className: 'bg-blue-100 text-blue-950 border border-blue-300 font-semibold',
+    dot: 'bg-blue-600',
   };
 
   return (
