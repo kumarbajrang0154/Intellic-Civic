@@ -7,7 +7,29 @@ module.exports = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
+      },
       colors: {
+        // Reference design system tokens
+        brand: {
+          primary: '#2563EB',
+          'primary-from': '#2563EB',
+          'primary-to': '#0891B2', // High-contrast WCAG AA endpoint (cyan-600)
+          secondary: '#10B981',
+          'secondary-from': '#10B981',
+          'secondary-to': '#34D399',
+          accent: '#F59E0B',
+          'accent-from': '#F59E0B',
+          'accent-to': '#F97316',
+          success: '#22C55E',
+          warning: '#F59E0B',
+          danger: '#EF4444',
+          neutral: '#64748B',
+          'wash-from': '#F8FAFC',
+          'wash-to': '#E0F2FE',
+        },
+
         // IntelliCivic design system palette
         'ic-navy': 'hsl(var(--ic-navy))',
         'ic-blue': 'hsl(var(--ic-blue))',
