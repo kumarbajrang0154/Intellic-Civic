@@ -40,7 +40,7 @@ export function Stepper({ status, className }: StepperProps) {
 
   if (status === 'DUPLICATE') {
     return (
-      <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-2 text-amber-900 dark:text-amber-200">
+      <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-2 text-amber-900">
         <div className="flex items-center gap-2 font-bold text-base">
           <AlertTriangle className="h-5 w-5 text-amber-600" />
           <span>Marked as Duplicate</span>

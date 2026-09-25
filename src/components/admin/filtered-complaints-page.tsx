@@ -142,7 +142,7 @@ export function FilteredComplaintsPage({
             />
           </div>
           <div className="flex items-center gap-3">
-            <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-lg flex items-center gap-1 border border-slate-200 dark:border-slate-700">
+            <div className="bg-slate-100 p-1 rounded-lg flex items-center gap-1 border border-slate-200">
               <Button
                 variant={viewMode === 'table' ? 'default' : 'ghost'}
                 size="sm"

@@ -167,7 +167,7 @@ export default function OfficerComplaintsPage() {
                 Complaints directly assigned to you for investigation, field resolution, and status updates.
               </p>
             </div>
-            <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-lg flex items-center gap-1 border border-slate-200 dark:border-slate-700 shrink-0">
+            <div className="bg-slate-100 p-1 rounded-lg flex items-center gap-1 border border-slate-200 shrink-0">
               <Button
                 variant={viewMode === 'table' ? 'default' : 'ghost'}
                 size="sm"
@@ -190,8 +190,8 @@ export default function OfficerComplaintsPage() {
           </div>
 
         {/* Informational Banner on Self-Assignment */}
-        <Alert className="border-blue-500/30 bg-blue-500/10 text-blue-900 dark:text-blue-200">
-          <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+        <Alert className="border-blue-500/30 bg-blue-500/10 text-blue-900">
+          <Info className="h-4 w-4 text-blue-600" />
           <AlertTitle className="text-xs font-bold">Workload Scoping Note</AlertTitle>
           <AlertDescription className="text-xs leading-relaxed">
             This queue surfaces complaints where your Department Head has explicitly assigned you as the handling officer. (Self-claiming unclaimed department complaints is a planned feature requiring Department Head permission delegation).

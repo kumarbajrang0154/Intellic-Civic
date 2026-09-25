@@ -38,38 +38,9 @@
     --ic-teal: 187 92% 38%;       /* #0891B2 Civic Cyan */
     --ic-indigo: 239 84% 67%;     /* #6366F1 AI Indigo */
   }
-
-  .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
-
-    --card: 222 47% 14%;
-    --card-foreground: 210 40% 98%;
-
-    --primary: 221 83% 60%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 160 84% 45%;
-    --secondary-foreground: 0 0% 100%;
-
-    --muted: 217 19% 20%;
-    --muted-foreground: 215 20% 65%;
-
-    --accent: 38 92% 55%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 217 19% 27%;
-    --input: 217 19% 27%;
-    --ring: 221 83% 60%;
-
-    --ic-navy: 214 65% 12%;
-    --ic-blue: 221 83% 60%;
-    --ic-teal: 187 92% 45%;
-    --ic-indigo: 239 84% 67%;
-  }
+  /* NOTE: No .dark block defined — darkMode is set to 'class' in tailwind.config.js
+   * but no code in this app ever applies class="dark" to <html> or <body>.
+   * This makes every dark: variant permanently inert. This app is locked to light mode. */
 }
 
 @layer base {

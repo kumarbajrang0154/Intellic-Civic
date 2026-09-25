@@ -302,7 +302,7 @@ export default function FieldWorkerComplaintDetailPage() {
           <Card className="border-amber-500/40 bg-amber-500/10">
             <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="space-y-1">
-                <div className="font-bold text-sm text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                <div className="font-bold text-sm text-amber-900 flex items-center gap-2">
                   <Play className="h-4 w-4 text-amber-600 fill-amber-600" />
                   <span>Task Assigned — Ready to Start On-Site Repairs</span>
                 </div>
@@ -333,7 +333,7 @@ export default function FieldWorkerComplaintDetailPage() {
 
         {complaint.readyForReview && (
           <Card className="border-purple-500/40 bg-purple-500/10">
-            <CardContent className="p-4 flex items-center gap-3 text-purple-900 dark:text-purple-200">
+            <CardContent className="p-4 flex items-center gap-3 text-purple-900">
               <CheckCircle2 className="h-6 w-6 text-purple-600 shrink-0" />
               <div>
                 <div className="font-bold text-sm">Work Submitted for Officer Review</div>
@@ -400,7 +400,7 @@ export default function FieldWorkerComplaintDetailPage() {
                 {/* BEFORE Photos Upload */}
                 <div className="space-y-2 p-4 rounded-lg border bg-amber-500/5 border-amber-500/20">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                    <label className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
                       <span className="h-2 w-2 rounded-full bg-amber-500 inline-block" />
                       BEFORE Repair Photos <span className="text-destructive">*</span>
                     </label>
@@ -417,7 +417,7 @@ export default function FieldWorkerComplaintDetailPage() {
                 {/* AFTER Photos Upload with Sequence Guard Warning */}
                 <div className="space-y-2 p-4 rounded-lg border bg-emerald-500/5 border-emerald-500/20">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
+                    <label className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
                       <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block" />
                       AFTER Repair Photos <span className="text-destructive">*</span>
                     </label>

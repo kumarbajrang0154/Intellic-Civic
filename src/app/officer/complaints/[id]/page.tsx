@@ -341,7 +341,7 @@ export default function OfficerComplaintDetailPage() {
         </div>
 
         {statusSuccess && (
-          <Alert className="border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300">
+          <Alert className="border-emerald-500/30 bg-emerald-500/10 text-emerald-800">
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
             <AlertTitle className="text-xs font-bold font-mono">Status Updated</AlertTitle>
             <AlertDescription className="text-xs">{statusSuccess}</AlertDescription>
@@ -349,7 +349,7 @@ export default function OfficerComplaintDetailPage() {
         )}
 
         {evidenceSuccess && (
-          <Alert className="border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300">
+          <Alert className="border-emerald-500/30 bg-emerald-500/10 text-emerald-800">
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
             <AlertTitle className="text-xs font-bold">Evidence Attached</AlertTitle>
             <AlertDescription className="text-xs">{evidenceSuccess}</AlertDescription>
@@ -369,7 +369,7 @@ export default function OfficerComplaintDetailPage() {
           <Card className="border-2 border-purple-500/50 bg-purple-500/10 shadow-lg">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-purple-900 dark:text-purple-200">
+                <div className="flex items-center gap-2 text-purple-900">
                   <ShieldCheck className="h-5 w-5 text-purple-600 shrink-0" />
                   <CardTitle className="text-base font-bold">
                     Field Worker Repair Submission Pending Sign-off
@@ -377,7 +377,7 @@ export default function OfficerComplaintDetailPage() {
                 </div>
                 <Badge variant="warning" className="font-bold">Ready for Sign-off</Badge>
               </div>
-              <CardDescription className="text-xs text-purple-950/80 dark:text-purple-200">
+              <CardDescription className="text-xs text-purple-950/80">
                 Field worker {complaint.assignedFieldWorker?.name || ''} has completed repair work on site and submitted Before/After photo evidence for officer review.
               </CardDescription>
             </CardHeader>
@@ -390,7 +390,7 @@ export default function OfficerComplaintDetailPage() {
               )}
 
               <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-purple-500/20">
-                <span className="text-xs text-purple-900 dark:text-purple-300 font-medium">
+                <span className="text-xs text-purple-900 font-medium">
                   Review evidence below. If repairs are satisfactory, click to mark ticket as RESOLVED:
                 </span>
                 <Button

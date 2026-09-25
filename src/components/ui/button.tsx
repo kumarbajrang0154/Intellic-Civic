@@ -18,9 +18,9 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             'bg-gradient-to-r from-[#2563EB] to-[#0891B2] text-white hover:opacity-95 shadow-sm border border-transparent':
               variant === 'default',
             // Outline Button: Transparent background with slate border
-            'border border-slate-300 bg-white/80 backdrop-blur-xs text-slate-800 hover:bg-slate-50 hover:text-slate-900 shadow-xs dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200':
+            'border border-slate-300 bg-white/80 backdrop-blur-xs text-slate-800 hover:bg-slate-50 hover:text-slate-900 shadow-xs':
               variant === 'outline',
-            'hover:bg-slate-100 text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800':
+            'hover:bg-slate-100 text-slate-700 hover:text-slate-900':
               variant === 'ghost',
             'bg-rose-600 text-white hover:bg-rose-700 shadow-sm border border-transparent':
               variant === 'destructive',

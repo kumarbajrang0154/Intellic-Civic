@@ -288,7 +288,7 @@ function CitizenProfileForm() {
                       disabled
                       className="bg-muted text-muted-foreground font-medium"
                     />
-                    <span className="absolute right-3 top-2.5 text-xs text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                    <span className="absolute right-3 top-2.5 text-xs text-emerald-600 font-semibold flex items-center gap-1">
                       <CheckCircle2 className="h-3.5 w-3.5" />
                       Verified
                     </span>

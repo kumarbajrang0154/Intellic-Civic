@@ -585,7 +585,7 @@ export function AppShell({ children, user }: AppShellProps) {
     ];
 
     return (
-      <div className="min-h-screen bg-ic-light flex flex-col">
+      <div className="min-h-screen bg-brand-wash flex flex-col">
         <header className="sticky top-0 z-40 border-b bg-white px-4 sm:px-6 py-3 shadow-sm">
           <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
             {/* Logo & Navigation Links */}
@@ -679,7 +679,7 @@ export function AppShell({ children, user }: AppShellProps) {
   }
 
   return (
-    <div className="min-h-screen flex bg-ic-light">
+    <div className="min-h-screen flex bg-brand-wash">
       {/* ── Desktop Sidebar ── */}
       <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 z-30 shadow-xl">
         <SidebarContent

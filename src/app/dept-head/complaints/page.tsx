@@ -182,7 +182,7 @@ export default function DepartmentQueuePage() {
             </p>
           </div>
           <div className="flex items-center gap-2 self-start sm:self-auto">
-            <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-lg flex items-center gap-1 border border-slate-200 dark:border-slate-700">
+            <div className="bg-slate-100 p-1 rounded-lg flex items-center gap-1 border border-slate-200">
               <Button
                 variant={viewMode === 'table' ? 'default' : 'ghost'}
                 size="sm"
@@ -326,7 +326,7 @@ export default function DepartmentQueuePage() {
                       <TableCell>{getPriorityBadge(item.priority)}</TableCell>
                       <TableCell className="text-xs">
                         {item.assignment?.departmentOfficer ? (
-                          <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-medium">
+                          <span className="flex items-center gap-1 text-emerald-700 font-medium">
                             <UserCheck className="h-3.5 w-3.5" />
                             {item.assignment.departmentOfficer.name}
                           </span>

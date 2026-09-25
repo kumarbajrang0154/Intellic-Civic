@@ -127,7 +127,7 @@ export default function DepartmentHeadDashboardPage() {
             variant="outline"
           >
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-1">
-              <p className="text-xs text-slate-600 dark:text-slate-300">
+              <p className="text-xs text-slate-600">
                 Review and confirm complaints automatically triaged by the AI engine before assigning field workers.
               </p>
               <Link href="/dept-head/ai-suggestions">

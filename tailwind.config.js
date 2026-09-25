@@ -1,5 +1,11 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  // Lock dark-mode to class-based triggering only.
+  // Since no code ever adds class="dark" to <html>, every dark: variant
+  // across the entire codebase is permanently inert — OS preference has
+  // zero effect. This is the root-level fix for the "text invisible on
+  // refresh" bug without requiring per-component patches.
+  darkMode: 'class',
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',

@@ -359,7 +359,7 @@ export default function CitizenComplaintDetailPage() {
           {/* Batch A: Post-Resolution Decision Bar (Shown when RESOLVED) */}
           {complaint.status === 'RESOLVED' && (
             <div className="p-4 bg-emerald-500/10 border-2 border-emerald-500/30 rounded-xl space-y-3">
-              <div className="flex items-center gap-2 text-emerald-900 dark:text-emerald-200 font-bold text-sm">
+              <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600" />
                 <span>Department Marked This Complaint as Resolved!</span>
               </div>
@@ -379,7 +379,7 @@ export default function CitizenComplaintDetailPage() {
                   variant="outline"
                   onClick={() => setReopenModalOpen(true)}
                   disabled={actionLoading}
-                  className="w-full sm:w-auto border-amber-500 text-amber-700 hover:bg-amber-50 dark:text-amber-300 font-bold text-xs gap-1.5"
+                  className="w-full sm:w-auto border-amber-500 text-amber-700 hover:bg-amber-50 font-bold text-xs gap-1.5"
                 >
                   <RotateCcw className="h-4 w-4" />
                   Reopen Complaint

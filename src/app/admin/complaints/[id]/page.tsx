@@ -324,16 +324,16 @@ export default function AdminComplaintDetailPage() {
                 variant="subtle"
               >
                 <div className="space-y-4 text-xs">
-                  <div className="grid grid-cols-2 gap-4 p-3 bg-white dark:bg-slate-900 rounded-lg border border-indigo-100">
+                  <div className="grid grid-cols-2 gap-4 p-3 bg-white rounded-lg border border-indigo-100">
                     <div>
                       <span className="text-slate-500 block font-medium mb-0.5">Suggested Department</span>
-                      <span className="font-bold text-indigo-950 dark:text-indigo-200 text-sm">
+                      <span className="font-bold text-indigo-950 text-sm">
                         {complaint.aiPrediction.suggestedDepartment?.name || 'Unmapped'}
                       </span>
                     </div>
                     <div>
                       <span className="text-slate-500 block font-medium mb-0.5">Suggested Category</span>
-                      <span className="font-bold text-indigo-950 dark:text-indigo-200 text-sm">
+                      <span className="font-bold text-indigo-950 text-sm">
                         {complaint.aiPrediction.suggestedCategory?.name || 'Uncategorized'}
                       </span>
                     </div>
