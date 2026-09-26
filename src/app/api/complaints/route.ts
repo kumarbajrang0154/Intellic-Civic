@@ -33,9 +33,14 @@ export async function GET(request: NextRequest) {
 
     // Role-based scope enforcement
     const citizenId = payload.role === 'CITIZEN' ? payload.sub : undefined;
+    let municipalityId = searchParams.get('municipalityId') || undefined;
 
-    // Scoping for Department Head and Department Officer
-    if (['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER'].includes(payload.role)) {
+    if (payload.role === 'DEPARTMENT_HEAD') {
+      // DEPARTMENT_HEAD sees ALL complaints municipality-wide, NOT scoped by departmentId
+      if (payload.municipalityId) {
+        municipalityId = payload.municipalityId;
+      }
+    } else if (payload.role === 'DEPARTMENT_OFFICER') {
       if (payload.departmentId) {
         departmentId = payload.departmentId;
       }
@@ -49,6 +54,7 @@ export async function GET(request: NextRequest) {
     const result = await listComplaints({
       citizenId,
       departmentId,
+      municipalityId,
       assignedFieldWorkerId,
       status,
       priority,

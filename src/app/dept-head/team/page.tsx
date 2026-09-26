@@ -69,11 +69,8 @@ export default function DepartmentTeamRosterPage() {
           }
         }
 
-        if (!deptId) {
-          throw new Error('Department Head is not assigned to a department.');
-        }
-
-        const res = await fetch(`/api/departments/${deptId}/staff`);
+        const targetDeptId = deptId || 'all';
+        const res = await fetch(`/api/departments/${targetDeptId}/staff`);
         if (!res.ok) {
           throw new Error('Failed to fetch team roster');
         }

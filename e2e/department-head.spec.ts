@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { SignJWT } from 'jose';
 
-const JWT_SECRET = new TextEncoder().encode('super-secret-jwt-key-minimum-32-chars-long!');
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET || 'super_secret_jwt_key_for_dev_intellicivic_2026',
+);
 
 async function createDeptHeadJwt() {
   return new SignJWT({

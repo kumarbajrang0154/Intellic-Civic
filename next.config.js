@@ -25,6 +25,18 @@ const nextConfig = {
       },
     ];
   },
+  async rewrites() {
+    return [
+      {
+        source: '/department-head',
+        destination: '/dept-head',
+      },
+      {
+        source: '/department-head/:path*',
+        destination: '/dept-head/:path*',
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;

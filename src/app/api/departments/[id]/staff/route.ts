@@ -7,7 +7,8 @@ export async function GET(
 ) {
   try {
     const { id } = params;
-    const officers = await listUsers({ departmentId: id });
+    const departmentId = id.toLowerCase() === 'all' ? undefined : id;
+    const officers = await listUsers({ departmentId });
 
     return NextResponse.json({
       officers: officers.map((u) => ({

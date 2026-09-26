@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma';
 import { ComplaintStatus, PriorityLevel, EvidenceStage, UserRole } from '@prisma/client';
+import { getDefaultMunicipality } from '@/lib/staff-dept-store';
 import {
   classifyComplaintRouting,
   verifyComplaintPhoto,
@@ -70,6 +71,7 @@ export interface Complaint {
   department?: { id: string; name: string } | null;
   aiRecommendedDepartmentId?: string;
   aiRecommendedDepartment?: { id: string; name: string } | null;
+  municipalityId?: string;
   location?: ComplaintLocation | null;
   evidence: ComplaintEvidence[];
   statusHistory: StatusHistoryItem[];
@@ -241,6 +243,7 @@ function formatComplaint(raw: any): Complaint {
     aiRecommendedDepartment: raw.aiRecommendedDepartment
       ? { id: raw.aiRecommendedDepartment.id, name: raw.aiRecommendedDepartment.name }
       : null,
+    municipalityId: raw.municipalityId || undefined,
     location: raw.location
       ? {
           latitude: raw.location.latitude,
@@ -401,8 +404,11 @@ export async function createComplaint(data: {
   isVoiceInput?: boolean;
   voiceTranscript?: string;
   imageUrl?: string;
+  municipalityId?: string;
 }): Promise<Complaint> {
   const ticketId = generateTicketId();
+  const mun = await getDefaultMunicipality();
+  const targetMunicipalityId = data.municipalityId || mun.id;
 
   // Load available categories from DB (or fallback to defaults)
   const dbCategories = await prisma.category.findMany();
@@ -453,6 +459,7 @@ export async function createComplaint(data: {
         role: UserRole.CITIZEN,
         authProvider: 'MOBILE_OTP',
         isAuthorized: true,
+        municipalityId: targetMunicipalityId,
       },
     });
   }
@@ -468,6 +475,7 @@ export async function createComplaint(data: {
       categoryId: finalCategoryId,
       originalCategoryId: finalCategoryId,
       departmentId: targetCategory?.departmentId || undefined,
+      municipalityId: targetMunicipalityId,
       isVoiceInput: Boolean(data.isVoiceInput),
       voiceTranscript: data.voiceTranscript || undefined,
       location: data.location
@@ -536,6 +544,7 @@ export async function getComplaintById(id: string): Promise<Complaint | null> {
 export async function listComplaints(filters?: {
   citizenId?: string;
   departmentId?: string;
+  municipalityId?: string;
   assignedFieldWorkerId?: string;
   status?: string;
   priority?: string;
@@ -556,6 +565,10 @@ export async function listComplaints(filters?: {
 
   if (filters?.departmentId && filters.departmentId !== 'ALL') {
     where.departmentId = filters.departmentId;
+  }
+
+  if (filters?.municipalityId && filters.municipalityId !== 'ALL') {
+    where.municipalityId = filters.municipalityId;
   }
 
   if (filters?.assignedFieldWorkerId) {
