@@ -39,6 +39,7 @@ test.describe('Issue 1 & 2 Verification Tests', () => {
     // Find or create Ramesh Kumar (FIELD_WORKER)
     let ramesh = items.find((s: any) => s.name.includes('Ramesh') || s.email.includes('ramesh'));
     if (!ramesh) {
+      const officer = items.find((s: any) => s.role === 'DEPARTMENT_OFFICER');
       const createRes = await request.post(`${BASE}/api/admin/staff`, {
         headers: { cookie: cookieHeader },
         data: {
@@ -46,6 +47,7 @@ test.describe('Issue 1 & 2 Verification Tests', () => {
           email: 'fieldworker.ramesh@intellicivic.gov.in',
           role: 'FIELD_WORKER',
           departmentId: 'dept_roads_infra',
+          assignedOfficerId: officer?.id || 'usr_officer_roads_1',
         },
       });
       expect(createRes.status()).toBe(201);

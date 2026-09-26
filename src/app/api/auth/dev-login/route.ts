@@ -7,6 +7,7 @@ const ALLOWED_DEV_USER_IDS = new Set([
   'usr_dept_head_roads',
   'usr_officer_roads_1',
   'fw-demo-1',
+  'fw-demo-other',
   'citizen_9876543210',
   'd86d46dc-0d8b-4726-a151-bd7ab4e13ead',
 ]);
@@ -16,6 +17,7 @@ const ALLOWED_DEV_EMAILS = new Set([
   'head.roads@smartcity.gov.in',
   'officer.roads@smartcity.gov.in',
   'fieldworker@intellicivic.gov.in',
+  'otherfieldworker@intellicivic.gov.in',
   'kumarbajrang0154@gmail.com',
 ]);
 

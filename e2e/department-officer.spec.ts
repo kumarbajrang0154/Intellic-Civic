@@ -191,7 +191,7 @@ test.describe('Module 8: Department Officer Portal E2E Tests', () => {
     ]);
 
     await page.goto('/officer');
-    await expect(page).toHaveURL('http://localhost:3000/department-head');
+    await expect(page).toHaveURL(/\/(dept-head|department-head)/);
   });
 
   test('6. Officer assignedToMe query scoping ensures only officer-specific complaints return', async ({

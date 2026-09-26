@@ -27,5 +27,7 @@ build/
 /apps/api/src/database/prisma/*.db
 /apps/api/src/database/prisma/*.db-journal
 
-# Coverage
+# Coverage & Test Results
 coverage/
+test-results/
+playwright-report/

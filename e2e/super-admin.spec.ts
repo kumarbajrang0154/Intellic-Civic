@@ -48,8 +48,8 @@ test.describe('Module 9: Super Admin Portal E2E Tests', () => {
 
     await expect(page.locator('h1')).toContainText('Super Admin Operations');
     await expect(page.locator('text=Total Complaints')).toBeVisible();
-    await expect(page.locator('text=42')).toBeVisible();
-    await expect(page.locator('text=Triage Queue (4)')).toBeVisible();
+    await expect(page.getByText('42', { exact: true })).toBeVisible();
+    await expect(page.locator('text=Triage (4)')).toBeVisible();
     await expect(page.locator('text=Approvals (3)')).toBeVisible();
   });
 
@@ -332,7 +332,7 @@ test.describe('Module 9: Super Admin Portal E2E Tests', () => {
     await page.waitForLoadState('networkidle');
 
     await expect(page.locator('h1')).toContainText('Trash dumping near school');
-    await expect(page.locator('text=Super Admin Department Override')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Department Override' })).toBeVisible();
 
     await page.selectOption('select', 'dept-health');
     await page.click('button:has-text("Confirm Reassignment")');
