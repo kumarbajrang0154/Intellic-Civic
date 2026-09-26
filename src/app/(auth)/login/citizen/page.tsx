@@ -42,6 +42,8 @@ export default function CitizenLoginPage() {
       case 'auth/captcha-check-failed':    return 'reCAPTCHA verification failed. Please refresh and try again.';
       case 'auth/network-request-failed':  return 'Network error. Check your connection and try again.';
       case 'auth/user-disabled':           return 'This account has been disabled.';
+      case 'auth/billing-not-enabled':     return 'Firebase Phone Auth requires enabling the Blaze plan or adding test phone numbers in Firebase Console.';
+      case 'auth/operation-not-allowed':   return 'Phone authentication is not enabled in your Firebase Console (Authentication → Sign-in method → Phone).';
       default: return err?.message || 'Verification failed. Please try again.';
     }
   }
