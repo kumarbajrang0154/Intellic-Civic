@@ -27,6 +27,42 @@ export default function CitizenLoginPage() {
 
   const authMode = (process.env.NEXT_PUBLIC_OTP_AUTH_MODE || 'console').toLowerCase();
 
+  // ---------------------------------------------------------------------------
+  // Firebase error code → user-friendly message
+  // ---------------------------------------------------------------------------
+  function firebaseErrorMessage(err: any): string {
+    const code: string = err?.code ?? '';
+    switch (code) {
+      case 'auth/invalid-phone-number':    return 'Please enter a valid 10-digit phone number.';
+      case 'auth/too-many-requests':       return 'Too many attempts. Please wait a few minutes and try again.';
+      case 'auth/invalid-verification-code': return 'Incorrect OTP. Please check and try again.';
+      case 'auth/code-expired':            return 'OTP has expired. Please request a new one.';
+      case 'auth/quota-exceeded':          return 'SMS quota exceeded. Please try again later.';
+      case 'auth/missing-phone-number':    return 'Phone number is required.';
+      case 'auth/captcha-check-failed':    return 'reCAPTCHA verification failed. Please refresh and try again.';
+      case 'auth/network-request-failed':  return 'Network error. Check your connection and try again.';
+      case 'auth/user-disabled':           return 'This account has been disabled.';
+      default: return err?.message || 'Verification failed. Please try again.';
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // reCAPTCHA verifier lifecycle — always clear before recreating
+  // ---------------------------------------------------------------------------
+  function clearRcVerifier() {
+    try {
+      const v = (window as any).__rcVerifier as RecaptchaVerifier | undefined;
+      if (v) v.clear();
+    } catch (_) { /* ignore — may already be cleared */ }
+    (window as any).__rcVerifier = undefined;
+  }
+
+  // Cleanup verifier when navigating away
+  React.useEffect(() => {
+    return () => { clearRcVerifier(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Resend cooldown timer
   React.useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -56,22 +92,23 @@ export default function CitizenLoginPage() {
     setLoading(true);
     try {
       if (authMode === 'firebase') {
-        // Firebase Client SDK Mode (Real SMS)
-        let recaptchaVerifier = (window as any).recaptchaVerifier;
-        if (!recaptchaVerifier) {
-          recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-            size: 'invisible',
-            callback: () => {
-              console.log('Firebase reCAPTCHA verified');
-            },
-          });
-          (window as any).recaptchaVerifier = recaptchaVerifier;
-        }
+        // ── Firebase SDK path ────────────────────────────────────────────────
+        // Always destroy any prior verifier before (re)creating — a previous
+        // failed attempt or resend leaves the widget in a broken/used state.
+        clearRcVerifier();
+
+        const recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+          size: 'invisible',
+          callback: () => { /* solved automatically */ },
+          'expired-callback': () => { clearRcVerifier(); },
+        });
+        (window as any).__rcVerifier = recaptchaVerifier;
 
         const formattedPhone = `+91${cleanNumber}`;
         const confirmation = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifier);
         setConfirmationResult(confirmation);
-        toast.success(`Firebase SMS sent to ${formattedPhone}`);
+        // Mask number in toast for privacy
+        toast.success(`Verification code sent to +91 ••••${cleanNumber.slice(-4)}`);
       } else {
         // Console Mode (Dev/Testing Prototype)
         const res = await fetch('/api/auth/send-otp', {
@@ -108,10 +145,14 @@ export default function CitizenLoginPage() {
       setTimer(60);
       setCanResend(false);
     } catch (err: any) {
-      console.error('OTP Send Error:', err);
-      const errMsg = err.message || 'Failed to send verification code. Please try again.';
+      console.error('[OTP Send Error]', err);
+      const errMsg = authMode === 'firebase'
+        ? firebaseErrorMessage(err)
+        : (err?.message || 'Failed to send verification code. Please try again.');
       setError(errMsg);
       toast.error(errMsg);
+      // On any firebase send failure, clean up so the next attempt starts fresh
+      if (authMode === 'firebase') clearRcVerifier();
     } finally {
       setLoading(false);
     }
@@ -137,12 +178,19 @@ export default function CitizenLoginPage() {
 
       if (authMode === 'firebase') {
         if (!confirmationResult) {
-          throw new Error('Firebase confirmation session expired. Please resend OTP.');
+          throw new Error('Verification session expired. Please request a new OTP.');
         }
 
-        // 1. Confirm code with Firebase Client SDK
-        const userCredential = await confirmationResult.confirm(otp);
-        // 2. Fetch Firebase ID token
+        // 1. Confirm the code with Firebase client SDK
+        let userCredential;
+        try {
+          userCredential = await confirmationResult.confirm(otp);
+        } catch (fbErr: any) {
+          // Map Firebase error codes to readable messages before re-throwing
+          throw new Error(firebaseErrorMessage(fbErr));
+        }
+
+        // 2. Get short-lived Firebase ID token to hand off to our BFF
         const idToken = await userCredential.user.getIdToken();
         reqBody.idToken = idToken;
       } else {
@@ -183,8 +231,8 @@ export default function CitizenLoginPage() {
         window.location.href = '/citizen';
       }
     } catch (err: any) {
-      console.error('OTP Verification Error:', err);
-      const errMsg = err.message || 'Verification failed. Please check the code.';
+      console.error('[OTP Verify Error]', err);
+      const errMsg = err?.message || 'Verification failed. Please check the code.';
       setError(errMsg);
       toast.error(errMsg);
     } finally {
@@ -349,6 +397,7 @@ export default function CitizenLoginPage() {
                       setStep('PHONE');
                       setError(null);
                       setOtp('');
+                      setConfirmationResult(null);
                     }}
                     className="hover:underline text-[#2563EB] font-semibold"
                   >
