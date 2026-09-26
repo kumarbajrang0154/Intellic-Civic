@@ -67,25 +67,46 @@ enum NotificationType {
 // MODELS
 // ==========================================
 
-model User {
-  id           String       @id @default(uuid())
-  role         UserRole?
-  authProvider AuthProvider
-  mobileNumber String?      @unique
-  email        String?      @unique
-  googleId     String?      @unique
-  name         String
-  avatarUrl    String?
-  isAuthorized Boolean      @default(false)
-  isSuspended  Boolean      @default(false)
-  suspendedAt  DateTime?
-  deletedAt    DateTime?
-  lastLoginAt  DateTime?
-  departmentId String?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+model Municipality {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  code      String   @unique
+  city      String?  @default("Coimbatore")
+  state     String?  @default("Tamil Nadu")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  users       User[]
+  complaints  Complaint[]
+  departments Department[]
+
+  @@map("municipalities")
+}
+
+model User {
+  id                String       @id @default(uuid())
+  role              UserRole?
+  authProvider      AuthProvider
+  mobileNumber      String?      @unique
+  email             String?      @unique
+  googleId          String?      @unique
+  name              String
+  avatarUrl         String?
+  isAuthorized      Boolean      @default(false)
+  isSuspended       Boolean      @default(false)
+  suspendedAt       DateTime?
+  deletedAt         DateTime?
+  lastLoginAt       DateTime?
+  departmentId      String?
+  municipalityId    String?
+  assignedOfficerId String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  department      Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  municipality    Municipality? @relation(fields: [municipalityId], references: [id], onDelete: SetNull)
+  assignedOfficer User?         @relation("OfficerFieldWorkers", fields: [assignedOfficerId], references: [id], onDelete: SetNull)
+  managedWorkers  User[]        @relation("OfficerFieldWorkers")
 
   complaints             Complaint[]     @relation("CitizenComplaints")
   assignmentsHandled     Assignment[]    @relation("OfficerAssignments")
@@ -133,9 +154,11 @@ model Department {
   description       String   @db.Text
   headOfficeAddress String?  @db.Text
   isSuspended       Boolean  @default(false)
+  municipalityId    String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+  municipality            Municipality?  @relation(fields: [municipalityId], references: [id], onDelete: SetNull)
   users                   User[]
   categories              Category[]
   complaints              Complaint[]    @relation("DepartmentComplaints")
@@ -173,6 +196,7 @@ model Complaint {
   categoryId                 String?
   departmentId               String?
   aiRecommendedDepartmentId String?
+  municipalityId             String?
   isVoiceInput               Boolean         @default(false)
   voiceTranscript            String?         @db.Text
   reopenCount                Int             @default(0)
@@ -189,11 +213,12 @@ model Complaint {
   resolvedAt                 DateTime?
   closedAt                   DateTime?
 
-  citizen                 User        @relation("CitizenComplaints", fields: [citizenId], references: [id], onDelete: Restrict)
-  category                Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  department              Department? @relation("DepartmentComplaints", fields: [departmentId], references: [id], onDelete: SetNull)
-  aiRecommendedDepartment Department? @relation("AiRecommendedDepartmentComplaints", fields: [aiRecommendedDepartmentId], references: [id], onDelete: SetNull)
-  assignedFieldWorker     User?       @relation("FieldWorkerAssignments", fields: [assignedFieldWorkerId], references: [id], onDelete: SetNull)
+  citizen                 User          @relation("CitizenComplaints", fields: [citizenId], references: [id], onDelete: Restrict)
+  category                Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  department              Department?   @relation("DepartmentComplaints", fields: [departmentId], references: [id], onDelete: SetNull)
+  aiRecommendedDepartment Department?   @relation("AiRecommendedDepartmentComplaints", fields: [aiRecommendedDepartmentId], references: [id], onDelete: SetNull)
+  municipality            Municipality? @relation(fields: [municipalityId], references: [id], onDelete: SetNull)
+  assignedFieldWorker     User?         @relation("FieldWorkerAssignments", fields: [assignedFieldWorkerId], references: [id], onDelete: SetNull)
 
   images             ComplaintImage[]
   location           ComplaintLocation?
@@ -209,6 +234,7 @@ model Complaint {
   @@index([status])
   @@index([departmentId])
   @@index([citizenId])
+  @@index([municipalityId])
   @@map("complaints")
 }
 
