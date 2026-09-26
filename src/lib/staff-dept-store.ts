@@ -163,6 +163,7 @@ export async function deleteDepartment(id: string): Promise<boolean> {
 export async function listUsers(filters?: {
   role?: string;
   departmentId?: string;
+  assignedOfficerId?: string;
   pendingOnly?: boolean;
   search?: string;
 }): Promise<UserItem[]> {
@@ -179,6 +180,10 @@ export async function listUsers(filters?: {
 
   if (filters?.departmentId && filters.departmentId !== 'ALL') {
     where.departmentId = filters.departmentId;
+  }
+
+  if (filters?.assignedOfficerId) {
+    where.assignedOfficerId = filters.assignedOfficerId;
   }
 
   if (filters?.search) {

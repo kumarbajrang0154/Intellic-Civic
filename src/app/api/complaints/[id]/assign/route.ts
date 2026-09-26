@@ -25,7 +25,7 @@ export async function POST(
     const targetWorker = await prisma.user.findUnique({ where: { id: targetId } });
     const targetName = targetWorker?.name || 'Field Worker';
 
-    const result = await assignFieldWorkerToComplaint(id, targetId, targetName, auth.user.id);
+    const result = await assignFieldWorkerToComplaint(id, targetId, targetName, auth.user.id, auth.user.role);
     if (!result.ok) {
       return NextResponse.json({ statusCode: result.status, message: result.message }, { status: result.status });
     }

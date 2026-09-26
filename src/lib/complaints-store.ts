@@ -1129,10 +1129,27 @@ export async function assignFieldWorkerToComplaint(
   fieldWorkerId: string,
   fieldWorkerName: string,
   officerUserId: string,
+  actorRole?: string,
 ): Promise<{ ok: boolean; status: number; message: string; complaint?: Complaint }> {
   const complaint = await getComplaintById(complaintId);
   if (!complaint) {
     return { ok: false, status: 404, message: 'Complaint ticket not found.' };
+  }
+
+  const targetWorker = await prisma.user.findUnique({ where: { id: fieldWorkerId } });
+  if (!targetWorker) {
+    return { ok: false, status: 404, message: 'Target field worker does not exist.' };
+  }
+
+  // Restrict DEPARTMENT_OFFICER assignment to field workers assigned to them
+  if (actorRole === 'DEPARTMENT_OFFICER') {
+    if (targetWorker.assignedOfficerId !== officerUserId) {
+      return {
+        ok: false,
+        status: 403,
+        message: 'Forbidden: You can only assign complaints to Field Workers assigned to you.',
+      };
+    }
   }
 
   const prevStatus = complaint.status;

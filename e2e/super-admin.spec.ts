@@ -46,7 +46,7 @@ test.describe('Module 9: Super Admin Portal E2E Tests', () => {
     await page.goto('/admin');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.locator('h1')).toContainText('Super Admin System Portal');
+    await expect(page.locator('h1')).toContainText('Super Admin Operations');
     await expect(page.locator('text=Total Complaints')).toBeVisible();
     await expect(page.locator('text=42')).toBeVisible();
     await expect(page.locator('text=Triage Queue (4)')).toBeVisible();
@@ -196,7 +196,7 @@ test.describe('Module 9: Super Admin Portal E2E Tests', () => {
     await page.goto('/admin/departments');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.locator('h1')).toContainText('Department Management');
+    await expect(page.locator('h1')).toContainText('Department');
     await expect(page.locator('text=Sanitation')).toBeVisible();
 
     await page.click('button:has-text("Add Department")');

@@ -103,6 +103,12 @@ export default function OfficerComplaintDetailPage() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
+  // Field worker assignment state
+  const [fieldWorkers, setFieldWorkers] = React.useState<Array<{ id: string; name: string }>>([]);
+  const [selectedFieldWorkerId, setSelectedFieldWorkerId] = React.useState<string>('');
+  const [assigningWorker, setAssigningWorker] = React.useState(false);
+  const [assignWorkerSuccess, setAssignWorkerSuccess] = React.useState<string | null>(null);
+
   // Status update state
   const [selectedNextStatus, setSelectedNextStatus] = React.useState<string>('');
   const [statusRemarks, setStatusRemarks] = React.useState('');
@@ -121,11 +127,13 @@ export default function OfficerComplaintDetailPage() {
     setError(null);
 
     try {
+      let currentUserId = '';
       try {
         const meRes = await fetch('/api/auth/me');
         if (meRes.ok) {
           const meData = await meRes.json();
           if (meData.user) {
+            currentUserId = meData.user.id;
             setUser({
               name: meData.user.name || 'Department Officer',
               role: 'DEPARTMENT_OFFICER',
@@ -134,6 +142,14 @@ export default function OfficerComplaintDetailPage() {
         }
       } catch (meError) {
         // Silently handle auth fallback
+      }
+
+      if (currentUserId) {
+        const fwRes = await fetch(`/api/departments/all/staff?role=FIELD_WORKER&assignedOfficerId=${currentUserId}`);
+        if (fwRes.ok) {
+          const fwData = await fwRes.json();
+          setFieldWorkers(fwData.fieldWorkers || []);
+        }
       }
 
       if (!complaintId) return;
@@ -165,6 +181,34 @@ export default function OfficerComplaintDetailPage() {
   React.useEffect(() => {
     fetchComplaintDetail();
   }, [fetchComplaintDetail]);
+
+  const handleAssignFieldWorker = async () => {
+    if (!selectedFieldWorkerId) return;
+    setAssigningWorker(true);
+    setAssignWorkerSuccess(null);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/complaints/${complaintId}/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fieldWorkerId: selectedFieldWorkerId }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to assign field worker');
+      }
+
+      setAssignWorkerSuccess('Field worker successfully assigned to complaint.');
+      setSelectedFieldWorkerId('');
+      await fetchComplaintDetail();
+    } catch (err: any) {
+      setError(err.message || 'Failed to assign field worker');
+    } finally {
+      setAssigningWorker(false);
+    }
+  };
 
   const handleUpdateStatus = async () => {
     if (!selectedNextStatus) return;
@@ -444,6 +488,59 @@ export default function OfficerComplaintDetailPage() {
                       </span>
                     </div>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Field Worker Assignment Control (Restricted to Field Workers assigned to this Officer) */}
+            <Card className="border-primary/30 shadow-sm">
+              <CardHeader className="p-5 pb-3">
+                <div className="flex items-center gap-2 text-primary font-bold text-sm">
+                  <UserCheck className="h-4 w-4" />
+                  <span>Assign Field Worker to Task</span>
+                </div>
+                <CardDescription className="text-xs">
+                  Assign a Field Worker from your assigned team to execute repair work on site.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-5 pt-0 space-y-3">
+                {assignWorkerSuccess && (
+                  <Alert className="border-emerald-500/30 bg-emerald-500/10 text-emerald-800">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    <AlertTitle className="text-xs font-bold font-mono">Field Worker Assigned</AlertTitle>
+                    <AlertDescription className="text-xs">{assignWorkerSuccess}</AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="space-y-3">
+                  <Select
+                    value={selectedFieldWorkerId}
+                    onChange={(e) => setSelectedFieldWorkerId(e.target.value)}
+                    className="text-xs"
+                  >
+                    <option value="">Select field worker from your team...</option>
+                    {fieldWorkers.map((fw) => (
+                      <option key={fw.id} value={fw.id}>
+                        {fw.name}
+                      </option>
+                    ))}
+                  </Select>
+
+                  <Button
+                    size="sm"
+                    onClick={handleAssignFieldWorker}
+                    disabled={assigningWorker || !selectedFieldWorkerId}
+                    className="text-xs w-full sm:w-auto"
+                  >
+                    {assigningWorker ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                        Assigning Field Worker...
+                      </>
+                    ) : (
+                      'Assign Field Worker'
+                    )}
+                  </Button>
                 </div>
               </CardContent>
             </Card>
