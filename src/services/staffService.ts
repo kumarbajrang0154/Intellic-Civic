@@ -10,6 +10,7 @@ import {
   getDepartment,
   getUser,
   getUserByEmail,
+  isSuperAdminTarget,
   listDepartments,
   listUsers,
   suspendUser,
@@ -219,7 +220,7 @@ export async function deactivateStaff(
     return { ok: false, status: 404, message: 'Staff member not found.' };
   }
 
-  if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') {
+  if (isSuperAdminTarget(user)) {
     return { ok: false, status: 403, message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' };
   }
 
@@ -298,7 +299,7 @@ export async function reassignStaff(
     return { ok: false, status: 404, message: 'Staff member not found.' };
   }
 
-  if ((user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') && input.newRole && input.newRole !== 'ADMIN') {
+  if (isSuperAdminTarget(user) && input.newRole && (input.newRole as string) !== 'SUPER_ADMIN') {
     return { ok: false, status: 403, message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' };
   }
 
@@ -360,7 +361,7 @@ export async function removeStaff(
     return { ok: false, status: 404, message: 'Staff member not found.' };
   }
 
-  if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') {
+  if (isSuperAdminTarget(user)) {
     return { ok: false, status: 403, message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' };
   }
 
@@ -370,7 +371,7 @@ export async function removeStaff(
 
   const deleted = await deleteUser(targetId);
   if (!deleted) {
-    return { ok: false, status: 403, message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' };
+    return { ok: false, status: 500, message: 'Failed to delete staff member.' };
   }
 
   await addAuditLog({

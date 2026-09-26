@@ -109,7 +109,7 @@ const SUPER_ADMIN_NAV: NavSection[] = [
         baseHref: '/admin/users',
         children: [
           { type: 'leaf', title: 'Citizens', href: '/admin/users/citizens' },
-          { type: 'leaf', title: 'Admin Accounts', href: '/admin/users/admin-accounts' },
+          { type: 'leaf', title: 'Staff & User Management', href: '/admin/staff' },
         ],
       },
       {
@@ -167,7 +167,7 @@ const ADMIN_NAV: NavSection[] = [
         ],
       },
       { type: 'leaf', title: 'Departments', href: '/admin/departments', icon: Building2 },
-      { type: 'leaf', title: 'Users', href: '/admin/users', icon: Users },
+      { type: 'leaf', title: 'Staff & User Management', href: '/admin/staff', icon: Users },
       { type: 'leaf', title: 'Categories', href: '/admin/categories', icon: Sparkles },
     ],
   },

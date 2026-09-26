@@ -197,7 +197,7 @@ export default function AdminDashboardPage() {
                   Triage ({(sb.SUBMITTED ?? 0) + (sb.PENDING_DEPT_REVIEW ?? 0)})
                 </Button>
               </Link>
-              <Link href="/admin/users/admin-accounts">
+              <Link href="/admin/staff">
                 <Button variant="outline" size="sm">
                   <ShieldAlert className="w-4 h-4 mr-2 text-ic-blue" />
                   Approvals ({stats?.pendingUserApprovalsCount ?? 0})
@@ -463,7 +463,7 @@ export default function AdminDashboardPage() {
                   sub: 'Assign unreviewed issues',
                 },
                 {
-                  href: '/admin/users/admin-accounts',
+                  href: '/admin/staff',
                   icon: ShieldAlert,
                   iconClass: 'text-indigo-600',
                   bgClass: 'bg-indigo-50',

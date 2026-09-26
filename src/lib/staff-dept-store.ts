@@ -33,6 +33,11 @@ export function isSuperAdminEmail(email?: string | null): boolean {
   return email.trim().toLowerCase() === getSuperAdminEmail();
 }
 
+export function isSuperAdminTarget(target?: { role?: string | null; email?: string | null } | null): boolean {
+  if (!target) return false;
+  return target.role === 'SUPER_ADMIN' || (target.email ? isSuperAdminEmail(target.email) : false);
+}
+
 function formatDepartmentItem(dept: any): DepartmentItem {
   return {
     id: dept.id,
@@ -303,7 +308,7 @@ export async function updateUser(
 
 export async function suspendUser(id: string, isSuspended: boolean): Promise<UserItem | null> {
   const target = await getUser(id);
-  if (target && (target.role === 'SUPER_ADMIN' || target.role === 'ADMIN' || (target.email && isSuperAdminEmail(target.email))) && isSuspended) {
+  if (target && isSuperAdminTarget(target) && isSuspended) {
     return null; // Protected
   }
   return updateUser(id, { isSuspended });
@@ -314,17 +319,31 @@ export async function deleteUser(id: string): Promise<boolean> {
     const user = await getUser(id);
     if (!user) return false;
 
-    if (
-      user.role === 'SUPER_ADMIN' ||
-      user.role === 'ADMIN' ||
-      (user.email && isSuperAdminEmail(user.email))
-    ) {
+    if (isSuperAdminTarget(user)) {
       return false;
     }
 
+    // Clean up dependent records with FK constraints before deletion
+    await prisma.refreshToken.deleteMany({ where: { userId: id } });
+    await prisma.notification.deleteMany({ where: { recipientUserId: id } });
+    await prisma.complaint.updateMany({
+      where: { assignedFieldWorkerId: id },
+      data: { assignedFieldWorkerId: null },
+    });
+    await prisma.assignment.deleteMany({
+      where: { OR: [{ departmentOfficerId: id }, { assignedByUserId: id }] },
+    });
+    await prisma.evidence.deleteMany({ where: { uploadedByUserId: id } });
+    await prisma.statusHistory.updateMany({
+      where: { changedByUserId: id },
+      data: { changedByUserId: null },
+    });
+    await prisma.auditLog.deleteMany({ where: { userId: id } });
+
     await prisma.user.delete({ where: { id } });
     return true;
-  } catch {
+  } catch (error) {
+    console.error(`Error deleting user ${id}:`, error);
     return false;
   }
 }

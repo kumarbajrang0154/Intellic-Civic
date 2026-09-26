@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
-import { deleteUser, getUser, updateUser } from '@/lib/staff-dept-store';
+import { deleteUser, getUser, isSuperAdminTarget, updateUser } from '@/lib/staff-dept-store';
 
 export async function GET(
   req: NextRequest,
@@ -39,8 +39,8 @@ export async function PATCH(
     const body = await req.json();
 
     if (
-      (targetUser.role === 'ADMIN' || targetUser.role === 'SUPER_ADMIN') &&
-      (body.isSuspended === true || body.isAuthorized === false || (body.role && body.role !== 'ADMIN' && body.role !== 'SUPER_ADMIN'))
+      isSuperAdminTarget(targetUser) &&
+      (body.isSuspended === true || body.isAuthorized === false || (body.role && body.role !== 'SUPER_ADMIN'))
     ) {
       return NextResponse.json(
         { message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' },
@@ -77,7 +77,7 @@ export async function DELETE(
       return NextResponse.json({ message: 'User not found' }, { status: 404 });
     }
 
-    if (targetUser.role === 'ADMIN' || targetUser.role === 'SUPER_ADMIN') {
+    if (isSuperAdminTarget(targetUser)) {
       return NextResponse.json(
         { message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' },
         { status: 403 },
@@ -87,8 +87,8 @@ export async function DELETE(
     const deleted = await deleteUser(params.id);
     if (!deleted) {
       return NextResponse.json(
-        { message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' },
-        { status: 403 },
+        { message: 'Failed to delete user' },
+        { status: 500 },
       );
     }
 

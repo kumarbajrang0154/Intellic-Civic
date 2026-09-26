@@ -144,6 +144,23 @@ export default function AdminStaffPage() {
   const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Current user info
+  const [currentUser, setCurrentUser] = useState({ name: 'Admin', role: 'ADMIN' as 'ADMIN' | 'SUPER_ADMIN' });
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.user) {
+          setCurrentUser({
+            name: d.user.name || 'Admin',
+            role: d.user.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'ADMIN',
+          });
+        }
+      })
+      .catch(console.error);
+  }, []);
+
   // ── Load departments once ────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -282,7 +299,7 @@ export default function AdminStaffPage() {
   const reassignNeedsDept = ['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(reassignRole);
 
   return (
-    <AppShell user={{ name: 'Super Admin', role: 'ADMIN' }}>
+    <AppShell user={{ name: currentUser.name, role: currentUser.role }}>
       <div className="space-y-6 min-w-0">
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
@@ -414,7 +431,7 @@ export default function AdminStaffPage() {
                               <Activity className="w-4 h-4 text-slate-500" />
                             </Button>
                           </Link>
-                          {staff.role !== 'ADMIN' && staff.role !== 'SUPER_ADMIN' ? (
+                          {staff.role !== 'SUPER_ADMIN' && staff.email !== 'kumarbajrang325@gmail.com' && staff.email !== 'kumarbajrang0154@gmail.com' ? (
                             <>
                               <Button variant="ghost" size="sm" title="Reassign" onClick={() => openReassign(staff)}>
                                 <Users className="w-4 h-4 text-blue-600" />

@@ -7,7 +7,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { decodeJwtToken } from '@/lib/auth-jwt';
-import { getUserByEmail } from '@/lib/staff-dept-store';
+import { getUserByEmail, isSuperAdminTarget } from '@/lib/staff-dept-store';
 
 export interface AdminPayload {
   id: string;
@@ -208,10 +208,7 @@ export interface UserRoleCheckTarget {
   email?: string | null;
 }
 
-export function isSuperAdminTarget(target: UserRoleCheckTarget | null | undefined): boolean {
-  if (!target) return false;
-  return target.role === 'SUPER_ADMIN' || target.role === 'ADMIN';
-}
+export { isSuperAdminTarget } from '@/lib/staff-dept-store';
 
 export function protectSuperAdminTarget(
   target: UserRoleCheckTarget | null | undefined,
