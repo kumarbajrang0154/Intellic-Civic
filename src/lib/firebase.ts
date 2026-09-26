@@ -1,5 +1,5 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
+import { getAuth, type Auth } from 'firebase/auth';
 
 // All values come from NEXT_PUBLIC_FIREBASE_* env vars.
 // The fallbacks here exist only to prevent a hard crash during build-time static
@@ -13,6 +13,33 @@ const firebaseConfig = {
   appId:             process.env.NEXT_PUBLIC_FIREBASE_APP_ID             ?? '',
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-export const auth = getAuth(app);
+let appInstance: FirebaseApp | null = null;
+let authInstance: Auth | null = null;
 
+export function getFirebaseApp(): FirebaseApp {
+  if (!appInstance) {
+    if (getApps().length > 0) {
+      appInstance = getApp();
+    } else {
+      appInstance = initializeApp(firebaseConfig);
+    }
+  }
+  return appInstance;
+}
+
+export function getFirebaseAuth(): Auth {
+  if (!authInstance) {
+    const app = getFirebaseApp();
+    authInstance = getAuth(app);
+  }
+  return authInstance;
+}
+
+// Lazy auth accessor via Proxy so getAuth() isn't executed top-level during Vercel static prerendering
+export const auth = new Proxy({} as Auth, {
+  get(_target, prop) {
+    const instance = getFirebaseAuth();
+    const val = (instance as any)[prop];
+    return typeof val === 'function' ? val.bind(instance) : val;
+  },
+});
