@@ -11,6 +11,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Trash2,
   UserCheck,
   UserX,
   Users,
@@ -139,6 +140,10 @@ export default function AdminStaffPage() {
   const [deactivateTarget, setDeactivateTarget] = useState<StaffMember | null>(null);
   const [deactivating, setDeactivating] = useState(false);
 
+  // Delete (remove) confirmation
+  const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   // ── Load departments once ────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -223,6 +228,17 @@ export default function AdminStaffPage() {
       else { const d = await res.json(); alert(d.message || 'Failed to deactivate.'); }
     } catch { alert('Network error.'); }
     finally { setDeactivating(false); }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/staff/${deleteTarget.id}`, { method: 'DELETE' });
+      if (res.ok) { setDeleteTarget(null); fetchStaff(); }
+      else { const d = await res.json(); alert(d.message || 'Failed to delete staff.'); }
+    } catch { alert('Network error.'); }
+    finally { setDeleting(false); }
   }
 
   async function handleReactivate(staff: StaffMember) {
@@ -412,6 +428,15 @@ export default function AdminStaffPage() {
                                   <UserCheck className="w-4 h-4 text-emerald-600" />
                                 </Button>
                               )}
+                              {/* Delete — visible to both ADMIN and SUPER_ADMIN, blocked on SUPER_ADMIN targets */}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title="Delete Staff"
+                                onClick={() => setDeleteTarget(staff)}
+                              >
+                                <Trash2 className="w-4 h-4 text-rose-500" />
+                              </Button>
                             </>
                           ) : (
                             <span className="text-[11px] font-semibold text-indigo-950 bg-indigo-100 border border-indigo-300 px-2.5 py-0.5 rounded-full shadow-2xs" title="Super Admin accounts are permanent and protected">
@@ -521,7 +546,27 @@ export default function AdminStaffPage() {
           </DialogContent>
         </Dialog>
 
-        {/* ── Reassign Modal ─────────────────────────────────────────────── */}
+        {/* ── Delete Confirmation Modal ──────────────────────────────────── */}
+        <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="text-rose-600">Permanently Delete Staff Account</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to <strong>permanently delete</strong>{' '}
+                <strong className="text-slate-900">{deleteTarget?.name}</strong>?
+                This action <strong>cannot be undone</strong>. All data associated with this account will be removed.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+              <Button className="bg-rose-600 hover:bg-rose-700 text-white" onClick={handleDelete} disabled={deleting}>
+                {deleting ? 'Deleting...' : 'Permanently Delete'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+
         <Dialog open={!!reassignTarget} onOpenChange={(o) => !o && setReassignTarget(null)}>
           <DialogContent>
             <DialogHeader>

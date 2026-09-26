@@ -585,6 +585,9 @@ export function AppShell({ children, user }: AppShellProps) {
     platformName: 'IntelliCivic',
     logoUrl: null,
   });
+  // Self-fetched avatarUrl — overlaid on whatever the page passes in.
+  // This is the single fix point so every page automatically shows the photo.
+  const [selfAvatarUrl, setSelfAvatarUrl] = React.useState<string | null | undefined>(undefined);
 
   const pathname = usePathname();
   const router = useRouter();
@@ -604,6 +607,31 @@ export function AppShell({ children, user }: AppShellProps) {
       .catch((err) => console.warn('[APPSHELL] Failed to fetch settings:', err));
   }, []);
 
+  // Fetch the real avatarUrl from /api/auth/me so every page (not just profile
+  // pages) shows the actual photo in the topbar and sidebar without requiring
+  // each individual page to forward avatarUrl through the user prop.
+  React.useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data?.user?.avatarUrl !== undefined) {
+          setSelfAvatarUrl(data.user.avatarUrl);
+        } else {
+          setSelfAvatarUrl(null);
+        }
+      })
+      .catch(() => setSelfAvatarUrl(null));
+  }, []);
+
+  // Merge: prefer the page-supplied avatarUrl (e.g. profile page after upload),
+  // then our self-fetched value, then null.
+  const effectiveAvatarUrl =
+    user.avatarUrl !== undefined
+      ? user.avatarUrl           // page explicitly provided it (profile pages)
+      : selfAvatarUrl ?? null;   // fall back to self-fetched
+
+  const effectiveUser = { ...user, avatarUrl: effectiveAvatarUrl };
+
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
@@ -620,7 +648,7 @@ export function AppShell({ children, user }: AppShellProps) {
       {/* ── Desktop Sidebar ── */}
       <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 z-30 shadow-xl">
         <SidebarContent
-          user={user}
+          user={effectiveUser}
           pathname={pathname}
           platformInfo={platformInfo}
           onLogout={handleLogout}
@@ -638,10 +666,10 @@ export function AppShell({ children, user }: AppShellProps) {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
           />
-          {/* Drawer */}
-          <div className="relative w-72 max-w-[85vw] h-full shadow-2xl">
+          {/* Drawer — max-w-[85vw] ensures it never overflows on narrow phones */}
+          <div className="relative w-72 max-w-[85vw] h-full shadow-2xl overflow-hidden">
             <SidebarContent
-              user={user}
+              user={effectiveUser}
               pathname={pathname}
               platformInfo={platformInfo}
               onLinkClick={() => setMobileOpen(false)}
@@ -652,60 +680,64 @@ export function AppShell({ children, user }: AppShellProps) {
       )}
 
       {/* ── Main Area ── */}
-      <div className="flex-1 flex flex-col lg:pl-64">
+      <div className="flex-1 min-w-0 flex flex-col lg:pl-64">
         {/* Top Header */}
-        <header className="sticky top-0 z-20 bg-white border-b border-slate-200 shadow-xs px-4 sm:px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <header className="sticky top-0 z-20 bg-white border-b border-slate-200 shadow-xs px-3 sm:px-6 py-3 flex items-center justify-between gap-2 min-w-0">
+          {/* Left: hamburger + breadcrumb */}
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             {/* Mobile menu toggle */}
             <button
               type="button"
-              className="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+              className="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors shrink-0"
               onClick={() => setMobileOpen(true)}
               aria-label="Open navigation menu"
             >
               <Menu className="w-5 h-5" />
             </button>
 
-            {/* Breadcrumb area */}
-            <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-slate-500">
-              <span className="text-slate-900 font-bold tracking-tight">{platformInfo.platformName}</span>
-              <span>/</span>
-              <span className="text-ic-blue font-semibold uppercase tracking-wider text-[11px]">{getRoleLabel(user.role)} Portal</span>
+            {/* Breadcrumb — desktop */}
+            <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-slate-500 min-w-0">
+              <span className="text-slate-900 font-bold tracking-tight truncate max-w-[120px] md:max-w-none">{platformInfo.platformName}</span>
+              <span className="shrink-0">/</span>
+              <span className="text-ic-blue font-semibold uppercase tracking-wider text-[11px] truncate">{getRoleLabel(effectiveUser.role)} Portal</span>
             </div>
 
-            <div className="flex items-center gap-2 sm:hidden">
-              <Shield className="w-5 h-5 text-ic-blue" />
-              <span className="font-bold text-slate-900 text-sm">{platformInfo.platformName}</span>
+            {/* Brand — mobile (sm and below) */}
+            <div className="flex items-center gap-1.5 sm:hidden min-w-0">
+              <Shield className="w-4 h-4 text-ic-blue shrink-0" />
+              <span className="font-bold text-slate-900 text-sm truncate">{platformInfo.platformName}</span>
             </div>
           </div>
 
           {/* Right side header actions */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             {/* Notifications bell */}
             <Link
-              href={isAdminRole(user.role) ? '/admin/notifications' : user.role === 'CITIZEN' ? '/citizen/notifications' : '#'}
+              href={isAdminRole(effectiveUser.role) ? '/admin/notifications' : effectiveUser.role === 'CITIZEN' ? '/citizen/notifications' : '#'}
               className="relative p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
               aria-label="Notifications"
             >
               <Bell className="w-5 h-5" />
             </Link>
 
-            {/* User info */}
-            <div className="hidden sm:flex items-center gap-2.5 pl-3 border-l border-slate-200">
+            {/* User info — hidden on xs, visible from sm+ */}
+            <div className="hidden sm:flex items-center gap-2 pl-2.5 border-l border-slate-200 min-w-0">
+              {/* Avatar circle */}
               <div className="w-8 h-8 rounded-full bg-ic-blue flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-xs overflow-hidden">
-                {user.avatarUrl ? (
+                {effectiveUser.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={user.avatarUrl} alt={user.name || 'Avatar'} className="w-full h-full object-cover" />
+                  <img src={effectiveUser.avatarUrl} alt={effectiveUser.name || 'Avatar'} className="w-full h-full object-cover" />
                 ) : (
-                  (user.name || 'U').charAt(0).toUpperCase()
+                  (effectiveUser.name || 'U').charAt(0).toUpperCase()
                 )}
               </div>
-              <div className="hidden md:block">
-                <div className="text-sm font-semibold text-slate-900 leading-tight">
-                  {user.name || 'User'}
+              {/* Name + role — only on md+ to avoid overflow on tablets */}
+              <div className="hidden md:block min-w-0 max-w-[140px] lg:max-w-[180px]">
+                <div className="text-sm font-semibold text-slate-900 leading-tight truncate">
+                  {effectiveUser.name || 'User'}
                 </div>
-                <div className="text-[11px] text-slate-500 font-mono uppercase leading-tight">
-                  {getRoleLabel(user.role)}
+                <div className="text-[11px] text-slate-500 font-mono uppercase leading-tight truncate">
+                  {getRoleLabel(effectiveUser.role)}
                 </div>
               </div>
             </div>
