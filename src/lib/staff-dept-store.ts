@@ -17,6 +17,8 @@ export interface UserItem {
   email: string;
   role: 'ADMIN' | 'SUPER_ADMIN' | 'DEPARTMENT_HEAD' | 'DEPARTMENT_OFFICER' | 'FIELD_WORKER' | 'CITIZEN' | null;
   departmentId: string | null;
+  municipalityId: string | null;
+  assignedOfficerId: string | null;
   isAuthorized: boolean;
   isSuspended: boolean;
   lastLoginAt: string | null;
@@ -38,6 +40,23 @@ export function isSuperAdminTarget(target?: { role?: string | null; email?: stri
   return target.role === 'SUPER_ADMIN' || (target.email ? isSuperAdminEmail(target.email) : false);
 }
 
+export async function getDefaultMunicipality() {
+  let municipality = await prisma.municipality.findFirst({
+    where: { OR: [{ code: 'CBE-MUN' }, { name: 'Coimbatore Municipality' }] },
+  });
+  if (!municipality) {
+    municipality = await prisma.municipality.create({
+      data: {
+        name: 'Coimbatore Municipality',
+        code: 'CBE-MUN',
+        city: 'Coimbatore',
+        state: 'Tamil Nadu',
+      },
+    });
+  }
+  return municipality;
+}
+
 function formatDepartmentItem(dept: any): DepartmentItem {
   return {
     id: dept.id,
@@ -57,6 +76,8 @@ function formatUserItem(user: any): UserItem {
     email: user.email || '',
     role: (user.role as UserItem['role']) || null,
     departmentId: user.departmentId || null,
+    municipalityId: user.municipalityId || null,
+    assignedOfficerId: user.assignedOfficerId || null,
     isAuthorized: Boolean(user.isAuthorized),
     isSuspended: Boolean(user.isSuspended),
     lastLoginAt: user.lastLoginAt ? (user.lastLoginAt instanceof Date ? user.lastLoginAt.toISOString() : new Date(user.lastLoginAt).toISOString()) : null,
@@ -201,6 +222,8 @@ export async function ensureSuperAdminUser(
     },
   });
 
+  const mun = await getDefaultMunicipality();
+
   if (admin) {
     admin = await prisma.user.update({
       where: { id: admin.id },
@@ -210,6 +233,7 @@ export async function ensureSuperAdminUser(
         isAuthorized: true,
         isSuspended: false,
         name: admin.name || name,
+        municipalityId: admin.municipalityId || mun.id,
       },
     });
   } else {
@@ -221,6 +245,7 @@ export async function ensureSuperAdminUser(
         role: UserRole.SUPER_ADMIN,
         authProvider: AuthProvider.GOOGLE,
         departmentId: null,
+        municipalityId: mun.id,
         isAuthorized: true,
         isSuspended: false,
       },
@@ -235,16 +260,26 @@ export async function addUser(input: {
   email: string;
   role: UserItem['role'];
   departmentId?: string | null;
+  assignedOfficerId?: string | null;
+  municipalityId?: string | null;
   isAuthorized?: boolean;
 }): Promise<UserItem> {
   const cleanEmail = input.email.trim().toLowerCase();
   const existing = await getUserByEmail(cleanEmail);
+
+  let defaultMunId = input.municipalityId;
+  if (!defaultMunId) {
+    const mun = await getDefaultMunicipality();
+    defaultMunId = mun.id;
+  }
 
   if (existing) {
     const updated = await updateUser(existing.id, {
       name: input.name,
       role: input.role,
       departmentId: input.departmentId,
+      assignedOfficerId: input.assignedOfficerId,
+      municipalityId: defaultMunId,
       isAuthorized: input.isAuthorized ?? true,
       isSuspended: false,
     });
@@ -257,6 +292,8 @@ export async function addUser(input: {
       email: cleanEmail,
       role: input.role as UserRole,
       departmentId: input.departmentId || null,
+      assignedOfficerId: input.assignedOfficerId || null,
+      municipalityId: defaultMunId,
       isAuthorized: input.isAuthorized ?? true,
       isSuspended: false,
       authProvider: AuthProvider.GOOGLE,
@@ -268,7 +305,7 @@ export async function addUser(input: {
 
 export async function updateUser(
   id: string,
-  updates: Partial<Pick<UserItem, 'name' | 'email' | 'role' | 'departmentId' | 'isAuthorized' | 'isSuspended'>>,
+  updates: Partial<Pick<UserItem, 'name' | 'email' | 'role' | 'departmentId' | 'assignedOfficerId' | 'municipalityId' | 'isAuthorized' | 'isSuspended'>>,
 ): Promise<UserItem | null> {
   try {
     const current = await prisma.user.findUnique({ where: { id } });
@@ -295,6 +332,8 @@ export async function updateUser(
         email: updates.email !== undefined ? updates.email.trim().toLowerCase() : undefined,
         role: updatedRole,
         departmentId: updates.departmentId !== undefined ? updates.departmentId : undefined,
+        assignedOfficerId: updates.assignedOfficerId !== undefined ? updates.assignedOfficerId : undefined,
+        municipalityId: updates.municipalityId !== undefined ? updates.municipalityId : undefined,
         isAuthorized: updatedAuthorized,
         isSuspended: updatedSuspended,
       },

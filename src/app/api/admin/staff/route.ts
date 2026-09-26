@@ -29,21 +29,21 @@ export async function POST(req: NextRequest) {
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 
-  let body: { name?: string; email?: string; role?: string; departmentId?: string | null };
+  let body: { name?: string; email?: string; role?: string; departmentId?: string | null; assignedOfficerId?: string | null };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ message: 'Invalid request body.' }, { status: 400 });
   }
 
-  const { name, email, role, departmentId } = body;
+  const { name, email, role, departmentId, assignedOfficerId } = body;
 
   if (!name || !email || !role) {
     return NextResponse.json({ message: 'name, email, and role are required.' }, { status: 400 });
   }
 
   const result = await createStaff(
-    { name, email, role: role as StaffRole, departmentId },
+    { name, email, role: role as StaffRole, departmentId, assignedOfficerId },
     auth.admin,
   );
 

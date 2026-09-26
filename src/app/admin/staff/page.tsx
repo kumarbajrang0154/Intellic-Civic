@@ -43,6 +43,9 @@ interface StaffMember {
   role: string | null;
   departmentId: string | null;
   departmentName: string | null;
+  assignedOfficerId: string | null;
+  assignedOfficerName: string | null;
+  municipalityId: string | null;
   isActive: boolean;
   isAuthorized: boolean;
   lastLoginAt: string | null;
@@ -126,6 +129,9 @@ export default function AdminStaffPage() {
   const [createEmail, setCreateEmail] = useState('');
   const [createRole, setCreateRole] = useState('DEPARTMENT_OFFICER');
   const [createDept, setCreateDept] = useState('');
+  const [createAssignedOfficer, setCreateAssignedOfficer] = useState('');
+  const [deptOfficers, setDeptOfficers] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [loadingOfficers, setLoadingOfficers] = useState(false);
   const [createError, setCreateError] = useState('');
   const [creating, setCreating] = useState(false);
 
@@ -170,6 +176,21 @@ export default function AdminStaffPage() {
       .catch(console.error);
   }, []);
 
+  // Fetch Department Officers when department changes for FIELD_WORKER
+  useEffect(() => {
+    if (createDept && createRole === 'FIELD_WORKER') {
+      setLoadingOfficers(true);
+      fetch(`/api/admin/staff?role=DEPARTMENT_OFFICER&departmentId=${createDept}&status=active&limit=100`)
+        .then((r) => r.json())
+        .then((d) => setDeptOfficers(d.items || []))
+        .catch(console.error)
+        .finally(() => setLoadingOfficers(false));
+    } else {
+      setDeptOfficers([]);
+      setCreateAssignedOfficer('');
+    }
+  }, [createDept, createRole]);
+
   // ── Fetch staff list ─────────────────────────────────────────────────────────
 
   const fetchStaff = useCallback(async () => {
@@ -206,12 +227,19 @@ export default function AdminStaffPage() {
 
   function openCreate() {
     setCreateName(''); setCreateEmail(''); setCreateRole('DEPARTMENT_OFFICER');
-    setCreateDept(''); setCreateError(''); setCreateOpen(true);
+    setCreateDept(''); setCreateAssignedOfficer(''); setCreateError(''); setCreateOpen(true);
   }
 
   async function handleCreate() {
     if (!createName.trim() || !createEmail.trim()) {
       setCreateError('Name and email are required.'); return;
+    }
+    const needsDepartment = ['DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(createRole);
+    if (needsDepartment && !createDept) {
+      setCreateError('Department assignment is required for this role.'); return;
+    }
+    if (createRole === 'FIELD_WORKER' && !createAssignedOfficer) {
+      setCreateError('An assigned Department Officer is required for Field Workers.'); return;
     }
     setCreating(true); setCreateError('');
     try {
@@ -220,7 +248,8 @@ export default function AdminStaffPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: createName.trim(), email: createEmail.trim(),
-          role: createRole, departmentId: createDept || null,
+          role: createRole, departmentId: needsDepartment ? (createDept || null) : null,
+          assignedOfficerId: createRole === 'FIELD_WORKER' ? (createAssignedOfficer || null) : null,
         }),
       });
       const d = await res.json();
@@ -295,8 +324,8 @@ export default function AdminStaffPage() {
     }
   }
 
-  const needsDept = ['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(createRole);
-  const reassignNeedsDept = ['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(reassignRole);
+  const needsDept = ['DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(createRole);
+  const reassignNeedsDept = ['DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(reassignRole);
 
   return (
     <AppShell user={{ name: currentUser.name, role: currentUser.role }}>
@@ -513,7 +542,7 @@ export default function AdminStaffPage() {
                 <label className="text-xs font-semibold text-slate-700 block mb-1">Role <span className="text-rose-500">*</span></label>
                 <select
                   value={createRole}
-                  onChange={(e) => { setCreateRole(e.target.value); setCreateDept(''); }}
+                  onChange={(e) => { setCreateRole(e.target.value); setCreateDept(''); setCreateAssignedOfficer(''); }}
                   className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1769AA]/20 focus:border-[#1769AA] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <option value="DEPARTMENT_HEAD">Department Head</option>
@@ -526,11 +555,37 @@ export default function AdminStaffPage() {
                   <label className="text-xs font-semibold text-slate-700 block mb-1">Department <span className="text-rose-500">*</span></label>
                   <select
                     value={createDept}
-                    onChange={(e) => setCreateDept(e.target.value)}
+                    onChange={(e) => { setCreateDept(e.target.value); setCreateAssignedOfficer(''); }}
                     className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1769AA]/20 focus:border-[#1769AA] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <option value="">— Select Department —</option>
                     {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                </div>
+              )}
+              {createRole === 'FIELD_WORKER' && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Assigned Officer <span className="text-rose-500">*</span></label>
+                  <select
+                    value={createAssignedOfficer}
+                    onChange={(e) => setCreateAssignedOfficer(e.target.value)}
+                    disabled={!createDept || loadingOfficers || deptOfficers.length === 0}
+                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1769AA]/20 focus:border-[#1769AA] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="">
+                      {!createDept
+                        ? '— Select Department First —'
+                        : loadingOfficers
+                        ? 'Loading department officers...'
+                        : deptOfficers.length === 0
+                        ? '— No Active Officers in Department —'
+                        : '— Select Assigned Officer —'}
+                    </option>
+                    {deptOfficers.map((off) => (
+                      <option key={off.id} value={off.id}>
+                        {off.name} ({off.email})
+                      </option>
+                    ))}
                   </select>
                 </div>
               )}

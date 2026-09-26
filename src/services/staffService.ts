@@ -24,7 +24,7 @@ import {
 
 export type StaffRole = 'DEPARTMENT_HEAD' | 'DEPARTMENT_OFFICER' | 'FIELD_WORKER' | 'ADMIN';
 export const STAFF_ROLES: StaffRole[] = ['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER', 'FIELD_WORKER', 'ADMIN'];
-const ROLES_REQUIRING_DEPARTMENT: StaffRole[] = ['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER', 'FIELD_WORKER'];
+const ROLES_REQUIRING_DEPARTMENT: StaffRole[] = ['DEPARTMENT_OFFICER', 'FIELD_WORKER'];
 
 export interface StaffListFilters {
   search?: string;
@@ -50,6 +50,9 @@ export interface StaffSummary {
   role: string | null;
   departmentId: string | null;
   departmentName: string | null;
+  assignedOfficerId: string | null;
+  assignedOfficerName: string | null;
+  municipalityId: string | null;
   isActive: boolean;
   isAuthorized: boolean;
   lastLoginAt: string | null;
@@ -61,11 +64,13 @@ export interface CreateStaffInput {
   email: string;
   role: StaffRole;
   departmentId?: string | null;
+  assignedOfficerId?: string | null;
 }
 
 export interface ReassignInput {
   newRole?: StaffRole;
   newDepartmentId?: string | null;
+  newAssignedOfficerId?: string | null;
 }
 
 export type ServiceResult<T> =
@@ -78,6 +83,7 @@ export type ServiceResult<T> =
 
 async function userToSummary(u: UserItem): Promise<StaffSummary> {
   const dept = u.departmentId ? await getDepartment(u.departmentId) : undefined;
+  const officer = u.assignedOfficerId ? await getUser(u.assignedOfficerId) : undefined;
   return {
     id: u.id,
     name: u.name,
@@ -85,6 +91,9 @@ async function userToSummary(u: UserItem): Promise<StaffSummary> {
     role: u.role,
     departmentId: u.departmentId,
     departmentName: dept?.name ?? null,
+    assignedOfficerId: u.assignedOfficerId,
+    assignedOfficerName: officer?.name ?? null,
+    municipalityId: u.municipalityId,
     isActive: !u.isSuspended,
     isAuthorized: u.isAuthorized,
     lastLoginAt: u.lastLoginAt ?? null,
@@ -186,11 +195,28 @@ export async function createStaff(
     }
   }
 
+  if (input.role === 'FIELD_WORKER') {
+    if (!input.assignedOfficerId) {
+      return { ok: false, status: 400, message: 'Field Worker accounts require an assigned Department Officer.' };
+    }
+    const officer = await getUser(input.assignedOfficerId);
+    if (!officer) {
+      return { ok: false, status: 400, message: 'Assigned Department Officer does not exist.' };
+    }
+    if (officer.role !== 'DEPARTMENT_OFFICER') {
+      return { ok: false, status: 400, message: 'Assigned officer must be a Department Officer.' };
+    }
+    if (officer.departmentId !== input.departmentId) {
+      return { ok: false, status: 400, message: 'Assigned officer must belong to the selected department.' };
+    }
+  }
+
   const created = await addUser({
     name: input.name.trim(),
     email: input.email.trim().toLowerCase(),
     role: input.role,
     departmentId: requiresDepartment(input.role) ? (input.departmentId ?? null) : null,
+    assignedOfficerId: input.role === 'FIELD_WORKER' ? (input.assignedOfficerId ?? null) : null,
     isAuthorized: true,
   });
 
@@ -201,7 +227,7 @@ export async function createStaff(
     entityType: 'User',
     targetId: created.id,
     targetName: created.name,
-    metadata: { email: created.email, role: created.role, departmentId: created.departmentId },
+    metadata: { email: created.email, role: created.role, departmentId: created.departmentId, assignedOfficerId: created.assignedOfficerId },
   });
 
   return { ok: true, data: await userToSummary(created) };
@@ -305,6 +331,7 @@ export async function reassignStaff(
 
   const newRole = (input.newRole ?? user.role) as StaffRole;
   const newDepartmentId = input.newDepartmentId !== undefined ? input.newDepartmentId : user.departmentId;
+  const newAssignedOfficerId = input.newAssignedOfficerId !== undefined ? input.newAssignedOfficerId : user.assignedOfficerId;
 
   if (!STAFF_ROLES.includes(newRole)) {
     return { ok: false, status: 400, message: `Invalid role: ${newRole}.` };
@@ -323,12 +350,26 @@ export async function reassignStaff(
     }
   }
 
+  if (newRole === 'FIELD_WORKER') {
+    if (!newAssignedOfficerId) {
+      return { ok: false, status: 400, message: 'Field Worker accounts require an assigned Department Officer.' };
+    }
+    const officer = await getUser(newAssignedOfficerId);
+    if (!officer || officer.role !== 'DEPARTMENT_OFFICER') {
+      return { ok: false, status: 400, message: 'Assigned officer must be an existing Department Officer.' };
+    }
+    if (officer.departmentId !== newDepartmentId) {
+      return { ok: false, status: 400, message: 'Assigned officer must belong to the selected department.' };
+    }
+  }
+
   const oldRole = user.role;
   const oldDepartmentId = user.departmentId;
 
   const updated = await updateUser(targetId, {
     role: newRole,
     departmentId: requiresDepartment(newRole) ? newDepartmentId : null,
+    assignedOfficerId: newRole === 'FIELD_WORKER' ? newAssignedOfficerId : null,
   });
 
   if (!updated) {
