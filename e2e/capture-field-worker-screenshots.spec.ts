@@ -24,7 +24,7 @@ test.describe('Capture Field Worker Portal Screenshots', () => {
   test('1. Screenshot: Field Worker Dashboard', async ({ page, context }) => {
     await setAuthCookie(page, context, 'fw-demo-1', 'Ramesh Kumar', 'FIELD_WORKER', 'fieldworker@intellicivic.gov.in');
     await page.goto('http://localhost:3000/field-worker');
-    await page.waitForSelector('text=Task Queue', { timeout: 15000 });
+    await page.waitForSelector('text=Field Worker Task Portal', { timeout: 15000 });
 
     await page.screenshot({
       path: path.join(ARTIFACT_DIR, 'field_worker_dashboard.png'),

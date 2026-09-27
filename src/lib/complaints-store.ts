@@ -952,7 +952,7 @@ export async function listFieldWorkerComplaints(params: {
     assignedFieldWorkerId: fieldWorkerId,
   };
 
-  if (status) {
+  if (status && status !== 'ALL') {
     if (status === 'ACTIVE') {
       where.status = { in: [ComplaintStatus.ASSIGNED, ComplaintStatus.IN_PROGRESS] };
     } else {
