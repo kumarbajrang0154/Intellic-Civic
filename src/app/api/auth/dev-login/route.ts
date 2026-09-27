@@ -10,6 +10,8 @@ const ALLOWED_DEV_USER_IDS = new Set([
   'fw-demo-other',
   'citizen_9876543210',
   'd86d46dc-0d8b-4726-a151-bd7ab4e13ead',
+  '0cecd3fc-e75f-440f-b790-0ea7ecd9c196',
+  'citizen_9123456789',
 ]);
 
 const ALLOWED_DEV_EMAILS = new Set([
@@ -40,6 +42,9 @@ export async function POST(req: NextRequest) {
       targetUser = await getUser(requestedId);
       if (!targetUser && requestedId === 'usr_super_admin') {
         targetUser = await getUserByEmail('kumarbajrang325@gmail.com');
+      }
+      if (!targetUser && requestedId === 'citizen_9876543210') {
+        targetUser = await getUser('0cecd3fc-e75f-440f-b790-0ea7ecd9c196');
       }
     } else if (requestedEmail) {
       targetUser = await getUserByEmail(requestedEmail);

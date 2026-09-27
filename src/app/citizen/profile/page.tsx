@@ -143,10 +143,12 @@ function CitizenProfileForm() {
       }
 
       setIsProfileComplete(true);
-      toast.success('Profile saved successfully! Redirecting to Citizen Portal...');
-      setTimeout(() => {
-        window.location.href = '/citizen';
-      }, 500);
+      toast.success('Profile saved successfully!');
+      if (isFirstTimeParam || !isProfileComplete) {
+        setTimeout(() => {
+          window.location.href = '/citizen';
+        }, 1000);
+      }
     } catch (err: any) {
       setError(err.message || 'Error saving profile');
       toast.error(err.message || 'Error saving profile');

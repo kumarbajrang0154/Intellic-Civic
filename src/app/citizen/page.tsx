@@ -203,6 +203,63 @@ export default function CitizenDashboardPage() {
           </Link>
         </div>
 
+        {/* Summary Stats Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <Card className="border border-slate-200 shadow-xs bg-white rounded-xl p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Reports</p>
+                <p className="text-2xl font-extrabold text-slate-900 mt-1">{complaints.length}</p>
+              </div>
+              <div className="h-10 w-10 rounded-xl bg-blue-50 text-ic-blue flex items-center justify-center shrink-0">
+                <FileText className="h-5 w-5" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="border border-slate-200 shadow-xs bg-white rounded-xl p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Under Review</p>
+                <p className="text-2xl font-extrabold text-amber-600 mt-1">
+                  {complaints.filter((c) => ['SUBMITTED', 'AI_PROCESSING', 'PENDING_DEPT_REVIEW'].includes(c.status)).length}
+                </p>
+              </div>
+              <div className="h-10 w-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <Calendar className="h-5 w-5" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="border border-slate-200 shadow-xs bg-white rounded-xl p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">In Progress</p>
+                <p className="text-2xl font-extrabold text-indigo-600 mt-1">
+                  {complaints.filter((c) => ['ASSIGNED', 'IN_PROGRESS'].includes(c.status)).length}
+                </p>
+              </div>
+              <div className="h-10 w-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                <RefreshCw className="h-5 w-5" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="border border-slate-200 shadow-xs bg-white rounded-xl p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Resolved</p>
+                <p className="text-2xl font-extrabold text-emerald-600 mt-1">
+                  {complaints.filter((c) => ['RESOLVED', 'CLOSED'].includes(c.status)).length}
+                </p>
+              </div>
+              <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <PlusCircle className="h-5 w-5 rotate-45" />
+              </div>
+            </div>
+          </Card>
+        </div>
+
         {/* Filter & Search Controls Card */}
         <Card className="border border-slate-200 shadow-xs bg-white rounded-xl">
           <CardContent className="p-4 space-y-3">

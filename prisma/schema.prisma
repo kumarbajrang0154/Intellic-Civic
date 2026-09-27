@@ -92,6 +92,7 @@ model User {
   googleId          String?      @unique
   name              String
   avatarUrl         String?
+  address           String?
   isAuthorized      Boolean      @default(false)
   isSuspended       Boolean      @default(false)
   suspendedAt       DateTime?

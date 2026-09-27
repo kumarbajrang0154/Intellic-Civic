@@ -217,7 +217,7 @@ test.describe('Module 6: Citizen Complaint Creation, List & Tracking E2E Tests',
     });
 
     await page.goto('/citizen');
-    await page.click('text=CMP-2026-1001');
+    await page.click('text=/CMP-2026-1001/');
 
     await expect(page).toHaveURL(/\/citizen\/complaints\/c-1/);
     await expect(page.getByText('Resolution Progress')).toBeVisible();

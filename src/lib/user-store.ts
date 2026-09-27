@@ -28,14 +28,15 @@ export function normalizeMobileNumber(input: string): string {
 function formatCitizenProfile(user: any): CitizenProfile {
   const name = user.name || '';
   const email = user.email || '';
-  const isProfileComplete = Boolean(name.trim() && email.trim());
+  const address = user.address || '';
+  const isProfileComplete = Boolean(name.trim() && email.trim() && address.trim());
 
   return {
     id: user.id,
     mobileNumber: user.mobileNumber || '',
     name,
     email,
-    address: 'Civic Area',
+    address,
     avatarUrl: user.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name || 'Citizen')}`,
     role: 'CITIZEN',
     isProfileComplete,
@@ -87,6 +88,7 @@ export async function updateCitizenProfile(
 
   const name = (updates.name !== undefined ? updates.name : current.name).trim();
   const email = (updates.email !== undefined ? updates.email : current.email).trim();
+  const address = (updates.address !== undefined ? updates.address : current.address).trim();
   const avatarUrl = updates.avatarUrl !== undefined ? updates.avatarUrl : current.avatarUrl;
 
   const updatedUser = await prisma.user.update({
@@ -94,6 +96,7 @@ export async function updateCitizenProfile(
     data: {
       name,
       email: email || undefined,
+      address: address || undefined,
       avatarUrl: avatarUrl || undefined,
     },
   });

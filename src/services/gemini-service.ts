@@ -165,7 +165,7 @@ export async function verifyComplaintPhoto(
     const imagePart = await prepareImagePart(imageUrlOrBase64);
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3.6-flash',
+      model: 'gemini-1.5-flash',
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: {
@@ -241,7 +241,7 @@ export async function classifyComplaintRouting(
       .join('\n');
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3.6-flash',
+      model: 'gemini-1.5-flash',
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: {
