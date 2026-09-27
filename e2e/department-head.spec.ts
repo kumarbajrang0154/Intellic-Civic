@@ -174,7 +174,7 @@ test.describe('Module 7: Department Head Portal E2E Tests', () => {
       });
     });
 
-    await page.route('**/api/complaints/ai-suggest-99/assign', async (route) => {
+    await page.route('**/api/complaints/ai-suggest-99/*', async (route) => {
       assignCalled = true;
       await route.fulfill({
         status: 200,

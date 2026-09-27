@@ -24,7 +24,7 @@ export async function POST(
     const targetDeptId =
       departmentId ||
       auth.user.departmentId ||
-      (existingComplaint as any).suggestedDepartmentId ||
+      existingComplaint.aiRecommendedDepartmentId ||
       existingComplaint.departmentId;
 
     if (!targetDeptId) {

@@ -136,14 +136,12 @@ export default function StaffComplaintDetailPage() {
         setSelectedOfficerId(data.assignment.departmentOfficer.id);
       }
 
-      // Fetch department staff roster if department ID exists
-      const deptId = data.department?.id || data.aiPrediction?.suggestedDepartmentId;
-      if (deptId) {
-        const staffRes = await fetch(`/api/departments/${deptId}/staff`);
-        if (staffRes.ok) {
-          const staffData = await staffRes.json();
-          setOfficers(staffData.officers || []);
-        }
+      // Fetch department staff roster (fallback to 'all' for municipality-wide department head)
+      const targetDeptId = data.department?.id || data.aiPrediction?.suggestedDepartmentId || 'all';
+      const staffRes = await fetch(`/api/departments/${targetDeptId}/staff`);
+      if (staffRes.ok) {
+        const staffData = await staffRes.json();
+        setOfficers(staffData.officers || []);
       }
     } catch (err: any) {
       setError(err.message || 'Error loading details');

@@ -81,6 +81,7 @@ export async function POST(req: NextRequest) {
       role: actualRole,
       isAuthorized: true,
       departmentId: targetUser.departmentId ?? null,
+      municipalityId: targetUser.municipalityId ?? null,
     };
 
     const accessToken = await createJwtToken(userPayload, '7d');

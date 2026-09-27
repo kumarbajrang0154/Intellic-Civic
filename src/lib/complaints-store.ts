@@ -1181,3 +1181,59 @@ export async function assignFieldWorkerToComplaint(
 
   return { ok: true, status: 200, message: 'Field worker assigned successfully.', complaint: formatComplaint(updated) };
 }
+
+export async function assignOfficerToComplaint(
+  complaintId: string,
+  officerUserId: string,
+  assignedByUserId: string,
+  notes?: string,
+): Promise<{ ok: boolean; status: number; message: string; complaint?: Complaint }> {
+  const complaint = await getComplaintById(complaintId);
+  if (!complaint) {
+    return { ok: false, status: 404, message: 'Complaint ticket not found.' };
+  }
+
+  const officer = await prisma.user.findUnique({ where: { id: officerUserId } });
+  if (!officer || officer.role !== 'DEPARTMENT_OFFICER') {
+    return { ok: false, status: 400, message: 'Invalid department officer.' };
+  }
+
+  const prevStatus = complaint.status;
+  const nextStatus =
+    prevStatus === ComplaintStatus.SUBMITTED || prevStatus === ComplaintStatus.PENDING_DEPT_REVIEW
+      ? ComplaintStatus.ASSIGNED
+      : (prevStatus as ComplaintStatus);
+
+  await prisma.assignment.upsert({
+    where: { complaintId },
+    create: {
+      complaintId,
+      departmentOfficerId: officerUserId,
+      assignedByUserId,
+      notes: notes || undefined,
+    },
+    update: {
+      departmentOfficerId: officerUserId,
+      assignedByUserId,
+      notes: notes || undefined,
+    },
+  });
+
+  const updated = await prisma.complaint.update({
+    where: { id: complaint.id },
+    data: {
+      status: nextStatus,
+      statusHistory: {
+        create: {
+          fromStatus: prevStatus as ComplaintStatus,
+          toStatus: nextStatus,
+          changedByUserId: assignedByUserId,
+          notes: notes || `Assigned department officer ${officer.name}.`,
+        },
+      },
+    },
+    include: DEFAULT_INCLUDE,
+  });
+
+  return { ok: true, status: 200, message: 'Department officer assigned successfully.', complaint: formatComplaint(updated) };
+}

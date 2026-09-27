@@ -1,44 +1,49 @@
-import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeJwtToken } from '@/lib/auth-jwt';
+import { requireStaff } from '@/lib/admin-auth';
 import prisma from '@/lib/prisma';
+import { ComplaintStatus } from '@prisma/client';
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } },
 ) {
   try {
-    const cookieStore = cookies();
-    const accessToken = cookieStore.get('ic_access_token')?.value;
-
-    if (!accessToken) {
-      return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
-    }
-
-    const payload = decodeJwtToken(accessToken);
-    if (!payload) {
-      return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
+    const auth = await requireStaff(['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_HEAD']);
+    if (!auth.authorized) {
+      return auth.response;
     }
 
     const { id } = params;
+    const complaint = await prisma.complaint.findUnique({ where: { id } });
+    if (!complaint) {
+      return NextResponse.json({ statusCode: 404, message: 'Complaint not found.' }, { status: 404 });
+    }
 
-    const updated = await prisma.aiPrediction.updateMany({
-      where: { complaintId: id },
-      data: { isRejected: true },
+    const updated = await prisma.complaint.update({
+      where: { id },
+      data: {
+        departmentId: null,
+        status: ComplaintStatus.SUBMITTED,
+        statusHistory: {
+          create: {
+            fromStatus: complaint.status,
+            toStatus: ComplaintStatus.SUBMITTED,
+            changedByUserId: auth.user.id,
+            notes: 'AI suggestion rejected by Department Head ("Not My Department"). Returned to Admin Triage Queue.',
+          },
+        },
+      },
     });
 
-    return NextResponse.json({ success: true, count: updated.count });
+    return NextResponse.json({
+      success: true,
+      message: 'AI suggestion rejected. Complaint returned to Admin Triage Queue.',
+      complaint: updated,
+    });
   } catch (error: any) {
     return NextResponse.json(
       { statusCode: 500, message: 'Internal server error', error: error.message },
       { status: 500 },
     );
   }
-}
-
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } },
-) {
-  return PATCH(request, { params });
 }

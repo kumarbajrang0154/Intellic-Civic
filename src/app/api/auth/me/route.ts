@@ -53,6 +53,7 @@ export async function GET() {
             name: staffUser.name,
             role: staffUser.role,
             departmentId: staffUser.departmentId,
+            municipalityId: staffUser.municipalityId,
             isAuthorized: staffUser.isAuthorized,
             isSuspended: staffUser.isSuspended,
             avatarUrl: dbUser?.avatarUrl ?? null,
