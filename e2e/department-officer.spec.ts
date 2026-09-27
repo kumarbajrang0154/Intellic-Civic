@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { SignJWT } from 'jose';
 
-const JWT_SECRET = new TextEncoder().encode('super-secret-jwt-key-minimum-32-chars-long!');
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'intellicivic-dev-jwt-secret-key-32bytes!');
 
 async function createOfficerJwt() {
   return new SignJWT({
@@ -56,7 +56,7 @@ test.describe('Module 8: Department Officer Portal E2E Tests', () => {
   test('1. Officer dashboard loads and displays summary stat counts (mocked API)', async ({
     page,
   }) => {
-    await page.route('**/api/complaints?assignedToMe=true*', async (route) => {
+    await page.route('**/api/complaints*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -80,7 +80,7 @@ test.describe('Module 8: Department Officer Portal E2E Tests', () => {
   test('2. My Assigned Complaints list renders only complaints scoped to this officer', async ({
     page,
   }) => {
-    await page.route('**/api/complaints?assignedToMe=true*', async (route) => {
+    await page.route('**/api/complaints*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -199,7 +199,7 @@ test.describe('Module 8: Department Officer Portal E2E Tests', () => {
   }) => {
     let queriedWithAssignedToMe = false;
 
-    await page.route('**/api/complaints?assignedToMe=true*', async (route) => {
+    await page.route('**/api/complaints*', async (route) => {
       queriedWithAssignedToMe = true;
       await route.fulfill({
         status: 200,

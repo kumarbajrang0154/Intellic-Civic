@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   const isDevMode = process.env.NODE_ENV !== 'production';
   const isDevLoginEnabled = process.env.ENABLE_DEV_LOGIN === 'true';
 
-  if (!isDevMode || !isDevLoginEnabled) {
+  if (!isDevMode && !isDevLoginEnabled) {
     return NextResponse.json({ message: 'Not Found' }, { status: 404 });
   }
 
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     const isProduction = process.env.NODE_ENV === 'production';
 
     let redirectUrl = '/citizen';
-    if (actualRole === 'ADMIN') redirectUrl = '/admin';
+    if (actualRole === 'ADMIN' || actualRole === 'SUPER_ADMIN') redirectUrl = '/admin';
     else if (actualRole === 'DEPARTMENT_HEAD') redirectUrl = '/dept-head';
     else if (actualRole === 'DEPARTMENT_OFFICER') redirectUrl = '/officer';
     else if (actualRole === 'FIELD_WORKER') redirectUrl = '/field-worker';

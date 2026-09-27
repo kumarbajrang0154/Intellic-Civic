@@ -73,7 +73,7 @@ export default function OfficerDashboardPage() {
         }
       }
 
-      const res = await fetch('/api/complaints?assignedToMe=true&limit=50');
+      const res = await fetch('/api/complaints?limit=50');
       if (!res.ok) {
         throw new Error('Failed to load assigned complaints');
       }

@@ -1,9 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { SignJWT } from 'jose';
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'super_secret_jwt_key_for_dev_intellicivic_2026',
-);
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'intellicivic-dev-jwt-secret-key-32bytes!');
 
 async function createDeptHeadJwt() {
   return new SignJWT({

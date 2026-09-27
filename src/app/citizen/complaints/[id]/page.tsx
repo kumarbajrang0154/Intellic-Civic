@@ -162,7 +162,7 @@ export default function CitizenComplaintDetailPage() {
       fetchDetail();
     } catch (err: any) {
       toast.error(err.message || 'Error updating complaint status');
-    } fontally: {
+    } finally {
       setActionLoading(false);
     }
   };

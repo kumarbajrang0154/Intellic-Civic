@@ -18,20 +18,23 @@ export async function GET() {
       return NextResponse.json({ user: null }, { status: 401 });
     }
 
-    if (payload.role === 'CITIZEN' && payload.mobileNumber) {
-      const profile = await getOrCreateCitizenProfile(payload.mobileNumber);
-      return NextResponse.json({
-        user: {
-          id: profile.id,
-          mobileNumber: profile.mobileNumber,
-          name: profile.name || `Citizen (+91 ${profile.mobileNumber})`,
-          email: profile.email || null,
-          address: profile.address || null,
-          avatarUrl: profile.avatarUrl || null,
-          role: 'CITIZEN',
-          isProfileComplete: profile.isProfileComplete,
-        },
-      });
+    if (payload.role === 'CITIZEN') {
+      const identifier = payload.sub || payload.mobileNumber || payload.email;
+      if (identifier) {
+        const profile = await getOrCreateCitizenProfile(identifier);
+        return NextResponse.json({
+          user: {
+            id: profile.id,
+            mobileNumber: profile.mobileNumber,
+            name: profile.name || `Citizen (${profile.mobileNumber ? '+91 ' + profile.mobileNumber : profile.email || 'User'})`,
+            email: profile.email || null,
+            address: profile.address || null,
+            avatarUrl: profile.avatarUrl || null,
+            role: 'CITIZEN',
+            isProfileComplete: profile.isProfileComplete,
+          },
+        });
+      }
     }
 
     // Check staff-dept-store for updated staff/admin info

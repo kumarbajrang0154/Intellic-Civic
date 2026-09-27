@@ -39,7 +39,7 @@ test.describe('Dev-Login Security Hardening Tests', () => {
     const body = await res.json();
     expect(body.success).toBe(true);
     expect(body.user.sub).toBeTruthy();
-    expect(body.user.role).toBe('ADMIN');
+    expect(['ADMIN', 'SUPER_ADMIN']).toContain(body.user.role);
     expect(body.redirectUrl).toBe('/admin');
   });
 

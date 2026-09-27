@@ -13,10 +13,19 @@ export async function POST(
     }
 
     const { id } = params;
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const { departmentId, categoryId, priority, notes } = body;
 
-    const targetDeptId = departmentId || auth.user.departmentId;
+    const existingComplaint = await (await import('@/lib/prisma')).default.complaint.findUnique({ where: { id } });
+    if (!existingComplaint) {
+      return NextResponse.json({ statusCode: 404, message: 'Complaint ticket not found' }, { status: 404 });
+    }
+
+    const targetDeptId =
+      departmentId ||
+      auth.user.departmentId ||
+      (existingComplaint as any).suggestedDepartmentId ||
+      existingComplaint.departmentId;
 
     if (!targetDeptId) {
       return NextResponse.json(

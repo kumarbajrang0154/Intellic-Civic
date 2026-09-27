@@ -13,11 +13,16 @@ export async function GET() {
     }
 
     const payload = decodeJwtToken(accessToken);
-    if (!payload || !payload.mobileNumber) {
+    if (!payload) {
       return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
     }
 
-    const profile = await getOrCreateCitizenProfile(payload.mobileNumber);
+    const identifier = payload.sub || payload.mobileNumber || payload.email;
+    if (!identifier) {
+      return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
+    }
+
+    const profile = await getOrCreateCitizenProfile(identifier);
     return NextResponse.json({ success: true, profile });
   } catch (error: any) {
     return NextResponse.json(
@@ -37,7 +42,12 @@ export async function PUT(request: NextRequest) {
     }
 
     const payload = decodeJwtToken(accessToken);
-    if (!payload || !payload.mobileNumber) {
+    if (!payload) {
+      return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
+    }
+
+    const identifier = payload.sub || payload.mobileNumber || payload.email;
+    if (!identifier) {
       return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -56,7 +66,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ statusCode: 400, message: 'Residential address is required' }, { status: 400 });
     }
 
-    const updatedProfile = await updateCitizenProfile(payload.mobileNumber, {
+    const updatedProfile = await updateCitizenProfile(identifier, {
       name: name.trim(),
       email: email.trim(),
       address: address.trim(),

@@ -36,39 +36,36 @@ test.describe('Issue 1 & 2 Verification Tests', () => {
     const superAdmin = items.find((s: any) => s.role === 'SUPER_ADMIN' || s.email === 'kumarbajrang325@gmail.com');
     expect(superAdmin).toBeDefined();
 
-    // Find or create Ramesh Kumar (FIELD_WORKER)
-    let ramesh = items.find((s: any) => s.name.includes('Ramesh') || s.email.includes('ramesh'));
-    if (!ramesh) {
-      const officer = items.find((s: any) => s.role === 'DEPARTMENT_OFFICER');
-      const createRes = await request.post(`${BASE}/api/admin/staff`, {
-        headers: { cookie: cookieHeader },
-        data: {
-          name: 'Ramesh Kumar',
-          email: 'fieldworker.ramesh@intellicivic.gov.in',
-          role: 'FIELD_WORKER',
-          departmentId: 'dept_roads_infra',
-          assignedOfficerId: officer?.id || 'usr_officer_roads_1',
-        },
-      });
-      expect(createRes.status()).toBe(201);
-      const created = await createRes.json();
-      ramesh = created.staff;
-    }
+    // Create a temporary field worker to test deletion without corrupting seed data
+    const officer = items.find((s: any) => s.role === 'DEPARTMENT_OFFICER');
+    const createRes = await request.post(`${BASE}/api/admin/staff`, {
+      headers: { cookie: cookieHeader },
+      data: {
+        name: 'Temp Delete Worker',
+        email: `temp.delete.${Date.now()}@intellicivic.gov.in`,
+        role: 'FIELD_WORKER',
+        departmentId: 'dept_roads_infra',
+        assignedOfficerId: officer?.id || 'usr_officer_roads_1',
+      },
+    });
+    expect(createRes.status()).toBe(201);
+    const created = await createRes.json();
+    const tempWorker = created.staff;
 
-    // Delete Ramesh Kumar (FIELD_WORKER)
-    const deleteRes = await request.delete(`${BASE}/api/admin/staff/${ramesh.id}`, {
+    // Delete temporary field worker
+    const deleteRes = await request.delete(`${BASE}/api/admin/staff/${tempWorker.id}`, {
       headers: { cookie: cookieHeader },
     });
     expect(deleteRes.status()).toBe(200);
     const deleteBody = await deleteRes.json();
     expect(deleteBody.deleted).toBe(true);
 
-    // Verify Ramesh Kumar is deleted from DB
-    const verifyGet = await request.get(`${BASE}/api/admin/staff?search=${encodeURIComponent(ramesh.id)}`, {
+    // Verify temporary field worker is deleted from DB
+    const verifyGet = await request.get(`${BASE}/api/admin/staff?search=${encodeURIComponent(tempWorker.id)}`, {
       headers: { cookie: cookieHeader },
     });
     const verifyBody = await verifyGet.json();
-    expect(verifyBody.items.find((item: any) => item.id === ramesh.id)).toBeUndefined();
+    expect(verifyBody.items.find((item: any) => item.id === tempWorker.id)).toBeUndefined();
 
     // Attempt to delete Super Admin (Bajrang Kumar)
     const saDeleteRes = await request.delete(`${BASE}/api/admin/staff/${superAdmin.id}`, {

@@ -636,8 +636,7 @@ export function AppShell({ children, user }: AppShellProps) {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } finally {
-      router.push('/');
-      router.refresh();
+      window.location.href = '/';
     }
   };
 

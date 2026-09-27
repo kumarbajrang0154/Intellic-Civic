@@ -43,23 +43,34 @@ function formatCitizenProfile(user: any): CitizenProfile {
   };
 }
 
-export async function getOrCreateCitizenProfile(mobileNumber: string): Promise<CitizenProfile> {
-  const cleanNumber = normalizeMobileNumber(mobileNumber);
+export async function getOrCreateCitizenProfile(identifier: string): Promise<CitizenProfile> {
+  const cleanNumber = normalizeMobileNumber(identifier);
+
+  const orConditions: any[] = [{ id: identifier }];
+  if (cleanNumber) {
+    orConditions.push({ mobileNumber: cleanNumber });
+    orConditions.push({ id: `citizen_${cleanNumber}` });
+  }
+  if (identifier.includes('@')) {
+    orConditions.push({ email: identifier.trim().toLowerCase() });
+  }
 
   let user = await prisma.user.findFirst({
     where: {
-      OR: [{ mobileNumber: cleanNumber }, { id: `citizen_${cleanNumber}` }],
+      OR: orConditions,
     },
   });
 
   if (!user) {
+    const isEmail = identifier.includes('@');
     user = await prisma.user.create({
       data: {
-        id: `citizen_${cleanNumber}`,
-        mobileNumber: cleanNumber,
+        id: isEmail ? undefined : `citizen_${cleanNumber || Date.now()}`,
+        mobileNumber: cleanNumber || undefined,
+        email: isEmail ? identifier.trim().toLowerCase() : undefined,
         name: '',
         role: UserRole.CITIZEN,
-        authProvider: AuthProvider.MOBILE_OTP,
+        authProvider: isEmail ? AuthProvider.GOOGLE : AuthProvider.MOBILE_OTP,
         isAuthorized: true,
       },
     });
@@ -69,11 +80,10 @@ export async function getOrCreateCitizenProfile(mobileNumber: string): Promise<C
 }
 
 export async function updateCitizenProfile(
-  mobileNumber: string,
+  identifier: string,
   updates: Partial<CitizenProfile>,
 ): Promise<CitizenProfile> {
-  const cleanNumber = normalizeMobileNumber(mobileNumber);
-  const current = await getOrCreateCitizenProfile(cleanNumber);
+  const current = await getOrCreateCitizenProfile(identifier);
 
   const name = (updates.name !== undefined ? updates.name : current.name).trim();
   const email = (updates.email !== undefined ? updates.email : current.email).trim();

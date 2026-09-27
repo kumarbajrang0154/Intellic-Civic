@@ -14,16 +14,24 @@ export async function GET(
     const departmentId = id.toLowerCase() === 'all' ? undefined : id;
     const users = await listUsers({ departmentId, assignedOfficerId, role });
 
+    const department = departmentId
+      ? await (await import('@/lib/prisma')).default.department.findUnique({ where: { id: departmentId } })
+      : { id: 'all', name: 'All Municipal Departments' };
+
     return NextResponse.json({
-      officers: users.map((u) => ({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        role: u.role,
-        isAuthorized: u.isAuthorized,
-        isSuspended: u.isSuspended,
-        assignedOfficerId: u.assignedOfficerId,
-      })),
+      department,
+      officers: users
+        .filter((u) => u.role === 'DEPARTMENT_OFFICER')
+        .map((u) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          isAuthorized: u.isAuthorized,
+          isSuspended: u.isSuspended,
+          assignedOfficerId: u.assignedOfficerId,
+          createdAt: u.createdAt,
+        })),
       fieldWorkers: users
         .filter((u) => u.role === 'FIELD_WORKER')
         .map((u) => ({
@@ -32,6 +40,7 @@ export async function GET(
           email: u.email,
           role: u.role,
           assignedOfficerId: u.assignedOfficerId,
+          createdAt: u.createdAt,
         })),
     });
   } catch (error: any) {

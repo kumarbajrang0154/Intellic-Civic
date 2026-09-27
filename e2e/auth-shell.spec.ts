@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { SignJWT } from 'jose';
 
-const JWT_SECRET = new TextEncoder().encode('super-secret-jwt-key-minimum-32-chars-long!');
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'intellicivic-dev-jwt-secret-key-32bytes!');
 
 async function createMockJwt(role: string) {
-  return new SignJWT({ sub: 'user-123', role })
+  const sub = role === 'CITIZEN' ? 'citizen_9876543210' : 'd86d46dc-0d8b-4726-a151-bd7ab4e13ead';
+  return new SignJWT({ sub, role })
     .setProtectedHeader({ alg: 'HS256' })
     .setExpirationTime('2h')
     .sign(JWT_SECRET);
@@ -33,7 +34,7 @@ test.describe('Module 5: Frontend Auth Pages & App Shell E2E Tests', () => {
         },
         body: JSON.stringify({
           success: true,
-          user: { id: 'citizen-1', mobileNumber: '9876543210', role: 'CITIZEN' },
+          user: { id: 'citizen-1', name: 'Citizen User', mobileNumber: '9876543210', role: 'CITIZEN', isProfileComplete: true },
         }),
       });
     });
@@ -96,9 +97,9 @@ test.describe('Module 5: Frontend Auth Pages & App Shell E2E Tests', () => {
     ]);
 
     await page.goto('/citizen');
-    await expect(page.getByRole('link', { name: 'My Complaints', exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'New Complaint', exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Profile', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Dashboard', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Report Complaint', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Profile Settings', exact: true })).toBeVisible();
   });
 
   test('5. App Shell renders correct nav items for ADMIN role', async ({ page, context }) => {
@@ -113,10 +114,10 @@ test.describe('Module 5: Frontend Auth Pages & App Shell E2E Tests', () => {
     ]);
 
     await page.goto('/admin');
-    await expect(page.locator('h1')).toContainText('Super Admin System Portal');
-    await expect(page.getByRole('link', { name: 'Triage Queue', exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Departments', exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'All Users', exact: true })).toBeVisible();
+    await expect(page.locator('h1')).toContainText('Super Admin Operations');
+    await expect(page.getByRole('link', { name: /Triage/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Departments/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Users|Staff/i })).toBeVisible();
   });
 
   test('6. Logout clears cookies and redirects to landing page', async ({ page, context }) => {
@@ -137,7 +138,7 @@ test.describe('Module 5: Frontend Auth Pages & App Shell E2E Tests', () => {
     ]);
 
     await page.goto('/citizen');
-    await page.click('button:has-text("Logout")');
+    await page.click('button:has-text("Sign Out"), button:has-text("Logout")');
 
     await expect(page).toHaveURL('http://localhost:3000/');
     const cookies = await context.cookies();
@@ -161,8 +162,8 @@ test.describe('Module 5: Frontend Auth Pages & App Shell E2E Tests', () => {
       });
     });
 
-    await page.goto('/auth/callback?code=auth_code_mock_opaque_123');
+    await page.goto('/callback?code=auth_code_mock_opaque_123');
     await expect(page).toHaveURL(/\/admin/);
-    await expect(page.locator('h1')).toContainText('Super Admin System Portal');
+    await expect(page.locator('h1')).toContainText('Super Admin Operations');
   });
 });

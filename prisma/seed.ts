@@ -140,6 +140,17 @@ async function main() {
       isSuspended: false,
     },
     {
+      id: 'fw-demo-other',
+      name: 'Suresh Verma',
+      email: 'otherfieldworker@intellicivic.gov.in',
+      role: UserRole.FIELD_WORKER,
+      authProvider: AuthProvider.GOOGLE,
+      departmentId: 'dept_roads_infra',
+      assignedOfficerId: 'usr_officer_roads_1',
+      isAuthorized: true,
+      isSuspended: false,
+    },
+    {
       id: 'citizen_9876543210',
       name: 'Bajrang Kumar',
       mobileNumber: '9876543210',

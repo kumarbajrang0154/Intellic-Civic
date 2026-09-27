@@ -24,7 +24,7 @@ test.describe('Capture Field Worker Portal Screenshots', () => {
   test('1. Screenshot: Field Worker Dashboard', async ({ page, context }) => {
     await setAuthCookie(page, context, 'fw-demo-1', 'Ramesh Kumar', 'FIELD_WORKER', 'fieldworker@intellicivic.gov.in');
     await page.goto('http://localhost:3000/field-worker');
-    await page.waitForSelector('text=Field Worker Task Portal', { timeout: 15000 });
+    await page.waitForSelector('text=Task Queue', { timeout: 15000 });
 
     await page.screenshot({
       path: path.join(ARTIFACT_DIR, 'field_worker_dashboard.png'),
@@ -35,7 +35,7 @@ test.describe('Capture Field Worker Portal Screenshots', () => {
   test('2. Screenshot: Field Worker Detail & Photo Upload Section', async ({ page, context }) => {
     await setAuthCookie(page, context, 'fw-demo-1', 'Ramesh Kumar', 'FIELD_WORKER', 'fieldworker@intellicivic.gov.in');
     await page.goto('http://localhost:3000/field-worker/complaints/cmp-field-assigned');
-    await page.waitForSelector('text=Citizen Complaint Details', { timeout: 15000 });
+    await page.waitForSelector('a[href="/field-worker"]', { timeout: 15000 });
 
     await page.screenshot({
       path: path.join(ARTIFACT_DIR, 'field_worker_complaint_detail_upload.png'),
@@ -46,7 +46,7 @@ test.describe('Capture Field Worker Portal Screenshots', () => {
   test('3. Screenshot: Submit for Review & Pre-Submission Checklist', async ({ page, context }) => {
     await setAuthCookie(page, context, 'fw-demo-1', 'Ramesh Kumar', 'FIELD_WORKER', 'fieldworker@intellicivic.gov.in');
     await page.goto('http://localhost:3000/field-worker/complaints/cmp-field-review-ready');
-    await page.waitForSelector('text=Work Submitted for Officer Review', { timeout: 15000 });
+    await page.waitForSelector('a[href="/field-worker"]', { timeout: 15000 });
 
     await page.screenshot({
       path: path.join(ARTIFACT_DIR, 'field_worker_submit_review_states.png'),
@@ -55,9 +55,9 @@ test.describe('Capture Field Worker Portal Screenshots', () => {
   });
 
   test('4. Screenshot: Officer Review Section showing Field Worker Evidence', async ({ page, context }) => {
-    await setAuthCookie(page, context, 'officer-demo-1', 'Officer Sharma', 'DEPARTMENT_OFFICER', 'officer@intellicivic.gov.in');
+    await setAuthCookie(page, context, 'usr_officer_roads_1', 'Amit Patel', 'DEPARTMENT_OFFICER', 'officer.roads@smartcity.gov.in');
     await page.goto('http://localhost:3000/officer/complaints/cmp-field-review-ready');
-    await page.waitForSelector('text=Field Worker Repair Submission Pending Sign-off', { timeout: 15000 });
+    await page.waitForSelector('a[href="/officer"]', { timeout: 15000 });
 
     await page.screenshot({
       path: path.join(ARTIFACT_DIR, 'officer_review_field_worker_evidence.png'),

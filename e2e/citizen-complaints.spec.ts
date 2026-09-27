@@ -1,10 +1,17 @@
 import { test, expect } from '@playwright/test';
 import { SignJWT } from 'jose';
 
-const JWT_SECRET = new TextEncoder().encode('super-secret-jwt-key-minimum-32-chars-long!');
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'intellicivic-dev-jwt-secret-key-32bytes!');
 
 async function createCitizenJwt() {
-  return new SignJWT({ sub: 'citizen-user-123', role: 'CITIZEN' })
+  return new SignJWT({
+    sub: 'citizen_9876543210',
+    role: 'CITIZEN',
+    name: 'Bajrang Kumar',
+    mobileNumber: '9876543210',
+    email: 'kumarbajrang0154@gmail.com',
+    isProfileComplete: true,
+  })
     .setProtectedHeader({ alg: 'HS256' })
     .setExpirationTime('2h')
     .sign(JWT_SECRET);
@@ -143,6 +150,35 @@ test.describe('Module 6: Citizen Complaint Creation, List & Tracking E2E Tests',
   });
 
   test('5. Clicking a complaint card navigates to detail page', async ({ page }) => {
+    await page.route('**/api/auth/me', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          user: {
+            id: 'citizen_9876543210',
+            name: 'Bajrang Kumar',
+            email: 'kumarbajrang0154@gmail.com',
+            role: 'CITIZEN',
+            isProfileComplete: true,
+          },
+        }),
+      });
+    });
+
+    await page.route('**/api/citizen/profile', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'citizen_9876543210',
+          name: 'Bajrang Kumar',
+          email: 'kumarbajrang0154@gmail.com',
+          mobileNumber: '9876543210',
+          isProfileComplete: true,
+        }),
+      });
+    });
     await page.route('**/api/complaints/c-1', async (route) => {
       await route.fulfill({
         status: 200,
@@ -154,6 +190,8 @@ test.describe('Module 6: Citizen Complaint Creation, List & Tracking E2E Tests',
           description: 'Streetlight pole is dark.',
           status: 'IN_PROGRESS',
           createdAt: '2026-08-20T10:00:00Z',
+          evidence: [],
+          statusHistory: [],
         }),
       });
     });
