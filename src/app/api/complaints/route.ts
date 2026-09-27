@@ -47,8 +47,14 @@ export async function GET(request: NextRequest) {
     }
 
     let assignedFieldWorkerId: string | undefined = undefined;
+    let departmentOfficerId: string | undefined = undefined;
+
     if (assignedToMe) {
-      assignedFieldWorkerId = payload.sub;
+      if (payload.role === 'FIELD_WORKER') {
+        assignedFieldWorkerId = payload.sub;
+      } else if (payload.role === 'DEPARTMENT_OFFICER') {
+        departmentOfficerId = payload.sub;
+      }
     }
 
     const result = await listComplaints({
@@ -56,6 +62,7 @@ export async function GET(request: NextRequest) {
       departmentId,
       municipalityId,
       assignedFieldWorkerId,
+      departmentOfficerId,
       status,
       priority,
       categoryId,

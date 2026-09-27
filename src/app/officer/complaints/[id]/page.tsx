@@ -145,10 +145,14 @@ export default function OfficerComplaintDetailPage() {
       }
 
       if (currentUserId) {
-        const fwRes = await fetch(`/api/departments/all/staff?role=FIELD_WORKER&assignedOfficerId=${currentUserId}`);
-        if (fwRes.ok) {
-          const fwData = await fwRes.json();
-          setFieldWorkers(fwData.fieldWorkers || []);
+        try {
+          const fwRes = await fetch(`/api/departments/all/staff?role=FIELD_WORKER&assignedOfficerId=${currentUserId}`);
+          if (fwRes.ok) {
+            const fwData = await fwRes.json();
+            setFieldWorkers(fwData.fieldWorkers || []);
+          }
+        } catch {
+          // Non-blocking staff list fetch
         }
       }
 
@@ -569,6 +573,7 @@ export default function OfficerComplaintDetailPage() {
                         Next Status Pathway
                       </label>
                       <Select
+                        id="next-status-select"
                         value={selectedNextStatus}
                         onChange={(e) => setSelectedNextStatus(e.target.value)}
                         className="text-xs"

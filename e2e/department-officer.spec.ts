@@ -132,7 +132,7 @@ test.describe('Module 8: Department Officer Portal E2E Tests', () => {
 
     await expect(page.getByText('CMP-DETAIL-100')).toBeVisible();
 
-    const select = page.locator('select').first();
+    const select = page.locator('select').filter({ hasText: 'IN_PROGRESS' }).first();
     await expect(select).toContainText('IN_PROGRESS');
     await expect(select).toContainText('RESOLVED');
     await expect(select).toContainText('REJECTED');

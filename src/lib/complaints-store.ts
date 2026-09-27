@@ -546,6 +546,7 @@ export async function listComplaints(filters?: {
   departmentId?: string;
   municipalityId?: string;
   assignedFieldWorkerId?: string;
+  departmentOfficerId?: string;
   status?: string;
   priority?: string;
   categoryId?: string;
@@ -573,6 +574,13 @@ export async function listComplaints(filters?: {
 
   if (filters?.assignedFieldWorkerId) {
     where.assignedFieldWorkerId = filters.assignedFieldWorkerId;
+  }
+
+  if (filters?.departmentOfficerId) {
+    where.OR = [
+      { assignment: { departmentOfficerId: filters.departmentOfficerId } },
+      ...(filters?.departmentId && filters.departmentId !== 'ALL' ? [{ departmentId: filters.departmentId }] : []),
+    ];
   }
 
   if (filters?.priority && filters.priority !== 'ALL') {
