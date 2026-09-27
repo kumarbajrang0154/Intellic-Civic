@@ -105,13 +105,24 @@ test.describe('Issue 1 & 2 Verification Tests', () => {
     const createStaffButtons = page.locator('button:has-text("Create Staff")');
     await expect(createStaffButtons).toHaveCount(1);
 
-    // 4. Verify Super Admin row has "Protected" badge and NO delete icon
+    // 4. Search for non-Super Admin staff member to verify action icons including Delete
+    let responsePromise = page.waitForResponse((res) => res.url().includes('/api/admin/staff') && res.status() === 200);
+    await page.fill('input[placeholder*="Search by name or email"]', 'UI Test Officer');
+    await responsePromise;
+    await page.waitForSelector('table tbody tr');
+
+    const deleteButtons = page.locator('button[title="Delete Staff"]');
+    await expect(deleteButtons.first()).toBeVisible();
+
+    // 5. Search for Super Admin row to ensure Super Admin protected badge is displayed
+    responsePromise = page.waitForResponse((res) => res.url().includes('/api/admin/staff') && res.status() === 200);
+    await page.fill('input[placeholder*="Search by name or email"]', 'kumarbajrang325');
+    await responsePromise;
+    await page.waitForSelector('table tbody tr');
+
+    // Verify Super Admin row has "Protected" badge
     const protectedBadges = page.locator('span:has-text("Protected")');
     await expect(protectedBadges.first()).toBeVisible();
-
-    // 5. Verify non-Super Admin rows have action icons including Delete
-    const deleteButtons = page.locator('button[title="Delete Staff"]');
-    expect(await deleteButtons.count()).toBeGreaterThan(0);
   });
 
 });

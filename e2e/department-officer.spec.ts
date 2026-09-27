@@ -128,6 +128,14 @@ test.describe('Module 8: Department Officer Portal E2E Tests', () => {
       });
     });
 
+    await page.route('**/api/departments/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ officers: [], fieldWorkers: [] }),
+      });
+    });
+
     await page.goto('/officer/complaints/c-officer-detail-1');
 
     await expect(page.getByText('CMP-DETAIL-100')).toBeVisible();
@@ -167,6 +175,14 @@ test.describe('Module 8: Department Officer Portal E2E Tests', () => {
         status: 201,
         contentType: 'application/json',
         body: JSON.stringify({ id: 'ev-new-1', stage: 'DURING' }),
+      });
+    });
+
+    await page.route('**/api/departments/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ officers: [], fieldWorkers: [] }),
       });
     });
 

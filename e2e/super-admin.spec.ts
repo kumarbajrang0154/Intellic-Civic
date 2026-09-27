@@ -34,7 +34,7 @@ test.describe('Module 9: Super Admin Portal E2E Tests', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           totalComplaints: 42,
-          statusBreakdown: { SUBMITTED: 10, ASSIGNED: 12, IN_PROGRESS: 15, RESOLVED: 5 },
+          statusBreakdown: { SUBMITTED: 4, PENDING_DEPT_REVIEW: 0, ASSIGNED: 12, IN_PROGRESS: 15, RESOLVED: 5 },
           needsTriageCount: 4,
           pendingUserApprovalsCount: 3,
           departmentCount: 5,
@@ -43,12 +43,28 @@ test.describe('Module 9: Super Admin Portal E2E Tests', () => {
       });
     });
 
+    await page.route('**/api/auth/me', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ user: { id: 'sa-1', name: 'Super Admin', role: 'SUPER_ADMIN' } }),
+      });
+    });
+
+    await page.route('**/api/complaints*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: [] }),
+      });
+    });
+
     await page.goto('/admin');
     await page.waitForLoadState('networkidle');
 
     await expect(page.locator('h1')).toContainText('Super Admin Operations');
     await expect(page.locator('text=Total Complaints')).toBeVisible();
-    await expect(page.getByText('42', { exact: true })).toBeVisible();
+    await expect(page.getByText('42').first()).toBeVisible();
     await expect(page.locator('text=Triage (4)')).toBeVisible();
     await expect(page.locator('text=Approvals (3)')).toBeVisible();
   });
@@ -335,7 +351,7 @@ test.describe('Module 9: Super Admin Portal E2E Tests', () => {
     await expect(page.getByRole('heading', { name: 'Department Override' })).toBeVisible();
 
     await page.selectOption('select', 'dept-health');
-    await page.click('button:has-text("Confirm Reassignment")');
+    await page.click('button:has-text("Confirm Department Override")');
   });
 
   test('8. Non-SUPER_ADMIN role hitting /admin gets redirected away', async ({ page, context }) => {

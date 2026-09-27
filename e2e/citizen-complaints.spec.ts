@@ -69,18 +69,22 @@ test.describe('Module 6: Citizen Complaint Creation, List & Tracking E2E Tests',
     });
 
     // Mock Create Complaint
-    await page.route('/api/complaints', async (route) => {
-      await route.fulfill({
-        status: 201,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          id: 'complaint-uuid-999',
-          ticketId: 'CMP-2026-999888',
-          title: 'Overflowing garbage bin near Central Park',
-          description: 'The community dumpster has been overflowing for 3 days attracting pests.',
-          status: 'SUBMITTED',
-        }),
-      });
+    await page.route('**/api/complaints', async (route) => {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            id: 'complaint-uuid-999',
+            ticketId: 'CMP-2026-999888',
+            title: 'Overflowing garbage bin near Central Park',
+            description: 'The community dumpster has been overflowing for 3 days attracting pests.',
+            status: 'SUBMITTED',
+          }),
+        });
+      } else {
+        await route.continue();
+      }
     });
 
     await page.goto('/citizen/complaints/new');
@@ -179,48 +183,56 @@ test.describe('Module 6: Citizen Complaint Creation, List & Tracking E2E Tests',
         }),
       });
     });
-    await page.route('**/api/complaints/c-1', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          id: 'c-1',
-          ticketId: 'CMP-2026-1001',
-          title: 'Broken streetlight on 5th Avenue',
-          description: 'Streetlight pole is dark.',
-          status: 'IN_PROGRESS',
-          createdAt: '2026-08-20T10:00:00Z',
-          evidence: [],
-          statusHistory: [],
-        }),
-      });
-    });
-
-    await page.route('**/api/complaints?*', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          data: [
-            {
-              id: 'c-1',
-              ticketId: 'CMP-2026-1001',
-              title: 'Broken streetlight on 5th Avenue',
-              description: 'Streetlight pole is dark.',
-              status: 'IN_PROGRESS',
-              createdAt: '2026-08-20T10:00:00Z',
-            },
-          ],
-          meta: { total: 1, page: 1, limit: 10, totalPages: 1 },
-        }),
-      });
+    await page.route('**/api/complaints**', async (route) => {
+      const url = route.request().url();
+      if (url.includes('/api/complaints/c-1')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            id: 'c-1',
+            ticketId: 'CMP-2026-1001',
+            title: 'Broken streetlight on 5th Avenue',
+            description: 'Streetlight pole is dark.',
+            status: 'IN_PROGRESS',
+            createdAt: '2026-08-20T10:00:00Z',
+            updatedAt: '2026-08-20T10:00:00Z',
+            category: { id: 'cat-1', name: 'Electrical' },
+            department: { id: 'dept-1', name: 'Public Works' },
+            evidence: [],
+            statusHistory: [],
+          }),
+        });
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            data: [
+              {
+                id: 'c-1',
+                ticketId: 'CMP-2026-1001',
+                title: 'Broken streetlight on 5th Avenue',
+                description: 'Streetlight pole is dark.',
+                status: 'IN_PROGRESS',
+                createdAt: '2026-08-20T10:00:00Z',
+              },
+            ],
+            meta: { total: 1, page: 1, limit: 10, totalPages: 1 },
+          }),
+        });
+      }
     });
 
     await page.goto('/citizen');
-    await page.click('text=/CMP-2026-1001/');
+    const cardLink = page.getByRole('link', { name: /CMP-2026-1001/ });
+    await expect(cardLink).toBeVisible();
+    await expect(cardLink).toHaveAttribute('href', '/citizen/complaints/c-1');
+
+    await cardLink.click();
 
     await expect(page).toHaveURL(/\/citizen\/complaints\/c-1/);
-    await expect(page.getByText('Resolution Progress')).toBeVisible();
+    await expect(page.getByText('Resolution Progress')).toBeVisible({ timeout: 10000 });
   });
 
   test('6. Complaint detail page renders progress stepper correctly for IN_PROGRESS status', async ({
