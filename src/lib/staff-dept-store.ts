@@ -382,7 +382,26 @@ export async function deleteUser(id: string): Promise<boolean> {
       where: { changedByUserId: id },
       data: { changedByUserId: null },
     });
-    await prisma.auditLog.deleteMany({ where: { userId: id } });
+    const userLogs = await prisma.auditLog.findMany({ where: { userId: id } });
+    for (const log of userLogs) {
+      const existingMeta = (log.metadata as Record<string, any>) || {};
+      if (!existingMeta.actorName) {
+        await prisma.auditLog.update({
+          where: { id: log.id },
+          data: {
+            metadata: {
+              ...existingMeta,
+              actorName: user.name || user.email || 'Deleted User',
+              actorEmail: user.email,
+            },
+          },
+        });
+      }
+    }
+    await prisma.auditLog.updateMany({
+      where: { userId: id },
+      data: { userId: null },
+    });
 
     await prisma.user.delete({ where: { id } });
     return true;

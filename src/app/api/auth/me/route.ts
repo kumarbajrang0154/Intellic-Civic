@@ -37,29 +37,44 @@ export async function GET() {
       }
     }
 
-    // Check staff-dept-store for updated staff/admin info
-    if (payload.email) {
-      const staffUser = await getUserByEmail(payload.email);
-      if (staffUser) {
-        // Fetch avatarUrl directly from DB since UserItem formatter doesn't include it
-        const dbUser = await (await import('@/lib/prisma')).default.user.findUnique({
-          where: { id: staffUser.id },
-          select: { avatarUrl: true },
-        });
-        return NextResponse.json({
-          user: {
-            id: staffUser.id,
-            email: staffUser.email,
-            name: staffUser.name,
-            role: staffUser.role,
-            departmentId: staffUser.departmentId,
-            municipalityId: staffUser.municipalityId,
-            isAuthorized: staffUser.isAuthorized,
-            isSuspended: staffUser.isSuspended,
-            avatarUrl: dbUser?.avatarUrl ?? null,
-          },
-        });
-      }
+    // Check DB for staff/admin info
+    const userId = payload.sub;
+    const userEmail = payload.email;
+
+    const staffUser = await (await import('@/lib/prisma')).default.user.findFirst({
+      where: {
+        OR: [
+          ...(userId ? [{ id: userId }] : []),
+          ...(userEmail ? [{ email: { equals: userEmail.trim(), mode: 'insensitive' as const } }] : []),
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        avatarUrl: true,
+        departmentId: true,
+        municipalityId: true,
+        isAuthorized: true,
+        isSuspended: true,
+      },
+    });
+
+    if (staffUser) {
+      return NextResponse.json({
+        user: {
+          id: staffUser.id,
+          email: staffUser.email,
+          name: staffUser.name,
+          role: staffUser.role,
+          departmentId: staffUser.departmentId,
+          municipalityId: staffUser.municipalityId,
+          isAuthorized: staffUser.isAuthorized,
+          isSuspended: staffUser.isSuspended,
+          avatarUrl: staffUser.avatarUrl ?? null,
+        },
+      });
     }
 
     return NextResponse.json({

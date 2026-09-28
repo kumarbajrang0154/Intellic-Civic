@@ -301,11 +301,11 @@ export default function SecurityPage() {
                           {new Date(log.createdAt).toLocaleString()}
                         </td>
                         <td className="px-4 py-3 font-medium text-slate-800">
-                          {log.user?.name || 'System / Automated'}
+                          {log.user?.name || (log.metadata as any)?.actorName || 'System User'}
                         </td>
                         <td className="px-4 py-3 text-xs">
                           <span className="inline-flex px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-700">
-                            {log.user?.role || 'SYSTEM'}
+                            {log.user?.role || (log.metadata as any)?.role || 'SYSTEM'}
                           </span>
                         </td>
                         <td className="px-4 py-3 font-mono text-xs font-semibold text-ic-action">

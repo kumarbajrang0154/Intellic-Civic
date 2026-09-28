@@ -372,14 +372,14 @@ export default function AdminStaffPage() {
               <select
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value)}
-                className="h-10 px-3 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-10 px-3 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
               >
                 {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
               <select
                 value={deptFilter}
                 onChange={(e) => setDeptFilter(e.target.value)}
-                className="h-10 px-3 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-10 px-3 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
               >
                 <option value="ALL">All Departments</option>
                 {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -387,7 +387,7 @@ export default function AdminStaffPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-10 px-3 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-10 px-3 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
               >
                 {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
@@ -433,9 +433,9 @@ export default function AdminStaffPage() {
                 ) : (
                   data.items.map((staff) => (
                     <tr key={staff.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="font-semibold text-slate-900 text-sm">{staff.name}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">{staff.email}</div>
+                      <td className="px-4 py-3 min-w-0 max-w-[140px] sm:max-w-none">
+                        <div className="font-semibold text-slate-900 text-sm truncate">{staff.name}</div>
+                        <div className="text-xs text-slate-500 mt-0.5 truncate">{staff.email}</div>
                       </td>
                       <td className="px-4 py-3">{roleBadge(staff.role)}</td>
                       <td className="px-4 py-3 hidden md:table-cell">

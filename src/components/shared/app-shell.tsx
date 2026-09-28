@@ -623,12 +623,13 @@ export function AppShell({ children, user }: AppShellProps) {
       .catch(() => setSelfAvatarUrl(null));
   }, []);
 
-  // Merge: prefer the page-supplied avatarUrl (e.g. profile page after upload),
-  // then our self-fetched value, then null.
+  // Merge: prefer page-supplied non-empty avatarUrl, then self-fetched, then null
   const effectiveAvatarUrl =
-    user.avatarUrl !== undefined
-      ? user.avatarUrl           // page explicitly provided it (profile pages)
-      : selfAvatarUrl ?? null;   // fall back to self-fetched
+    user.avatarUrl && typeof user.avatarUrl === 'string' && user.avatarUrl.trim()
+      ? user.avatarUrl
+      : selfAvatarUrl && typeof selfAvatarUrl === 'string' && selfAvatarUrl.trim()
+        ? selfAvatarUrl
+        : null;
 
   const effectiveUser = { ...user, avatarUrl: effectiveAvatarUrl };
 
@@ -719,8 +720,8 @@ export function AppShell({ children, user }: AppShellProps) {
               <Bell className="w-5 h-5" />
             </Link>
 
-            {/* User info — hidden on xs, visible from sm+ */}
-            <div className="hidden sm:flex items-center gap-2 pl-2.5 border-l border-slate-200 min-w-0">
+            {/* User info */}
+            <div className="flex items-center gap-2 pl-2 sm:pl-2.5 border-l border-slate-200 min-w-0">
               {/* Avatar circle */}
               <div className="w-8 h-8 rounded-full bg-ic-blue flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-xs overflow-hidden">
                 {effectiveUser.avatarUrl ? (
@@ -730,7 +731,7 @@ export function AppShell({ children, user }: AppShellProps) {
                   (effectiveUser.name || 'U').charAt(0).toUpperCase()
                 )}
               </div>
-              {/* Name + role — only on md+ to avoid overflow on tablets */}
+              {/* Name + role — only on md+ to avoid overflow on tablets/mobile */}
               <div className="hidden md:block min-w-0 max-w-[140px] lg:max-w-[180px]">
                 <div className="text-sm font-semibold text-slate-900 leading-tight truncate">
                   {effectiveUser.name || 'User'}

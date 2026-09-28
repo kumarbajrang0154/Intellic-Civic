@@ -45,7 +45,7 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
         role="dialog"
         aria-modal="true"
         className={cn(
-          'relative z-10 w-full max-w-lg',
+          'relative z-10 w-[calc(100vw-2rem)] max-w-lg',
           'bg-white border border-slate-200 shadow-md rounded-xl',
           'flex flex-col max-h-[90vh]',
           'animate-in fade-in zoom-in-95 duration-150',
@@ -61,7 +61,7 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
           <X className="w-4 h-4" />
         </button>
         {/* Scrollable inner area — handles tall forms gracefully */}
-        <div className="overflow-y-auto p-6">
+        <div className="overflow-y-auto p-4 sm:p-6">
           {children}
         </div>
       </div>
