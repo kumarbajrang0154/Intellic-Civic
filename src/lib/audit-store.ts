@@ -14,10 +14,11 @@ export interface AuditEntry {
 
 function formatAuditEntry(log: any): AuditEntry {
   const meta = (log.metadata as Record<string, any>) || {};
+  const isSystemAction = meta.isSystem || (log.action && log.action.startsWith('SYSTEM'));
   return {
     id: log.id,
     actorId: log.userId || meta.actorId || 'system',
-    actorName: meta.actorName || 'System User',
+    actorName: meta.actorName || log.user?.name || (isSystemAction ? 'System User' : 'Deleted User'),
     action: log.action,
     entityType: log.entityType,
     targetId: log.entityId || meta.targetId || null,

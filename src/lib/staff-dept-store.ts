@@ -1,5 +1,5 @@
 import prisma from '@/lib/prisma';
-import { UserRole, AuthProvider } from '@prisma/client';
+import { UserRole, AuthProvider, Prisma } from '@prisma/client';
 
 export interface DepartmentItem {
   id: string;
@@ -358,56 +358,102 @@ export async function suspendUser(id: string, isSuspended: boolean): Promise<Use
   return updateUser(id, { isSuspended });
 }
 
-export async function deleteUser(id: string): Promise<boolean> {
+export type DeleteUserResult =
+  | { success: true }
+  | {
+      success: false;
+      reason: 'NOT_FOUND' | 'SUPER_ADMIN_PROTECTED' | 'CITIZEN_HAS_COMPLAINTS' | 'CITIZEN_HAS_FEEDBACK' | 'INTERNAL_ERROR';
+      message: string;
+    };
+
+export async function deleteUser(id: string): Promise<DeleteUserResult> {
   try {
     const user = await getUser(id);
-    if (!user) return false;
+    if (!user) {
+      return { success: false, reason: 'NOT_FOUND', message: 'User not found.' };
+    }
 
     if (isSuperAdminTarget(user)) {
-      return false;
+      return {
+        success: false,
+        reason: 'SUPER_ADMIN_PROTECTED',
+        message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.',
+      };
     }
 
-    // Clean up dependent records with FK constraints before deletion
-    await prisma.refreshToken.deleteMany({ where: { userId: id } });
-    await prisma.notification.deleteMany({ where: { recipientUserId: id } });
-    await prisma.complaint.updateMany({
-      where: { assignedFieldWorkerId: id },
-      data: { assignedFieldWorkerId: null },
-    });
-    await prisma.assignment.deleteMany({
-      where: { OR: [{ departmentOfficerId: id }, { assignedByUserId: id }] },
-    });
-    await prisma.evidence.deleteMany({ where: { uploadedByUserId: id } });
-    await prisma.statusHistory.updateMany({
-      where: { changedByUserId: id },
-      data: { changedByUserId: null },
-    });
-    const userLogs = await prisma.auditLog.findMany({ where: { userId: id } });
-    for (const log of userLogs) {
-      const existingMeta = (log.metadata as Record<string, any>) || {};
-      if (!existingMeta.actorName) {
-        await prisma.auditLog.update({
-          where: { id: log.id },
-          data: {
-            metadata: {
-              ...existingMeta,
-              actorName: user.name || user.email || 'Deleted User',
-              actorEmail: user.email,
-            },
-          },
-        });
-      }
+    const complaintCount = await prisma.complaint.count({ where: { citizenId: id } });
+    if (complaintCount > 0) {
+      return {
+        success: false,
+        reason: 'CITIZEN_HAS_COMPLAINTS',
+        message: `Cannot delete user because they have submitted ${complaintCount} complaint(s).`,
+      };
     }
-    await prisma.auditLog.updateMany({
-      where: { userId: id },
-      data: { userId: null },
-    });
 
-    await prisma.user.delete({ where: { id } });
-    return true;
-  } catch (error) {
+    const feedbackCount = await prisma.feedback.count({ where: { citizenId: id } });
+    if (feedbackCount > 0) {
+      return {
+        success: false,
+        reason: 'CITIZEN_HAS_FEEDBACK',
+        message: `Cannot delete user because they have submitted ${feedbackCount} feedback entry/entries.`,
+      };
+    }
+
+    // Execute all cleanup operations + metadata snapshot + user deletion in a single atomic transaction
+    await prisma.$transaction(async (tx) => {
+      // 1. Delete refresh tokens & notifications
+      await tx.refreshToken.deleteMany({ where: { userId: id } });
+      await tx.notification.deleteMany({ where: { recipientUserId: id } });
+
+      // 2. Clear field worker assignments & officer associations
+      await tx.complaint.updateMany({
+        where: { assignedFieldWorkerId: id },
+        data: { assignedFieldWorkerId: null },
+      });
+      await tx.user.updateMany({
+        where: { assignedOfficerId: id },
+        data: { assignedOfficerId: null },
+      });
+
+      // 3. Delete assignments & evidence
+      await tx.assignment.deleteMany({
+        where: { OR: [{ departmentOfficerId: id }, { assignedByUserId: id }] },
+      });
+      await tx.evidence.deleteMany({ where: { uploadedByUserId: id } });
+
+      // 4. Disassociate status histories
+      await tx.statusHistory.updateMany({
+        where: { changedByUserId: id },
+        data: { changedByUserId: null },
+      });
+
+      // 5. Snapshot AuditLog metadata in bulk before onDelete: SetNull disassociates userId
+      const actorNameStr = user.name || user.email || 'Deleted User';
+      const actorEmailStr = user.email || '';
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE audit_logs
+        SET metadata = CASE
+          WHEN metadata IS NULL THEN jsonb_build_object('actorName', ${actorNameStr}::text, 'actorEmail', ${actorEmailStr}::text)::json
+          ELSE (to_jsonb(metadata) || jsonb_build_object(
+            'actorName', COALESCE(to_jsonb(metadata)->>'actorName', ${actorNameStr}::text),
+            'actorEmail', COALESCE(to_jsonb(metadata)->>'actorEmail', ${actorEmailStr}::text)
+          ))::json
+        END
+        WHERE "userId" = ${id}
+      `);
+
+      // 6. Delete user (onDelete: SetNull automatically sets audit_logs.userId = NULL on foreign key relation)
+      await tx.user.delete({ where: { id } });
+    }, { timeout: 15000 });
+
+    return { success: true };
+  } catch (error: any) {
     console.error(`Error deleting user ${id}:`, error);
-    return false;
+    return {
+      success: false,
+      reason: 'INTERNAL_ERROR',
+      message: error?.message || 'Failed to delete user due to an internal error.',
+    };
   }
 }
 
@@ -425,7 +471,8 @@ export async function approveUser(
 }
 
 export async function rejectUser(id: string): Promise<boolean> {
-  return deleteUser(id);
+  const res = await deleteUser(id);
+  return res.success;
 }
 
 export async function updateLastLogin(id: string): Promise<UserItem | null> {

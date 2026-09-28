@@ -60,7 +60,7 @@ test.describe('Module 9: Super Admin Portal E2E Tests', () => {
     });
 
     await page.goto('/admin');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await expect(page.locator('h1')).toContainText('Super Admin Operations');
     await expect(page.locator('text=Total Complaints')).toBeVisible();
@@ -113,7 +113,7 @@ test.describe('Module 9: Super Admin Portal E2E Tests', () => {
     });
 
     await page.goto('/admin/triage');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await expect(page.locator('h1')).toContainText('Admin Triage Queue');
     await expect(page.locator('text=CMP-TRIAGE-101')).toBeVisible();
@@ -164,7 +164,7 @@ test.describe('Module 9: Super Admin Portal E2E Tests', () => {
     });
 
     await page.goto('/admin/users/pending');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await expect(page.locator('h1')).toContainText('Pending Staff Approvals');
     await expect(page.locator('text=Sarah Connor')).toBeVisible();
@@ -210,7 +210,7 @@ test.describe('Module 9: Super Admin Portal E2E Tests', () => {
     });
 
     await page.goto('/admin/departments');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await expect(page.locator('h1')).toContainText('Department');
     await expect(page.locator('text=Sanitation')).toBeVisible();
@@ -220,7 +220,7 @@ test.describe('Module 9: Super Admin Portal E2E Tests', () => {
     await page.fill('textarea', 'Air and noise quality');
     await page.click('button:has-text("Create Department")');
 
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
   });
 
   test('5. Category creation works', async ({ page }) => {
@@ -254,7 +254,7 @@ test.describe('Module 9: Super Admin Portal E2E Tests', () => {
     });
 
     await page.goto('/admin/categories');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await expect(page.locator('h1')).toContainText('Category Management');
     await page.click('button:has-text("Add Category")');
@@ -300,7 +300,7 @@ test.describe('Module 9: Super Admin Portal E2E Tests', () => {
     });
 
     await page.goto('/admin/complaints');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await expect(page.locator('h1')).toContainText('System-Wide All Complaints');
     await expect(page.locator('text=CMP-SYS-101')).toBeVisible();
@@ -345,7 +345,7 @@ test.describe('Module 9: Super Admin Portal E2E Tests', () => {
     });
 
     await page.goto('/admin/complaints/cmp-detail-101');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await expect(page.locator('h1')).toContainText('Trash dumping near school');
     await expect(page.getByRole('heading', { name: 'Department Override' })).toBeVisible();

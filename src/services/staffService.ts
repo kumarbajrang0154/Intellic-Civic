@@ -410,9 +410,17 @@ export async function removeStaff(
     return { ok: false, status: 400, message: 'You cannot delete your own account.' };
   }
 
-  const deleted = await deleteUser(targetId);
-  if (!deleted) {
-    return { ok: false, status: 500, message: 'Failed to delete staff member.' };
+  const deleteRes = await deleteUser(targetId);
+  if (!deleteRes.success) {
+    const status =
+      deleteRes.reason === 'SUPER_ADMIN_PROTECTED'
+        ? 403
+        : deleteRes.reason === 'CITIZEN_HAS_COMPLAINTS' || deleteRes.reason === 'CITIZEN_HAS_FEEDBACK'
+        ? 409
+        : deleteRes.reason === 'NOT_FOUND'
+        ? 404
+        : 500;
+    return { ok: false, status, message: deleteRes.message };
   }
 
   await addAuditLog({

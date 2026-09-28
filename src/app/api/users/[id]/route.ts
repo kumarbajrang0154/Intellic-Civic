@@ -84,11 +84,19 @@ export async function DELETE(
       );
     }
 
-    const deleted = await deleteUser(params.id);
-    if (!deleted) {
+    const deleteRes = await deleteUser(params.id);
+    if (!deleteRes.success) {
+      const status =
+        deleteRes.reason === 'SUPER_ADMIN_PROTECTED'
+          ? 403
+          : deleteRes.reason === 'CITIZEN_HAS_COMPLAINTS' || deleteRes.reason === 'CITIZEN_HAS_FEEDBACK'
+          ? 409
+          : deleteRes.reason === 'NOT_FOUND'
+          ? 404
+          : 500;
       return NextResponse.json(
-        { message: 'Failed to delete user' },
-        { status: 500 },
+        { message: deleteRes.message, reason: deleteRes.reason },
+        { status },
       );
     }
 

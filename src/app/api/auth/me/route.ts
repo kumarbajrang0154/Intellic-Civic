@@ -37,31 +37,56 @@ export async function GET() {
       }
     }
 
-    // Check DB for staff/admin info
+    // Check DB for user info
     const userId = payload.sub;
     const userEmail = payload.email;
 
-    const staffUser = await (await import('@/lib/prisma')).default.user.findFirst({
-      where: {
-        OR: [
-          ...(userId ? [{ id: userId }] : []),
-          ...(userEmail ? [{ email: { equals: userEmail.trim(), mode: 'insensitive' as const } }] : []),
-        ],
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        avatarUrl: true,
-        departmentId: true,
-        municipalityId: true,
-        isAuthorized: true,
-        isSuspended: true,
-      },
-    });
+    let staffUser = null;
+    const prismaClient = (await import('@/lib/prisma')).default;
+
+    if (userId) {
+      staffUser = await prismaClient.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          avatarUrl: true,
+          departmentId: true,
+          municipalityId: true,
+          isAuthorized: true,
+          isSuspended: true,
+        },
+      });
+
+      if (!staffUser) {
+        return NextResponse.json({ user: null }, { status: 401 });
+      }
+    } else if (userEmail) {
+      staffUser = await prismaClient.user.findFirst({
+        where: {
+          email: { equals: userEmail.trim(), mode: 'insensitive' as const },
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          avatarUrl: true,
+          departmentId: true,
+          municipalityId: true,
+          isAuthorized: true,
+          isSuspended: true,
+        },
+      });
+    }
 
     if (staffUser) {
+      if (staffUser.avatarUrl && staffUser.avatarUrl.startsWith('data:') && staffUser.avatarUrl.length > 100 * 1024) {
+        console.warn(`[api/auth/me] Base64 avatar payload size: ${(staffUser.avatarUrl.length / 1024).toFixed(2)} KB for user ${staffUser.id}`);
+      }
+
       return NextResponse.json({
         user: {
           id: staffUser.id,
