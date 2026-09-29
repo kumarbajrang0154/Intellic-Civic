@@ -102,10 +102,15 @@ export function middleware(request: NextRequest) {
     return addCacheControlHeaders(NextResponse.redirect(new URL(targetDashboard, request.url)));
   }
 
-  // 4. Role boundary enforcement (prevent role mismatch access)
+  // 4. Role boundary & Profile Completion enforcement for Citizens
   if (isAuthenticated && isProtectedPath) {
-    if (role === 'CITIZEN' && !pathname.startsWith('/citizen')) {
-      return addCacheControlHeaders(NextResponse.redirect(new URL('/citizen', request.url)));
+    if (role === 'CITIZEN') {
+      if (payload?.isProfileComplete === false && pathname.startsWith('/citizen') && pathname !== '/citizen/profile') {
+        return addCacheControlHeaders(NextResponse.redirect(new URL('/citizen/profile?complete=required', request.url)));
+      }
+      if (!pathname.startsWith('/citizen')) {
+        return addCacheControlHeaders(NextResponse.redirect(new URL('/citizen', request.url)));
+      }
     }
     if (
       role === 'DEPARTMENT_HEAD' &&

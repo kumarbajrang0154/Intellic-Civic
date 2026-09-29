@@ -4,6 +4,8 @@ import { requireStaff } from '@/lib/admin-auth';
 import prisma from '@/lib/prisma';
 import { ComplaintStatus } from '@prisma/client';
 
+import { createNotification } from '@/lib/notifications-store';
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } },
@@ -51,6 +53,15 @@ export async function PATCH(
         },
       },
     });
+
+    // B4: Trigger real-time notification to citizen
+    const notificationType = status === 'RESOLVED' ? 'RESOLVED' : status === 'CLOSED' ? 'CLOSED' : 'STATUS_CHANGED';
+    await createNotification({
+      complaintId: id,
+      recipientUserId: currentComplaint.citizenId,
+      type: notificationType,
+      message: `Your complaint #${currentComplaint.ticketId} status was updated to ${status}. ${notes ? `Notes: ${notes}` : ''}`.trim(),
+    }).catch(() => {});
 
     return NextResponse.json({ success: true, complaint: updated });
   } catch (error: any) {

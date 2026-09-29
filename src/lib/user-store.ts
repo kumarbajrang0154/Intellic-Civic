@@ -25,7 +25,7 @@ export function normalizeMobileNumber(input: string): string {
   return digits.slice(-10);
 }
 
-function formatCitizenProfile(user: any): CitizenProfile {
+function formatCitizenProfile(user: any, fallbackMobile?: string): CitizenProfile {
   const name = user.name || '';
   const email = user.email || '';
   const address = user.address || '';
@@ -33,7 +33,7 @@ function formatCitizenProfile(user: any): CitizenProfile {
 
   return {
     id: user.id,
-    mobileNumber: user.mobileNumber || '',
+    mobileNumber: user.mobileNumber || fallbackMobile || '',
     name,
     email,
     address,
@@ -62,6 +62,17 @@ export async function getOrCreateCitizenProfile(identifier: string): Promise<Cit
     },
   });
 
+  if (user && cleanNumber && !user.mobileNumber) {
+    try {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { mobileNumber: cleanNumber },
+      });
+    } catch (e) {
+      // Ignore if mobileNumber is already taken by another user record
+    }
+  }
+
   if (!user) {
     const isEmail = identifier.includes('@');
     user = await prisma.user.create({
@@ -77,7 +88,7 @@ export async function getOrCreateCitizenProfile(identifier: string): Promise<Cit
     });
   }
 
-  return formatCitizenProfile(user);
+  return formatCitizenProfile(user, cleanNumber);
 }
 
 export async function updateCitizenProfile(

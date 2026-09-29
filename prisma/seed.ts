@@ -175,20 +175,34 @@ async function main() {
     }
 
     if (existing) {
-      const updated = await prisma.user.update({
-        where: { id: existing.id },
-        data: {
-          name: user.name,
-          role: user.role,
-          authProvider: user.authProvider,
-          departmentId: user.departmentId ?? existing.departmentId,
-          assignedOfficerId: (user as any).assignedOfficerId ?? existing.assignedOfficerId,
-          isAuthorized: user.isAuthorized,
-          isSuspended: user.isSuspended,
-        },
-      });
-      if (user.id === 'citizen_9876543210') citizenUserId = updated.id;
-      if (user.id === 'fw-demo-1') fieldWorkerUserId = updated.id;
+      const updateData: any = {
+        name: user.name,
+        role: user.role,
+        authProvider: user.authProvider,
+        departmentId: user.departmentId ?? existing.departmentId,
+        assignedOfficerId: (user as any).assignedOfficerId ?? existing.assignedOfficerId,
+        isAuthorized: user.isAuthorized,
+        isSuspended: user.isSuspended,
+      };
+      if (user.mobileNumber && (!existing.mobileNumber || existing.mobileNumber === user.mobileNumber)) {
+        updateData.mobileNumber = user.mobileNumber;
+      }
+      try {
+        const updated = await prisma.user.update({
+          where: { id: existing.id },
+          data: updateData,
+        });
+        if (user.id === 'citizen_9876543210') citizenUserId = updated.id;
+        if (user.id === 'fw-demo-1') fieldWorkerUserId = updated.id;
+      } catch (err) {
+        delete updateData.mobileNumber;
+        const updated = await prisma.user.update({
+          where: { id: existing.id },
+          data: updateData,
+        });
+        if (user.id === 'citizen_9876543210') citizenUserId = updated.id;
+        if (user.id === 'fw-demo-1') fieldWorkerUserId = updated.id;
+      }
     } else {
       const created = await prisma.user.create({
         data: user,

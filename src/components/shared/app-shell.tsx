@@ -607,20 +607,52 @@ export function AppShell({ children, user }: AppShellProps) {
       .catch((err) => console.warn('[APPSHELL] Failed to fetch settings:', err));
   }, []);
 
-  // Fetch the real avatarUrl from /api/auth/me so every page (not just profile
-  // pages) shows the actual photo in the topbar and sidebar without requiring
-  // each individual page to forward avatarUrl through the user prop.
+  const [unreadCount, setUnreadCount] = React.useState(0);
+
+  // Fetch real avatarUrl & profile completion status from /api/auth/me
   React.useEffect(() => {
     fetch('/api/auth/me')
       .then((res) => res.ok ? res.json() : null)
       .then((data) => {
-        if (data?.user?.avatarUrl !== undefined) {
-          setSelfAvatarUrl(data.user.avatarUrl);
-        } else {
-          setSelfAvatarUrl(null);
+        if (data?.user) {
+          if (data.user.avatarUrl !== undefined) {
+            setSelfAvatarUrl(data.user.avatarUrl);
+          } else {
+            setSelfAvatarUrl(null);
+          }
+
+          // C3: Block incomplete profile citizens from accessing other citizen pages
+          if (
+            data.user.role === 'CITIZEN' &&
+            data.user.isProfileComplete === false &&
+            pathname.startsWith('/citizen') &&
+            pathname !== '/citizen/profile'
+          ) {
+            router.push('/citizen/profile?complete=required');
+          }
         }
       })
       .catch(() => setSelfAvatarUrl(null));
+  }, [pathname, router]);
+
+  // B4: Notification Polling every 30 seconds
+  React.useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const res = await fetch('/api/notifications');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            const unread = data.filter((n: any) => !n.isRead).length;
+            setUnreadCount(unread);
+          }
+        }
+      } catch (err) {}
+    };
+
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   // Merge: prefer page-supplied non-empty avatarUrl, then self-fetched, then null
@@ -718,6 +750,11 @@ export function AppShell({ children, user }: AppShellProps) {
               aria-label="Notifications"
             >
               <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white shadow-xs">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </Link>
 
             {/* User info */}

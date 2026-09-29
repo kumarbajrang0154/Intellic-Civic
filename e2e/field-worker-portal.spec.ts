@@ -1,4 +1,5 @@
 import { test, expect, APIRequestContext } from '@playwright/test';
+import prisma from '@/lib/prisma';
 
 const BASE = 'http://localhost:3000';
 
@@ -16,6 +17,9 @@ async function getOtherFieldWorkerContext(request: APIRequestContext): Promise<s
 }
 
 async function getCitizenContext(request: APIRequestContext): Promise<string> {
+  await request.post(`${BASE}/api/auth/send-otp`, {
+    data: { mobileNumber: '9876543210' },
+  });
   const verifyRes = await request.post(`${BASE}/api/auth/verify-otp`, {
     data: { mobileNumber: '9876543210', otp: '123456' },
   });
@@ -70,16 +74,19 @@ test.describe('Field Worker Portal API Integration Tests', () => {
   test('3. Sequence Guard: AFTER evidence photo rejected if BEFORE photo missing', async ({ request }) => {
     const fwCookie = await getFieldWorkerContext(request, 'fw-demo-1');
     
-    // Create an unassigned complaint
-    const citCookie = await getCitizenContext(request);
-    const compRes = await request.post(`${BASE}/api/complaints`, {
-      headers: { cookie: citCookie, 'Content-Type': 'application/json' },
+    const citizen = await prisma.user.findFirst({ where: { role: 'CITIZEN' } });
+    const category = await prisma.category.findFirst();
+    const freshComp = await prisma.complaint.create({
       data: {
+        ticketId: `CMP-SEQ-${Date.now()}`,
+        citizenId: citizen!.id,
         title: 'Streetlight repair task',
         description: 'Faulty wiring causing flickering streetlight near gate 2.',
+        categoryId: category?.id,
+        assignedFieldWorkerId: 'fw-demo-1',
+        status: 'ASSIGNED',
       },
     });
-    const freshComp = await compRes.json();
 
     // Attempt uploading AFTER photo before BEFORE photo exists
     const res = await request.post(`${BASE}/api/field-worker/complaints/${freshComp.id}/evidence`, {

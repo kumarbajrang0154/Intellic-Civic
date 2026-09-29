@@ -112,7 +112,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const firstImage = imageUrl || (Array.isArray(imageUrls) && imageUrls.length > 0 ? imageUrls[0] : undefined);
+    const { evidence } = body;
+    const allImages = Array.isArray(evidence) && evidence.length > 0
+      ? evidence
+      : (Array.isArray(imageUrls) && imageUrls.length > 0
+        ? imageUrls
+        : (imageUrl ? [imageUrl] : []));
+
+    if (allImages.length === 0) {
+      return NextResponse.json(
+        { statusCode: 400, message: 'At least 1 photo evidence is required to submit a complaint.' },
+        { status: 400 },
+      );
+    }
+
+    const firstImage = allImages[0];
 
     const newComplaint = await createComplaint({
       title: title.trim(),

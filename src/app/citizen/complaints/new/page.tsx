@@ -95,6 +95,7 @@ export default function NewComplaintPage() {
   const [errors, setErrors] = React.useState<{
     title?: string;
     description?: string;
+    photos?: string;
   }>({});
 
   React.useEffect(() => {
@@ -273,7 +274,16 @@ export default function NewComplaintPage() {
 
     recognition.onerror = (event: any) => {
       console.error('Speech recognition error', event.error);
-      toast.error('Voice dictation error: ' + event.error);
+      let errorMsg = `Voice dictation error (${event.error}).`;
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        errorMsg = 'Microphone permission denied. Please allow microphone access in your browser settings to use AI voice dictation.';
+      } else if (event.error === 'no-speech') {
+        errorMsg = 'No speech detected. Please speak clearly into your microphone.';
+      } else if (event.error === 'audio-capture') {
+        errorMsg = 'No working microphone found on your device.';
+      }
+      setSubmitError(errorMsg);
+      toast.error(errorMsg);
       stopListening();
     };
 
@@ -296,7 +306,7 @@ export default function NewComplaintPage() {
 
   // Form Validation & Submission
   const validateForm = () => {
-    const newErrors: { title?: string; description?: string } = {};
+    const newErrors: { title?: string; description?: string; photos?: string } = {};
 
     if (!title.trim() || title.trim().length < 5 || title.trim().length > 200) {
       newErrors.title = 'Title must be between 5 and 200 characters.';
@@ -304,6 +314,10 @@ export default function NewComplaintPage() {
 
     if (!description.trim() || description.trim().length < 20) {
       newErrors.description = 'Description must be at least 20 characters long.';
+    }
+
+    if (evidenceUrls.length === 0) {
+      newErrors.photos = 'At least 1 photo evidence is required to submit a complaint.';
     }
 
     setErrors(newErrors);
@@ -319,6 +333,7 @@ export default function NewComplaintPage() {
       const complaintPayload: any = {
         title: title.trim(),
         description: description.trim(),
+        evidence: evidenceUrls,
         isVoiceInput: usedVoiceInput || transcriptPreview !== '',
         voiceTranscript: transcriptPreview || undefined,
       };
@@ -801,11 +816,11 @@ export default function NewComplaintPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-                    Photo Evidence (Optional)
+                    Photo Evidence <span className="text-rose-500">*</span>
                   </label>
                   <span className="text-xs text-ai-indigo font-semibold flex items-center gap-1">
                     <Sparkles className="h-3.5 w-3.5" />
-                    Photos speed up AI triage
+                    At least 1 photo required for AI triage
                   </span>
                 </div>
 
@@ -814,6 +829,7 @@ export default function NewComplaintPage() {
                   onChange={setEvidenceUrls}
                   maxFiles={5}
                 />
+                {errors.photos && <p className="text-xs text-rose-600">{errors.photos}</p>}
               </div>
 
               {/* Form Actions */}
