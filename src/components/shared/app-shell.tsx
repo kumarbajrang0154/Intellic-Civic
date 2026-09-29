@@ -669,7 +669,8 @@ export function AppShell({ children, user }: AppShellProps) {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } finally {
-      window.location.href = '/';
+      const target = user.role === 'CITIZEN' ? '/login/citizen' : '/login/staff';
+      window.location.href = target;
     }
   };
 

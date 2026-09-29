@@ -458,7 +458,7 @@ export default function NewComplaintPage() {
                 #{createdTicketId}
               </span>
             </div>
-
+ 
             {evidenceWarning && (
               <Alert variant="destructive" className="text-left text-xs">
                 <AlertCircle className="h-4 w-4" />

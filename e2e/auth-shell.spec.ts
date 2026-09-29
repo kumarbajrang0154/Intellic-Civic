@@ -140,7 +140,7 @@ test.describe('Module 5: Frontend Auth Pages & App Shell E2E Tests', () => {
     await page.goto('/citizen');
     await page.click('button:has-text("Sign Out"), button:has-text("Logout")');
 
-    await expect(page).toHaveURL(/\/login\/citizen|\/$/);
+    await expect(page).toHaveURL('http://localhost:3000/login/citizen');
     const cookies = await context.cookies();
     const accessToken = cookies.find((c) => c.name === 'ic_access_token');
     expect(accessToken).toBeUndefined();

@@ -20,6 +20,7 @@ import {
   ThumbsUp,
   MessageSquare,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -101,6 +102,30 @@ export default function CitizenComplaintDetailPage() {
   const [feedbackComment, setFeedbackComment] = React.useState('');
   const [submittingFeedback, setSubmittingFeedback] = React.useState(false);
   const [feedbackError, setFeedbackError] = React.useState('');
+  const [deleting, setDeleting] = React.useState(false);
+
+  const handleDeleteComplaint = async () => {
+    if (!complaint) return;
+    if (!window.confirm('Are you sure you want to delete this complaint? This action cannot be undone.')) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/complaints/${complaint.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to delete complaint');
+      }
+      toast.success('Complaint deleted successfully.');
+      router.push('/citizen');
+    } catch (err: any) {
+      toast.error(err.message || 'Error deleting complaint');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const fetchDetail = React.useCallback(
     async (isBackground = false) => {
@@ -289,6 +314,8 @@ export default function CitizenComplaintDetailPage() {
     complaint.resolutionNotes ||
     complaint.statusHistory?.find((h) => h.notes && h.notes.length > 0)?.notes;
 
+  const isDeletable = ['SUBMITTED', 'AI_PROCESSING', 'PENDING_DEPT_REVIEW'].includes(complaint.status);
+
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
       {/* Header Bar */}
@@ -316,10 +343,28 @@ export default function CitizenComplaintDetailPage() {
           </div>
         </div>
 
-        {/* Live Auto-Refresh Status Pill */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground self-end sm:self-center">
-          <RefreshCw className="h-3.5 w-3.5 text-primary animate-spin" />
-          <span>Auto-polling (Updated {lastUpdated})</span>
+        {/* Live Auto-Refresh Status Pill & Delete Button */}
+        <div className="flex items-center gap-3 self-end sm:self-center">
+          {isDeletable && (
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={deleting}
+              onClick={handleDeleteComplaint}
+              className="gap-1.5 text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-xs"
+            >
+              {deleting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )}
+              <span>Delete Complaint</span>
+            </Button>
+          )}
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <RefreshCw className="h-3.5 w-3.5 text-primary animate-spin" />
+            <span>Auto-polling (Updated {lastUpdated})</span>
+          </div>
         </div>
       </div>
 
