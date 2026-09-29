@@ -53,4 +53,32 @@ test.describe('Priority 1: Citizen Session Suspension Enforcement', () => {
     // 5. Cleanup
     await prisma.user.delete({ where: { id: citizen.id } });
   });
+
+  test('Suspended citizen with a valid token cannot GET their own complaint detail (/api/complaints/[id])', async ({ page }) => {
+    // 1. Create a live citizen in database
+    const mobileNumber = `97${Date.now().toString().slice(-8)}`;
+    const citizen = await prisma.user.create({
+      data: {
+        name: 'Detail Test Citizen',
+        mobileNumber,
+        role: 'CITIZEN',
+        authProvider: 'MOBILE_OTP',
+        isAuthorized: true,
+        isSuspended: true, // Created as suspended
+      },
+    });
+
+    const citizenToken = await createMockJwt(citizen.id, 'CITIZEN');
+
+    // 2. Request complaint detail -> must return 403 Forbidden
+    const detailRes = await page.request.get('/api/complaints/cmp-101', {
+      headers: { Cookie: `ic_access_token=${citizenToken}` },
+    });
+    expect(detailRes.status()).toBe(403);
+    const body = await detailRes.json();
+    expect(body.message).toContain('suspended');
+
+    // 3. Cleanup
+    await prisma.user.delete({ where: { id: citizen.id } });
+  });
 });

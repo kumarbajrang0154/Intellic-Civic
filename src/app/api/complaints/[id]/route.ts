@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { decodeJwtToken } from '@/lib/auth-jwt';
 import { getComplaintById } from '@/lib/complaints-store';
+import prisma from '@/lib/prisma';
 
 export async function GET(
   request: NextRequest,
@@ -16,8 +17,17 @@ export async function GET(
     }
 
     const payload = decodeJwtToken(accessToken);
-    if (!payload) {
+    if (!payload || !payload.sub) {
       return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, isSuspended: true, role: true },
+    });
+
+    if (!user || user.isSuspended) {
+      return NextResponse.json({ statusCode: 403, message: 'Account is suspended or invalid.' }, { status: 403 });
     }
 
     const { id } = params;
