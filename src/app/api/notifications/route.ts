@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeJwtToken } from '@/lib/auth-jwt';
+import { requireCitizen } from '@/lib/citizen-auth';
 import {
   listUserNotifications,
   markAllNotificationsRead,
@@ -11,19 +11,10 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    const cookieStore = cookies();
-    const accessToken = cookieStore.get('ic_access_token')?.value;
+    const auth = await requireCitizen();
+    if (!auth.authorized) return auth.response;
 
-    if (!accessToken) {
-      return NextResponse.json({ message: 'Authentication required' }, { status: 401 });
-    }
-
-    const payload = decodeJwtToken(accessToken);
-    if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
-      return NextResponse.json({ message: 'Session expired' }, { status: 401 });
-    }
-
-    const userId = payload.sub;
+    const userId = auth.user.id;
     const { searchParams } = new URL(req.url);
     const unreadOnly = searchParams.get('unreadOnly') === 'true';
     const limit = parseInt(searchParams.get('limit') || '50', 10);
@@ -40,19 +31,10 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const cookieStore = cookies();
-    const accessToken = cookieStore.get('ic_access_token')?.value;
+    const auth = await requireCitizen();
+    if (!auth.authorized) return auth.response;
 
-    if (!accessToken) {
-      return NextResponse.json({ message: 'Authentication required' }, { status: 401 });
-    }
-
-    const payload = decodeJwtToken(accessToken);
-    if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
-      return NextResponse.json({ message: 'Session expired' }, { status: 401 });
-    }
-
-    const userId = payload.sub;
+    const userId = auth.user.id;
     const body = await req.json();
     const { notificationId, markAll } = body;
 

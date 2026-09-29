@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeJwtToken } from '@/lib/auth-jwt';
+import { requireCitizen } from '@/lib/citizen-auth';
 import { addEvidenceToComplaint } from '@/lib/complaints-store';
 
 export async function POST(
@@ -8,22 +8,13 @@ export async function POST(
   { params }: { params: { id: string } },
 ) {
   try {
-    const cookieStore = cookies();
-    const accessToken = cookieStore.get('ic_access_token')?.value;
-
-    if (!accessToken) {
-      return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
-    }
-
-    const payload = decodeJwtToken(accessToken);
-    if (!payload) {
-      return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireCitizen();
+    if (!auth.authorized) return auth.response;
 
     const { id } = params;
     const body = await request.json();
     const { imageUrl, stage } = body;
-
+ 
     if (!imageUrl) {
       return NextResponse.json(
         { statusCode: 400, message: 'imageUrl is required' },

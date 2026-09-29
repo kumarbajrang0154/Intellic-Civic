@@ -1,22 +1,13 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeJwtToken } from '@/lib/auth-jwt';
+import { requireCitizen } from '@/lib/citizen-auth';
 import { checkDuplicateComplaints } from '@/lib/complaints-store';
 import { validateDuplicateCheckInput } from '@/lib/validation';
 
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = cookies();
-    const accessToken = cookieStore.get('ic_access_token')?.value;
-
-    if (!accessToken) {
-      return NextResponse.json({ statusCode: 401, message: 'Unauthorized session' }, { status: 401 });
-    }
-
-    const payload = decodeJwtToken(accessToken);
-    if (!payload) {
-      return NextResponse.json({ statusCode: 401, message: 'Unauthorized session' }, { status: 401 });
-    }
+    const auth = await requireCitizen();
+    if (!auth.authorized) return auth.response;
 
     const body = await request.json().catch(() => ({}));
     const validation = validateDuplicateCheckInput(body);

@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeJwtToken } from '@/lib/auth-jwt';
 import { addAuditLog } from '@/lib/audit-store';
+import { requireCitizen } from '@/lib/citizen-auth';
 import { markComplaintSatisfactory } from '@/lib/complaints-store';
 
 export async function POST(
@@ -9,26 +9,17 @@ export async function POST(
   { params }: { params: { id: string } },
 ) {
   try {
-    const cookieStore = cookies();
-    const accessToken = cookieStore.get('ic_access_token')?.value;
+    const auth = await requireCitizen();
+    if (!auth.authorized) return auth.response;
 
-    if (!accessToken) {
-      return NextResponse.json({ statusCode: 401, message: 'Unauthorized session' }, { status: 401 });
-    }
-
-    const payload = decodeJwtToken(accessToken);
-    if (!payload || !payload.sub) {
-      return NextResponse.json({ statusCode: 401, message: 'Unauthorized session' }, { status: 401 });
-    }
-
-    const result = await markComplaintSatisfactory(params.id, payload.sub);
+    const result = await markComplaintSatisfactory(params.id, auth.user.id);
     if (!result.ok) {
       return NextResponse.json({ statusCode: result.status, message: result.message }, { status: result.status });
     }
 
     await addAuditLog({
-      actorId: payload.sub,
-      actorName: payload.name || 'Citizen User',
+      actorId: auth.user.id,
+      actorName: auth.user.name || 'Citizen User',
       action: 'COMPLAINT_MARKED_SATISFACTORY',
       entityType: 'Complaint',
       targetId: params.id,

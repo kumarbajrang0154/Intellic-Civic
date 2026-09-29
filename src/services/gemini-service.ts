@@ -165,7 +165,7 @@ export async function verifyComplaintPhoto(
     const imagePart = await prepareImagePart(imageUrlOrBase64);
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3.6-flash',
+      model: 'gemini-3.5-flash',
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: {
@@ -241,7 +241,7 @@ export async function classifyComplaintRouting(
       .join('\n');
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3.6-flash',
+      model: 'gemini-3.5-flash',
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: {
@@ -313,7 +313,16 @@ Return JSON matching:
       reasoning: parsed.reasoning || 'AI triage classification complete.',
     };
   } catch (error: any) {
-    console.warn('[Gemini AI] Error or timeout during complaint routing classification:', error.message || error);
-    return fallback;
+    console.error('[Gemini AI ERROR METRIC]', {
+      type: 'GEMINI_CLASSIFICATION_FAILED',
+      model: 'gemini-3.5-flash',
+      status: error?.status || error?.statusCode || 500,
+      errorMessage: error?.message || String(error),
+      timestamp: new Date().toISOString(),
+    });
+    return {
+      ...fallback,
+      reasoning: `[Fallback Heuristic Used — Gemini Error: ${error?.message || 'API call failed'}] ${fallback.reasoning}`,
+    };
   }
 }

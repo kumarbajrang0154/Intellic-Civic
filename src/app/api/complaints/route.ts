@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { decodeJwtToken } from '@/lib/auth-jwt';
+import { requireCitizen } from '@/lib/citizen-auth';
 import { createComplaint, listComplaints } from '@/lib/complaints-store';
 
 export async function GET(request: NextRequest) {
@@ -32,7 +33,12 @@ export async function GET(request: NextRequest) {
     const assignedToMe = searchParams.get('assignedToMe') === 'true';
 
     // Role-based scope enforcement
-    const citizenId = payload.role === 'CITIZEN' ? payload.sub : undefined;
+    let citizenId: string | undefined = undefined;
+    if (payload.role === 'CITIZEN') {
+      const auth = await requireCitizen();
+      if (!auth.authorized) return auth.response;
+      citizenId = auth.user.id;
+    }
     let municipalityId = searchParams.get('municipalityId') || undefined;
 
     if (payload.role === 'DEPARTMENT_HEAD') {
@@ -86,17 +92,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = cookies();
-    const accessToken = cookieStore.get('ic_access_token')?.value;
-
-    if (!accessToken) {
-      return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
-    }
-
-    const payload = decodeJwtToken(accessToken);
-    if (!payload) {
-      return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireCitizen();
+    if (!auth.authorized) return auth.response;
 
     const body = await request.json();
     const { title, description, categoryId, location, isVoiceInput, voiceTranscript, imageUrl, imageUrls } = body;
@@ -122,9 +119,9 @@ export async function POST(request: NextRequest) {
       description: description.trim(),
       categoryId,
       location,
-      citizenId: payload.sub,
-      citizenName: payload.name || 'Citizen User',
-      citizenMobile: payload.mobileNumber,
+      citizenId: auth.user.id,
+      citizenName: auth.user.name || 'Citizen User',
+      citizenMobile: auth.user.mobileNumber ?? undefined,
       isVoiceInput: Boolean(isVoiceInput),
       voiceTranscript: voiceTranscript || undefined,
       imageUrl: firstImage,

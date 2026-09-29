@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeJwtToken } from '@/lib/auth-jwt';
 import { addAuditLog } from '@/lib/audit-store';
+import { requireCitizen } from '@/lib/citizen-auth';
 import { reopenComplaint } from '@/lib/complaints-store';
 import { validateReopenInput } from '@/lib/validation';
 
@@ -10,17 +10,8 @@ export async function POST(
   { params }: { params: { id: string } },
 ) {
   try {
-    const cookieStore = cookies();
-    const accessToken = cookieStore.get('ic_access_token')?.value;
-
-    if (!accessToken) {
-      return NextResponse.json({ statusCode: 401, message: 'Unauthorized session' }, { status: 401 });
-    }
-
-    const payload = decodeJwtToken(accessToken);
-    if (!payload || !payload.sub) {
-      return NextResponse.json({ statusCode: 401, message: 'Unauthorized session' }, { status: 401 });
-    }
+    const auth = await requireCitizen();
+    if (!auth.authorized) return auth.response;
 
     const body = await request.json().catch(() => ({}));
     const validation = validateReopenInput(body);
@@ -29,14 +20,14 @@ export async function POST(
       return NextResponse.json({ statusCode: 400, message: validation.error }, { status: 400 });
     }
 
-    const result = await reopenComplaint(params.id, payload.sub, validation.data!.reason);
+    const result = await reopenComplaint(params.id, auth.user.id, validation.data!.reason);
     if (!result.ok) {
       return NextResponse.json({ statusCode: result.status, message: result.message }, { status: result.status });
     }
 
     await addAuditLog({
-      actorId: payload.sub,
-      actorName: payload.name || 'Citizen User',
+      actorId: auth.user.id,
+      actorName: auth.user.name || 'Citizen User',
       action: 'COMPLAINT_REOPENED',
       entityType: 'Complaint',
       targetId: params.id,
