@@ -478,6 +478,13 @@ export async function createComplaint(data: {
       municipalityId: targetMunicipalityId,
       isVoiceInput: Boolean(data.isVoiceInput),
       voiceTranscript: data.voiceTranscript || undefined,
+      images: data.imageUrl
+        ? {
+            create: {
+              imageUrl: data.imageUrl,
+            },
+          }
+        : undefined,
       location: data.location
         ? {
             create: {
