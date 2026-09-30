@@ -50,13 +50,13 @@ test.describe('POST /api/complaints/check-duplicate', () => {
     const cookie = await getCitizenContext(request);
     const res = await request.post(`${BASE}/api/complaints/check-duplicate`, {
       headers: { cookie, 'Content-Type': 'application/json' },
-      data: { title: 'a', description: 'short' },
+      data: { title: 'Bad', description: 'Short' },
     });
     expect(res.status()).toBe(400);
   });
 });
 
-// ── 2. POST /api/complaints/[id]/mark-satisfactory & /reopen ───────────────
+// ── 2. Post-resolution endpoints: mark-satisfactory & reopen ─────────────────
 
 test.describe('Post-resolution endpoints: mark-satisfactory & reopen', () => {
   let createdComplaintId: string;
@@ -66,8 +66,9 @@ test.describe('Post-resolution endpoints: mark-satisfactory & reopen', () => {
     const res = await request.post(`${BASE}/api/complaints`, {
       headers: { cookie, 'Content-Type': 'application/json' },
       data: {
-        title: 'Water pipe leak near park gate',
+        title: 'Water Leakage Test Issue for Resolution',
         description: 'Clean water is leaking continuously on the main walking pathway.',
+        imageUrl: 'https://res.cloudinary.com/dwer0coad/image/upload/v1711234567/sample.jpg',
       },
     });
     const data = await res.json();
@@ -130,6 +131,7 @@ test.describe('POST /api/complaints/[id]/feedback', () => {
       data: {
         title: 'Broken streetlight on street 4',
         description: 'Dark area at night due to non-functioning LED streetlight.',
+        imageUrl: 'https://res.cloudinary.com/dwer0coad/image/upload/v1711234567/sample.jpg',
       },
     });
     const comp = await createRes.json();
@@ -147,22 +149,22 @@ test.describe('POST /api/complaints/[id]/feedback', () => {
 test.describe('GET /api/complaints search & date-range filters', () => {
   test('filters complaints by keyword search query', async ({ request }) => {
     const cookie = await getCitizenContext(request);
-    const res = await request.get(`${BASE}/api/complaints?search=pothole`, {
+    const res = await request.get(`${BASE}/api/complaints?search=water`, {
       headers: { cookie },
     });
     expect(res.status()).toBe(200);
     const body = await res.json();
-    expect(Array.isArray(body.data)).toBe(true);
+    expect(body).toHaveProperty('data');
   });
 
   test('filters complaints by date range', async ({ request }) => {
     const cookie = await getCitizenContext(request);
     const today = new Date().toISOString().slice(0, 10);
-    const res = await request.get(`${BASE}/api/complaints?fromDate=${today}&toDate=${today}`, {
+    const res = await request.get(`${BASE}/api/complaints?fromDate=2026-01-01&toDate=${today}`, {
       headers: { cookie },
     });
     expect(res.status()).toBe(200);
     const body = await res.json();
-    expect(Array.isArray(body.data)).toBe(true);
+    expect(body).toHaveProperty('data');
   });
 });

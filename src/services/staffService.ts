@@ -24,7 +24,7 @@ import {
 
 export type StaffRole = 'DEPARTMENT_HEAD' | 'DEPARTMENT_OFFICER' | 'FIELD_WORKER' | 'ADMIN';
 export const STAFF_ROLES: StaffRole[] = ['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER', 'FIELD_WORKER', 'ADMIN'];
-const ROLES_REQUIRING_DEPARTMENT: StaffRole[] = ['DEPARTMENT_OFFICER', 'FIELD_WORKER'];
+const ROLES_REQUIRING_DEPARTMENT: StaffRole[] = ['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER', 'FIELD_WORKER'];
 
 export interface StaffListFilters {
   search?: string;
@@ -246,12 +246,12 @@ export async function deactivateStaff(
     return { ok: false, status: 404, message: 'Staff member not found.' };
   }
 
-  if (isSuperAdminTarget(user)) {
-    return { ok: false, status: 403, message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' };
-  }
-
   if (targetId === actor.id) {
     return { ok: false, status: 400, message: 'You cannot deactivate your own account.' };
+  }
+
+  if (isSuperAdminTarget(user)) {
+    return { ok: false, status: 403, message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' };
   }
 
   if (user.isSuspended) {

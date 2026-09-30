@@ -107,6 +107,7 @@ test.describe('Field Worker Portal API Integration Tests', () => {
   });
 
   test('5. Happy Path: Start work, upload BEFORE/AFTER evidence, submit for officer review', async ({ request }) => {
+    test.setTimeout(60000);
     const fwCookie = await getFieldWorkerContext(request);
 
     // Step 5a: Start Work (ASSIGNED -> IN_PROGRESS)

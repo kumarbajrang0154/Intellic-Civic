@@ -1,7 +1,7 @@
 /**
  * Integration tests for /api/admin/staff/* endpoints
  *
- * Usage: npx playwright test tests/admin-staff.spec.ts
+ * Usage: npx playwright test e2e/admin-staff.spec.ts
  * Requires the dev server running: npm run dev
  *
  * Test Strategy:
@@ -143,7 +143,7 @@ test.describe('POST /api/admin/staff', () => {
     const cookie = await getAdminContext(request);
     const res = await request.post(`${BASE}/api/admin/staff`, {
       headers: { cookie, 'Content-Type': 'application/json' },
-      data: { name: 'Test Officer' }, // missing email and role
+      data: { name: 'Test Officer' },
     });
     expect(res.status()).toBe(400);
   });
@@ -170,12 +170,11 @@ test.describe('POST /api/admin/staff', () => {
 
   test('409 for duplicate email', async ({ request }) => {
     const cookie = await getAdminContext(request);
-    // Use existing officer email
     const res = await request.post(`${BASE}/api/admin/staff`, {
       headers: { cookie, 'Content-Type': 'application/json' },
       data: {
         name: 'Duplicate Test',
-        email: 'officer.roads@smartcity.gov.in', // already exists
+        email: 'officer.roads@smartcity.gov.in',
         role: 'DEPARTMENT_OFFICER',
         departmentId: 'dept_roads_infra',
       },
@@ -190,7 +189,6 @@ test.describe('PATCH /api/admin/staff/[id]/deactivate', () => {
   test('deactivates a staff member', async ({ request }) => {
     const cookie = await getAdminContext(request);
 
-    // First create a disposable staff member
     const email = `deact_test_${Date.now()}@smartcity.gov.in`;
     const createRes = await request.post(`${BASE}/api/admin/staff`, {
       headers: { cookie, 'Content-Type': 'application/json' },
@@ -199,7 +197,6 @@ test.describe('PATCH /api/admin/staff/[id]/deactivate', () => {
     expect(createRes.status()).toBe(201);
     const { staff } = await createRes.json();
 
-    // Deactivate
     const res = await request.patch(`${BASE}/api/admin/staff/${staff.id}/deactivate`, {
       headers: { cookie },
     });
@@ -209,25 +206,21 @@ test.describe('PATCH /api/admin/staff/[id]/deactivate', () => {
   });
 
   test('400 when trying to deactivate own account (self-deactivation guard)', async ({ request }) => {
-    // We need the admin's own ID first
     const cookie = await getAdminContext(request);
-    const listRes = await request.get(`${BASE}/api/admin/staff?role=ADMIN`, {
+    const meRes = await request.get(`${BASE}/api/auth/me`, {
       headers: { cookie },
     });
-    const listBody = await listRes.json();
-    const adminId = listBody.items?.[0]?.id;
+    const meBody = await meRes.json();
+    const adminId = meBody.user?.id;
 
-    if (!adminId) {
-      test.skip();
-      return;
-    }
+    expect(adminId).toBeDefined();
 
     const res = await request.patch(`${BASE}/api/admin/staff/${adminId}/deactivate`, {
       headers: { cookie },
     });
     expect(res.status()).toBe(400);
     const body = await res.json();
-    expect(body.message).toContain('yourself');
+    expect(body.message).toContain('own account');
   });
 
   test('404 for non-existent staff id', async ({ request }) => {
@@ -245,7 +238,6 @@ test.describe('PATCH /api/admin/staff/[id]/reactivate', () => {
   test('reactivates a deactivated staff member', async ({ request }) => {
     const cookie = await getAdminContext(request);
 
-    // Create + deactivate + reactivate cycle
     const email = `react_test_${Date.now()}@smartcity.gov.in`;
     const createRes = await request.post(`${BASE}/api/admin/staff`, {
       headers: { cookie, 'Content-Type': 'application/json' },
@@ -265,11 +257,11 @@ test.describe('PATCH /api/admin/staff/[id]/reactivate', () => {
 
   test('400 when trying to reactivate already-active staff', async ({ request }) => {
     const cookie = await getAdminContext(request);
-    // Use an always-active existing officer
-    const listRes = await request.get(`${BASE}/api/admin/staff?status=active&limit=5`, { headers: { cookie } });
+    const listRes = await request.get(`${BASE}/api/admin/staff?status=active&limit=10`, { headers: { cookie } });
     const listBody = await listRes.json();
-    const activeId = listBody.items?.[0]?.id;
-    if (!activeId) { test.skip(); return; }
+    const activeId = listBody.items?.find((s: any) => s.isActive && s.role !== 'SUPER_ADMIN')?.id;
+    
+    expect(activeId).toBeDefined();
 
     const res = await request.patch(`${BASE}/api/admin/staff/${activeId}/reactivate`, { headers: { cookie } });
     expect(res.status()).toBe(400);
@@ -315,7 +307,6 @@ test.describe('GET /api/admin/staff/[id]/activity', () => {
   test('returns activity list for valid staff', async ({ request }) => {
     const cookie = await getAdminContext(request);
 
-    // Create a staff member first to ensure they exist in the store
     const email = `activity_test_${Date.now()}@smartcity.gov.in`;
     const createRes = await request.post(`${BASE}/api/admin/staff`, {
       headers: { cookie, 'Content-Type': 'application/json' },
@@ -330,7 +321,6 @@ test.describe('GET /api/admin/staff/[id]/activity', () => {
     const body = await res.json();
     expect(body).toHaveProperty('activity');
     expect(Array.isArray(body.activity)).toBe(true);
-    // Should contain the STAFF_CREATED event
     const created = body.activity.find((e: any) => e.action === 'STAFF_CREATED');
     expect(created).toBeDefined();
   });

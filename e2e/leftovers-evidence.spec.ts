@@ -36,10 +36,12 @@ async function createMockJwt(role: string, email?: string, sub?: string) {
     });
 
     if (existing) {
-      await prisma.user.update({
-        where: { id: existing.id },
-        data: { role: role as any, isAuthorized: true },
-      });
+      if (existing.role !== 'SUPER_ADMIN') {
+        await prisma.user.update({
+          where: { id: existing.id },
+          data: { role: role as any, isAuthorized: true },
+        });
+      }
       return new SignJWT({
         sub: existing.id,
         email: existing.email || userEmail,
@@ -372,7 +374,15 @@ test.describe('Leftover Items Verification & Evidence Suite', () => {
     });
 
     // Create a token with sub = userA.id, but email = userB.email
-    const mismatchedToken = await createMockJwt('ADMIN', userB.email ?? undefined, userA.id);
+    const mismatchedToken = await new SignJWT({
+      sub: userA.id,
+      email: userB.email,
+      role: 'ADMIN',
+      isAuthorized: true,
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setExpirationTime('2h')
+      .sign(JWT_SECRET);
 
     const res = await page.request.get('/api/auth/me', {
       headers: { Cookie: `ic_access_token=${mismatchedToken}` },

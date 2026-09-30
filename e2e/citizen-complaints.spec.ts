@@ -68,8 +68,39 @@ test.describe('Module 6: Citizen Complaint Creation, List & Tracking E2E Tests',
       });
     });
 
+    // Mock Signature & Upload
+    await page.route('**/api/upload/signature', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          cloudName: 'demo',
+          apiKey: '1234567890',
+          timestamp: Math.floor(Date.now() / 1000),
+          signature: 'demo_sig',
+        }),
+      });
+    });
+
+    await page.route('**/api/upload', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ url: 'https://res.cloudinary.com/dwer0coad/image/upload/v1711234567/sample.jpg' }),
+      });
+    });
+
+    // Mock Check Duplicate
+    await page.route('**/api/complaints/check-duplicate', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ matched: false, potentialDuplicates: [] }),
+      });
+    });
+
     // Mock Create Complaint
-    await page.route('**/api/complaints', async (route) => {
+    await page.route(url => url.pathname === '/api/complaints', async (route) => {
       if (route.request().method() === 'POST') {
         await route.fulfill({
           status: 201,
@@ -95,6 +126,15 @@ test.describe('Module 6: Citizen Complaint Creation, List & Tracking E2E Tests',
       'The community dumpster has been overflowing for 3 days attracting pests.',
     );
     await page.selectOption('#category', 'cat-sanitation-1');
+
+    const fileInput = page.locator('input[type="file"]').first();
+    await fileInput.setInputFiles({
+      name: 'evidence.jpg',
+      mimeType: 'image/jpeg',
+      buffer: Buffer.from('fake image binary content'),
+    });
+
+    await expect(page.locator('img[alt="Evidence 1"]')).toBeVisible();
 
     await page.click('button[type="submit"]');
 
@@ -183,45 +223,49 @@ test.describe('Module 6: Citizen Complaint Creation, List & Tracking E2E Tests',
         }),
       });
     });
-    await page.route('**/api/complaints**', async (route) => {
-      const url = route.request().url();
-      if (url.includes('/api/complaints/c-1')) {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            id: 'c-1',
-            ticketId: 'CMP-2026-1001',
-            title: 'Broken streetlight on 5th Avenue',
-            description: 'Streetlight pole is dark.',
-            status: 'IN_PROGRESS',
-            createdAt: '2026-08-20T10:00:00Z',
-            updatedAt: '2026-08-20T10:00:00Z',
-            category: { id: 'cat-1', name: 'Electrical' },
-            department: { id: 'dept-1', name: 'Public Works' },
-            evidence: [],
-            statusHistory: [],
-          }),
-        });
-      } else {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            data: [
-              {
-                id: 'c-1',
-                ticketId: 'CMP-2026-1001',
-                title: 'Broken streetlight on 5th Avenue',
-                description: 'Streetlight pole is dark.',
-                status: 'IN_PROGRESS',
-                createdAt: '2026-08-20T10:00:00Z',
-              },
-            ],
-            meta: { total: 1, page: 1, limit: 10, totalPages: 1 },
-          }),
-        });
-      }
+    await page.route('/api/complaints/c-1', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'c-1',
+          ticketId: 'CMP-2026-1001',
+          title: 'Broken streetlight on 5th Avenue',
+          description: 'Streetlight pole is dark.',
+          status: 'IN_PROGRESS',
+          createdAt: '2026-08-20T10:00:00Z',
+          updatedAt: '2026-08-20T10:00:00Z',
+          category: { id: 'cat-1', name: 'Electrical' },
+          department: { id: 'dept-1', name: 'Public Works' },
+          evidence: [],
+          statusHistory: [],
+        }),
+      });
+    });
+
+    await page.route(url => url.pathname === '/api/complaints', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: [
+            {
+              id: 'c-1',
+              ticketId: 'CMP-2026-1001',
+              title: 'Broken streetlight on 5th Avenue',
+              description: 'Streetlight pole is dark.',
+              status: 'IN_PROGRESS',
+              createdAt: '2026-08-20T10:00:00Z',
+            },
+          ],
+          meta: {
+            total: 1,
+            page: 1,
+            limit: 10,
+            totalPages: 1,
+          },
+        }),
+      });
     });
 
     await page.goto('/citizen');

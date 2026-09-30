@@ -23,16 +23,13 @@ test.describe('Platform & Organization Settings Module Tests', () => {
   test('3. Super Admin can access & update settings via PATCH /api/admin/settings', async ({ request }) => {
     // 1. Authenticate as Super Admin via dev-login
     const authRes = await request.post(`${baseURL}/api/auth/dev-login`, {
-      data: { userId: 'usr_super_admin' },
+      data: { email: 'kumarbajrang325@gmail.com', role: 'SUPER_ADMIN' },
     });
     expect(authRes.status()).toBe(200);
 
     const rawCookies = authRes.headers()['set-cookie'] || '';
-    const cookieHeader = rawCookies
-      .split('\n')
-      .map((c) => c.split(';')[0].trim())
-      .filter(Boolean)
-      .join('; ');
+    const match = rawCookies.match(/ic_access_token=([^;]+)/);
+    const cookieHeader = match ? `ic_access_token=${match[1]}` : '';
 
     // 2. Perform PATCH request with session cookie
     const patchRes = await request.patch(`${baseURL}/api/admin/settings`, {
@@ -67,15 +64,27 @@ test.describe('Platform & Organization Settings Module Tests', () => {
     await page.setViewportSize({ width: 1280, height: 900 });
 
     // Login as Super Admin
-    await page.goto(`${baseURL}/login/staff`);
     const devRes = await page.request.post(`${baseURL}/api/auth/dev-login`, {
-      data: { userId: 'usr_super_admin' },
+      data: { email: 'kumarbajrang325@gmail.com', role: 'SUPER_ADMIN' },
     });
     expect(devRes.status()).toBe(200);
 
+    const rawCookies = devRes.headers()['set-cookie'] || '';
+    const match = rawCookies.match(/ic_access_token=([^;]+)/);
+    if (match) {
+      await page.context().addCookies([
+        {
+          name: 'ic_access_token',
+          value: match[1],
+          domain: 'localhost',
+          path: '/',
+        },
+      ]);
+    }
+
     // Navigate to /admin/settings
     await page.goto(`${baseURL}/admin/settings`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Confirm heading and live preview are visible
     await expect(page.locator('h1')).toContainText('Platform & Organization Settings');

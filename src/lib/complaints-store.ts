@@ -510,7 +510,9 @@ export async function createComplaint(data: {
             recommendation: photoVerification
               ? `AI Triage & Photo Verification completed. Photo Verified: ${photoVerification.verified}.`
               : `Automated AI Triage assigned issue. Priority evaluated as ${priority}.`,
-            statusMessage: 'AI Triage completed successfully.',
+            statusMessage: routingResult.reasoning.includes('Fallback') || routingResult.reasoning.includes('fallback')
+              ? 'AI unavailable — fallback used'
+              : 'AI Triage completed successfully.',
             aiRouting: {
               category: routingResult.category,
               priority: routingResult.priority,
