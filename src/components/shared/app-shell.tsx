@@ -721,7 +721,7 @@ export function AppShell({ children, user }: AppShellProps) {
             {/* Mobile menu toggle */}
             <button
               type="button"
-              className="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors shrink-0"
+              className="lg:hidden h-11 w-11 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 transition-colors shrink-0"
               onClick={() => setMobileOpen(true)}
               aria-label="Open navigation menu"
             >
@@ -746,8 +746,8 @@ export function AppShell({ children, user }: AppShellProps) {
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             {/* Notifications bell */}
             <Link
-              href={isAdminRole(effectiveUser.role) ? '/admin/notifications' : effectiveUser.role === 'CITIZEN' ? '/citizen/notifications' : '#'}
-              className="relative p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+              href={isAdminRole(effectiveUser.role) ? '/admin/notifications' : '/citizen/notifications'}
+              className="relative h-11 w-11 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
               aria-label="Notifications"
             >
               <Bell className="w-5 h-5" />
