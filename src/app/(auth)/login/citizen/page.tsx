@@ -255,7 +255,7 @@ export default function CitizenLoginPage() {
       <div className="w-full max-w-md space-y-4">
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 text-xs sm:text-sm text-slate-600 hover:text-slate-900 mb-2 font-medium transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs sm:text-sm text-slate-600 hover:text-slate-900 mb-2 font-medium transition-colors h-11 min-h-[44px]"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Home
@@ -403,7 +403,7 @@ export default function CitizenLoginPage() {
                       setOtp('');
                       setConfirmationResult(null);
                     }}
-                    className="hover:underline text-[#2563EB] font-semibold"
+                    className="hover:underline text-[#2563EB] font-semibold h-11 min-h-[44px] inline-flex items-center"
                   >
                     Change Mobile Number
                   </button>
@@ -413,12 +413,12 @@ export default function CitizenLoginPage() {
                       <button
                         type="button"
                         onClick={() => handleSendOtp()}
-                        className="hover:underline text-[#2563EB] font-semibold"
+                        className="hover:underline text-[#2563EB] font-semibold h-11 min-h-[44px] inline-flex items-center"
                       >
                         Resend OTP
                       </button>
                     ) : (
-                      <span className="text-slate-600 font-medium">Resend in {timer}s</span>
+                      <span className="text-slate-600 font-medium inline-flex items-center h-11 min-h-[44px]">Resend in {timer}s</span>
                     )}
                   </span>
                 </div>
