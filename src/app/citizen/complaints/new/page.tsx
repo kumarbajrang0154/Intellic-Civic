@@ -485,7 +485,7 @@ export default function NewComplaintPage() {
 
   return (
     <AppShell user={user}>
-      <div className="max-w-3xl mx-auto space-y-6 p-6">
+      <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4 border-b border-slate-200 pb-4">
           <Link href="/citizen">

@@ -169,7 +169,7 @@ export default function CitizenDashboardPage() {
 
   return (
     <AppShell user={user}>
-      <div className="space-y-6 p-6 max-w-7xl mx-auto">
+      <div className="max-w-5xl mx-auto space-y-6">
         {/* Profile Completion Alert */}
         {!user.isProfileComplete && (
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900">

@@ -35,7 +35,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+import { AppShell } from '@/components/layout/app-shell';
 import { toast } from 'sonner';
 
 interface ComplaintDetail {
@@ -84,6 +84,22 @@ export default function CitizenComplaintDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = params?.id as string;
+
+  const [user, setUser] = React.useState<{ name: string; role: 'CITIZEN' }>({
+    name: 'Citizen',
+    role: 'CITIZEN',
+  });
+
+  React.useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.user?.name) {
+          setUser({ name: data.user.name, role: 'CITIZEN' });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const [complaint, setComplaint] = React.useState<ComplaintDetail | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -252,51 +268,57 @@ export default function CitizenComplaintDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center space-y-4">
-        <Loader2 className="h-8 w-8 text-primary animate-spin" />
-        <p className="text-sm text-muted-foreground font-medium">Loading complaint tracking detail...</p>
-      </div>
+      <AppShell user={user}>
+        <div className="flex flex-col items-center justify-center py-20 space-y-4">
+          <Loader2 className="h-8 w-8 text-primary animate-spin" />
+          <p className="text-sm text-muted-foreground font-medium">Loading complaint tracking detail...</p>
+        </div>
+      </AppShell>
     );
   }
 
   if (notFound) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="max-w-md w-full text-center shadow-lg border-muted">
-          <CardHeader className="space-y-3">
-            <div className="mx-auto h-16 w-16 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
-              <FileQuestion className="h-8 w-8" />
-            </div>
-            <CardTitle className="text-xl">Complaint Not Found</CardTitle>
-            <CardDescription>
-              The requested complaint ticket does not exist or you do not have permission to view it.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/citizen">
-              <Button className="w-full">Return to Dashboard</Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
+      <AppShell user={user}>
+        <div className="max-w-md mx-auto py-12">
+          <Card className="w-full text-center shadow-lg border-muted">
+            <CardHeader className="space-y-3">
+              <div className="mx-auto h-16 w-16 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                <FileQuestion className="h-8 w-8" />
+              </div>
+              <CardTitle className="text-xl">Complaint Not Found</CardTitle>
+              <CardDescription>
+                The requested complaint ticket does not exist or you do not have permission to view it.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/citizen">
+                <Button className="w-full">Return to Dashboard</Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </AppShell>
     );
   }
 
   if (error || !complaint) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="max-w-md w-full text-center border-destructive/20 bg-destructive/5">
-          <CardContent className="pt-6 space-y-4">
-            <AlertCircle className="h-8 w-8 text-destructive mx-auto" />
-            <p className="text-sm text-destructive font-medium">{error || 'Failed to load details'}</p>
-            <Link href="/citizen">
-              <Button variant="outline" size="sm">
-                Back to Dashboard
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
+      <AppShell user={user}>
+        <div className="max-w-md mx-auto py-12">
+          <Card className="w-full text-center border-destructive/20 bg-destructive/5">
+            <CardContent className="pt-6 space-y-4">
+              <AlertCircle className="h-8 w-8 text-destructive mx-auto" />
+              <p className="text-sm text-destructive font-medium">{error || 'Failed to load details'}</p>
+              <Link href="/citizen">
+                <Button variant="outline" size="sm">
+                  Back to Dashboard
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </AppShell>
     );
   }
 
@@ -317,7 +339,8 @@ export default function CitizenComplaintDetailPage() {
   const isDeletable = ['SUBMITTED', 'AI_PROCESSING', 'PENDING_DEPT_REVIEW'].includes(complaint.status);
 
   return (
-    <div className="min-h-screen bg-background p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+    <AppShell user={user}>
+      <div className="max-w-5xl mx-auto space-y-6">
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div className="flex items-center gap-3">
@@ -746,5 +769,6 @@ export default function CitizenComplaintDetailPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </AppShell>
   );
 }
