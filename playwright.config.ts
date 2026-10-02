@@ -14,12 +14,12 @@ export default defineConfig({
   projects: [
     {
       name: 'regression',
-      testIgnore: ['**/capture-*.spec.ts'],
+      testIgnore: ['**/capture-*.spec.ts', '**/audit-runner.spec.ts'],
       use: { ...devices['Desktop Chrome'] },
     },
     {
       name: 'screenshots',
-      testMatch: ['**/capture-*.spec.ts'],
+      testMatch: ['**/capture-*.spec.ts', '**/audit-runner.spec.ts'],
       use: { ...devices['Desktop Chrome'] },
     },
   ],
