@@ -77,4 +77,30 @@ test.describe('Dev-Login Security Hardening Tests', () => {
     expect(body.user.role).toBe('FIELD_WORKER');
     expect(body.redirectUrl).toBe('/field-worker');
   });
+
+  test('6. Rejects empty body with 400 Bad Request when neither id nor email is provided', async ({ request }) => {
+    const res = await request.post(`${baseURL}/api/auth/dev-login`, {
+      data: {},
+    });
+
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.message).toContain('Both id and email are missing');
+  });
+
+  test('7. Returns 404 Not Found in production environment mode', async ({ request }) => {
+    const res = await request.post(`${baseURL}/api/auth/dev-login`, {
+      headers: {
+        'x-simulated-env': 'production',
+      },
+      data: {
+        id: 'usr_super_admin',
+      },
+    });
+
+    expect(res.status()).toBe(404);
+    const body = await res.json();
+    expect(body.message).toBe('Not Found');
+  });
 });
+

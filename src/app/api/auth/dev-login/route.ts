@@ -16,6 +16,7 @@ const ALLOWED_DEV_USER_IDS = new Set([
 
 const ALLOWED_DEV_EMAILS = new Set([
   'kumarbajrang325@gmail.com',
+  'superadmin.test@smartcity.gov.in',
   'head.roads@smartcity.gov.in',
   'officer.roads@smartcity.gov.in',
   'fieldworker@intellicivic.gov.in',
@@ -24,10 +25,12 @@ const ALLOWED_DEV_EMAILS = new Set([
 ]);
 
 export async function POST(req: NextRequest) {
-  const isDevMode = process.env.NODE_ENV !== 'production';
-  const isDevLoginEnabled = process.env.ENABLE_DEV_LOGIN === 'true';
+  const isProduction =
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL_ENV === 'production' ||
+    req.headers.get('x-simulated-env') === 'production';
 
-  if (!isDevMode && !isDevLoginEnabled) {
+  if (isProduction) {
     return NextResponse.json({ message: 'Not Found' }, { status: 404 });
   }
 
@@ -36,20 +39,26 @@ export async function POST(req: NextRequest) {
     const requestedId = typeof body.id === 'string' ? body.id.trim() : undefined;
     const requestedEmail = typeof body.email === 'string' ? body.email.trim().toLowerCase() : undefined;
 
+    if (!requestedId && !requestedEmail) {
+      return NextResponse.json(
+        { statusCode: 400, message: 'Both id and email are missing. Either id or email must be provided.' },
+        { status: 400 },
+      );
+    }
+
     let targetUser: any = null;
 
     if (requestedId) {
       targetUser = await getUser(requestedId);
       if (!targetUser && requestedId === 'usr_super_admin') {
-        targetUser = await getUserByEmail('kumarbajrang325@gmail.com');
+        targetUser = (await getUserByEmail('superadmin.test@smartcity.gov.in')) ||
+                     (await getUserByEmail('kumarbajrang325@gmail.com'));
       }
       if (!targetUser && requestedId === 'citizen_9876543210') {
         targetUser = await getUser('0cecd3fc-e75f-440f-b790-0ea7ecd9c196');
       }
     } else if (requestedEmail) {
       targetUser = await getUserByEmail(requestedEmail);
-    } else {
-      targetUser = (await getUser('usr_super_admin')) || (await getUserByEmail('kumarbajrang325@gmail.com'));
     }
 
     const isAllowedId = targetUser && ALLOWED_DEV_USER_IDS.has(targetUser.id);
@@ -87,8 +96,6 @@ export async function POST(req: NextRequest) {
     const accessToken = await createJwtToken(userPayload, '7d');
     const refreshToken = await createJwtToken({ ...userPayload, type: 'refresh' }, '30d');
 
-    const isProduction = process.env.NODE_ENV === 'production';
-
     let redirectUrl = '/citizen';
     if (actualRole === 'ADMIN' || actualRole === 'SUPER_ADMIN') redirectUrl = '/admin';
     else if (actualRole === 'DEPARTMENT_HEAD') redirectUrl = '/dept-head';
@@ -125,3 +132,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+

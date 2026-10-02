@@ -223,7 +223,7 @@ test.describe('Module 6: Citizen Complaint Creation, List & Tracking E2E Tests',
         }),
       });
     });
-    await page.route('/api/complaints/c-1', async (route) => {
+    await page.route((url) => url.pathname === '/api/complaints/c-1', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

@@ -35,6 +35,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+} from '@/components/ui/dialog';
 import { AppShell } from '@/components/layout/app-shell';
 import { toast } from 'sonner';
 
