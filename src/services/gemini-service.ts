@@ -10,6 +10,7 @@ export interface ComplaintRoutingResult {
   category: string;
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   reasoning: string;
+  fallbackTriggered?: boolean;
 }
 
 export interface CategoryInfo {
@@ -57,6 +58,7 @@ export function fallbackKeywordRouting(title: string, description: string): Comp
     category,
     priority,
     reasoning: 'Fallback keyword heuristic routing used (AI service unavailable or unconfigured).',
+    fallbackTriggered: true,
   };
 }
 
@@ -311,6 +313,7 @@ Return JSON matching:
       category: selectedCategory,
       priority: selectedPriority,
       reasoning: parsed.reasoning || 'AI triage classification complete.',
+      fallbackTriggered: false,
     };
   } catch (error: any) {
     console.error('[Gemini AI ERROR METRIC]', {
@@ -323,6 +326,7 @@ Return JSON matching:
     return {
       ...fallback,
       reasoning: `[Fallback Heuristic Used — Gemini Error: ${error?.message || 'API call failed'}] ${fallback.reasoning}`,
+      fallbackTriggered: true,
     };
   }
 }

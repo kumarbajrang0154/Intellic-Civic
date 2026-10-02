@@ -16,7 +16,6 @@ const ALLOWED_DEV_USER_IDS = new Set([
 
 const ALLOWED_DEV_EMAILS = new Set([
   'kumarbajrang325@gmail.com',
-  'superadmin.test@smartcity.gov.in',
   'head.roads@smartcity.gov.in',
   'officer.roads@smartcity.gov.in',
   'fieldworker@intellicivic.gov.in',

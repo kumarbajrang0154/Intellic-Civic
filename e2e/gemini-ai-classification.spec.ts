@@ -12,7 +12,7 @@ test.describe('Priority 3: Gemini AI Classification Live Integration', () => {
 
     expect(result.category).toBeTruthy();
     expect(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).toContain(result.priority);
-    expect(typeof result.reasoning).toBe('string');
-    expect(result.reasoning.length).toBeGreaterThan(5);
+    expect(result.fallbackTriggered).toBe(false);
+    expect(result.reasoning).not.toContain('Fallback keyword heuristic routing used');
   });
 });
