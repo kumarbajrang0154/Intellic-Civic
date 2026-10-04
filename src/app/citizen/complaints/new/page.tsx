@@ -485,7 +485,7 @@ export default function NewComplaintPage() {
 
   return (
     <AppShell user={user}>
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4 border-b border-slate-200 pb-4">
           <Link href="/citizen">
@@ -647,7 +647,7 @@ export default function NewComplaintPage() {
                       variant={listeningTarget === 'title' ? 'destructive' : 'ghost'}
                       size="sm"
                       onClick={() => startListening('title')}
-                      className="h-7 text-xs px-2 gap-1 text-ai-indigo hover:text-indigo-700"
+                      className="h-11 px-2 gap-1 text-ai-indigo hover:text-indigo-700"
                     >
                       {listeningTarget === 'title' ? (
                         <>
@@ -711,7 +711,7 @@ export default function NewComplaintPage() {
                       variant={listeningTarget === 'description' ? 'destructive' : 'ghost'}
                       size="sm"
                       onClick={() => startListening('description')}
-                      className="h-7 text-xs px-2 gap-1 text-ai-indigo hover:text-indigo-700"
+                      className="h-11 px-2 gap-1 text-ai-indigo hover:text-indigo-700"
                     >
                       {listeningTarget === 'description' ? (
                         <>
@@ -756,7 +756,7 @@ export default function NewComplaintPage() {
                         variant={listeningTarget === 'address' ? 'destructive' : 'outline'}
                         size="sm"
                         onClick={() => startListening('address')}
-                        className="text-xs gap-1 h-8 border-slate-200"
+                        className="gap-1 h-11 border-slate-200"
                       >
                         <Mic className="h-3.5 w-3.5" />
                         <span>Dictate Landmark</span>
@@ -769,7 +769,7 @@ export default function NewComplaintPage() {
                       size="sm"
                       onClick={handleGetCurrentLocation}
                       disabled={gettingLocation || fetchingLandmark}
-                      className="text-xs gap-1.5 h-8 border-slate-200 text-ic-blue"
+                      className="gap-1.5 h-11 border-slate-200 text-ic-blue"
                     >
                       {gettingLocation || fetchingLandmark ? (
                         <>

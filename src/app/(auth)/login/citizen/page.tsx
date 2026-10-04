@@ -318,7 +318,7 @@ export default function CitizenLoginPage() {
                       placeholder="9876543210"
                       value={mobileNumber}
                       onChange={(e) => setMobileNumber(e.target.value)}
-                      className="pl-12 h-11 border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:border-[#2563EB] focus:ring-[#2563EB]/20 font-medium text-sm"
+                      className="pl-12 h-11 border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:border-[#2563EB] focus:ring-[#2563EB]/20 font-medium text-base md:text-sm"
                       maxLength={10}
                       disabled={loading}
                       required
@@ -359,7 +359,7 @@ export default function CitizenLoginPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => setOtp(generatedOtp)}
-                        className="text-xs h-7 px-3 border-indigo-300 text-indigo-950 bg-white hover:bg-indigo-50 font-semibold gap-1"
+                        className="h-11 px-3 border-indigo-300 text-indigo-950 bg-white hover:bg-indigo-50 font-semibold gap-1 text-sm"
                       >
                         <Check className="h-3.5 w-3.5 text-indigo-700" />
                         Auto-fill OTP ({generatedOtp})

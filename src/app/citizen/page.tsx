@@ -169,7 +169,7 @@ export default function CitizenDashboardPage() {
 
   return (
     <AppShell user={user}>
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6">
         {/* Profile Completion Alert */}
         {!user.isProfileComplete && (
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900">
@@ -287,7 +287,7 @@ export default function CitizenDashboardPage() {
                     setSearchQuery(e.target.value);
                     setPage(1);
                   }}
-                  className="pl-9 text-xs"
+                  className="pl-9"
                 />
               </div>
 
@@ -297,7 +297,7 @@ export default function CitizenDashboardPage() {
                   setStatusFilter(e.target.value);
                   setPage(1);
                 }}
-                className="text-xs"
+                className=""
               >
                 <option value="ALL">All Statuses</option>
                 <option value="SUBMITTED">Submitted</option>
@@ -319,7 +319,7 @@ export default function CitizenDashboardPage() {
                     setFromDate(e.target.value);
                     setPage(1);
                   }}
-                  className="text-xs h-9"
+                  className=""
                 />
               </div>
 
@@ -332,7 +332,7 @@ export default function CitizenDashboardPage() {
                     setToDate(e.target.value);
                     setPage(1);
                   }}
-                  className="text-xs h-9"
+                  className=""
                 />
               </div>
             </div>
@@ -343,7 +343,7 @@ export default function CitizenDashboardPage() {
                   variant="ghost"
                   size="sm"
                   onClick={clearFilters}
-                  className="text-xs text-slate-500 hover:text-slate-900 h-7 gap-1"
+                  className="text-slate-500 hover:text-slate-900 gap-1"
                 >
                   <X className="h-3 w-3" />
                   Clear All Filters
@@ -455,7 +455,7 @@ export default function CitizenDashboardPage() {
                     size="sm"
                     disabled={page <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="border-slate-200 text-xs"
+                    className="border-slate-200"
                   >
                     <ChevronLeft className="h-4 w-4 mr-1" />
                     Previous
@@ -465,7 +465,7 @@ export default function CitizenDashboardPage() {
                     size="sm"
                     disabled={page >= totalPages}
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    className="border-slate-200 text-xs"
+                    className="border-slate-200"
                   >
                     Next
                     <ChevronRight className="h-4 w-4 ml-1" />

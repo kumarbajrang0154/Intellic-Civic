@@ -111,7 +111,7 @@ export default function CitizenNotificationsPage() {
 
   return (
     <AppShell user={user}>
-      <div className="space-y-6 max-w-4xl mx-auto">
+      <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6">
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
           <div>
@@ -231,7 +231,7 @@ export default function CitizenNotificationsPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleMarkAsRead(n.id)}
-                      className="h-8 w-8 p-0 text-slate-400 hover:text-slate-700 shrink-0"
+                      className="h-11 w-11 p-0 text-slate-400 hover:text-slate-700 shrink-0"
                       title="Mark as read"
                     >
                       <Check className="h-4 w-4" />

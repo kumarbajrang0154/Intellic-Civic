@@ -341,7 +341,7 @@ export default function CitizenComplaintDetailPage() {
 
   return (
     <AppShell user={user}>
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6">
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div className="flex items-center gap-3">
@@ -375,7 +375,7 @@ export default function CitizenComplaintDetailPage() {
               size="sm"
               disabled={deleting}
               onClick={handleDeleteComplaint}
-              className="gap-1.5 text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-xs"
+              className="gap-1.5 font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-xs"
             >
               {deleting ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -509,7 +509,7 @@ export default function CitizenComplaintDetailPage() {
                             key={star}
                             type="button"
                             onClick={() => setFeedbackRating(star)}
-                            className="p-1 hover:scale-110 transition-transform focus:outline-none"
+                            className="p-2.5 hover:scale-110 transition-transform focus:outline-none min-h-[44px] min-w-[44px] inline-flex items-center justify-center"
                           >
                             <Star
                               className={`h-6 w-6 ${
@@ -534,7 +534,7 @@ export default function CitizenComplaintDetailPage() {
                         placeholder="Share your thoughts on the promptness and quality of municipal work..."
                         value={feedbackComment}
                         onChange={(e) => setFeedbackComment(e.target.value)}
-                        className="text-xs"
+                        className=""
                       />
                     </div>
 
@@ -751,7 +751,7 @@ export default function CitizenComplaintDetailPage() {
                 placeholder="Explain why the resolution is incomplete or unsatisfactory (min 10 characters)..."
                 value={reopenReason}
                 onChange={(e) => setReopenReason(e.target.value)}
-                className="text-xs"
+                className=""
               />
             </div>
           </div>

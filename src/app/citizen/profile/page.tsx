@@ -165,7 +165,7 @@ function CitizenProfileForm() {
         avatarUrl: avatarUrl || null,
       }}
     >
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6">
         {/* Welcome Banner for First Time Users */}
         {(isFirstTimeParam || !isProfileComplete) && (
           <Alert className="border-primary/40 bg-primary/5 text-primary">
@@ -243,7 +243,7 @@ function CitizenProfileForm() {
                         size="sm"
                         disabled={uploadingAvatar}
                         onClick={() => fileInputRef.current?.click()}
-                        className="text-xs gap-1.5 shrink-0"
+                      className="gap-1.5 shrink-0"
                       >
                         {uploadingAvatar ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -269,7 +269,7 @@ function CitizenProfileForm() {
                           key={idx}
                           type="button"
                           onClick={() => setAvatarUrl(url)}
-                          className="text-[10px] px-2 py-0.5 rounded border bg-background hover:bg-accent text-foreground font-medium"
+                          className="inline-flex items-center justify-center h-11 px-3 rounded border bg-background hover:bg-accent text-foreground font-medium text-sm"
                         >
                           Avatar {idx + 1}
                         </button>

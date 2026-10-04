@@ -286,6 +286,23 @@ function isAdminRole(role: UserRole) {
   return role === 'ADMIN' || role === 'SUPER_ADMIN';
 }
 
+function getNotificationHref(role?: string): string | null {
+  if (!role) return null;
+  if (
+    role === 'ADMIN' ||
+    role === 'SUPER_ADMIN' ||
+    role === 'DEPARTMENT_HEAD' ||
+    role === 'DEPARTMENT_OFFICER' ||
+    role === 'FIELD_WORKER'
+  ) {
+    return '/admin/notifications';
+  }
+  if (role === 'CITIZEN') {
+    return '/citizen/notifications';
+  }
+  return null;
+}
+
 // ─── Role badge colours ──────────────────────────────────────────────────────
 
 function getRoleBadgeClass(role: string): string {
@@ -721,7 +738,7 @@ export function AppShell({ children, user }: AppShellProps) {
             {/* Mobile menu toggle */}
             <button
               type="button"
-              className="lg:hidden h-11 w-11 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 transition-colors shrink-0"
+              className="lg:hidden inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 transition-colors shrink-0"
               onClick={() => setMobileOpen(true)}
               aria-label="Open navigation menu"
             >
@@ -745,18 +762,24 @@ export function AppShell({ children, user }: AppShellProps) {
           {/* Right side header actions */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             {/* Notifications bell */}
-            <Link
-              href={isAdminRole(effectiveUser.role) ? '/admin/notifications' : '/citizen/notifications'}
-              className="relative h-11 w-11 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
-              aria-label="Notifications"
-            >
-              <Bell className="w-5 h-5" />
-              {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white shadow-xs">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </Link>
+            {(() => {
+              const notifHref = getNotificationHref(effectiveUser.role);
+              if (!notifHref) return null;
+              return (
+                <Link
+                  href={notifHref}
+                  className="relative inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                  aria-label="Notifications"
+                >
+                  <Bell className="w-5 h-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white shadow-xs">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </Link>
+              );
+            })()}
 
             {/* User info */}
             <div className="flex items-center gap-2 pl-2 sm:pl-2.5 border-l border-slate-200 min-w-0">
