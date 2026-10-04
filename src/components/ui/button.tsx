@@ -33,10 +33,10 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
               variant === 'success',
           },
           {
-            'h-11 md:h-10 min-h-[44px] px-4 py-2 text-base md:text-sm': size === 'default',
-            'h-11 md:h-9 min-h-[44px] px-3.5 py-2 text-sm md:text-xs': size === 'sm',
-            'h-12 px-6 text-base font-bold min-h-[44px]': size === 'lg',
-            'h-11 w-11 md:h-10 md:w-10 min-h-[44px] min-w-[44px] p-0 shrink-0': size === 'icon',
+            'h-11 px-4 md:h-10 py-2 text-base md:text-sm': size === 'default',
+            'h-11 px-3 md:h-9 py-2 text-sm': size === 'sm',
+            'h-12 px-8 md:h-11 text-base font-bold': size === 'lg',
+            'h-11 w-11 md:h-10 md:w-10 p-0 shrink-0': size === 'icon',
           },
           className,
         )}
