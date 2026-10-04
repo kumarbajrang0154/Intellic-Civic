@@ -165,9 +165,9 @@ export default function CitizenNotificationsPage() {
                 </p>
               </div>
               <div className="pt-2">
-                <Link href="/citizen">
-                  <Button size="sm" variant="outline" className="text-xs gap-1.5">
-                    <FileText className="h-3.5 w-3.5" />
+                <Link href="/citizen" className="inline-block">
+                  <Button size="sm" variant="outline" className="gap-1.5">
+                    <FileText className="h-4 w-4" />
                     <span>View My Complaints</span>
                   </Button>
                 </Link>
@@ -216,10 +216,10 @@ export default function CitizenNotificationsPage() {
                         <div className="pt-1">
                           <Link
                             href={`/citizen/complaints/${n.complaintId}`}
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-ic-action hover:underline"
+                            className="inline-flex items-center gap-1 min-h-[44px] text-sm font-semibold text-ic-action hover:underline"
                           >
                             <span>View Complaint Details</span>
-                            <ArrowRight className="h-3 w-3" />
+                            <ArrowRight className="h-4 w-4" />
                           </Link>
                         </div>
                       )}

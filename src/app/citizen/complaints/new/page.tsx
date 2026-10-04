@@ -793,15 +793,18 @@ export default function NewComplaintPage() {
                 />
 
                 {/* Interactive Leaflet Map Pin Picker */}
-                <div className="space-y-1">
+                <div className="space-y-1 w-full overflow-hidden">
                   <span className="text-[11px] font-semibold text-slate-500 block">
                     Interactive Location Map (Click or drag pin to adjust exact location):
                   </span>
-                  <LocationPicker
-                    latitude={latitude}
-                    longitude={longitude}
-                    onChange={handleMapLocationChange}
-                  />
+                  <div className="h-[260px] w-full rounded-xl overflow-hidden border border-slate-200">
+                    <LocationPicker
+                      latitude={latitude}
+                      longitude={longitude}
+                      onChange={handleMapLocationChange}
+                      className="h-full w-full"
+                    />
+                  </div>
                 </div>
 
                 {locationSuccess && latitude !== null && longitude !== null && (

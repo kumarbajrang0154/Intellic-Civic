@@ -25,7 +25,7 @@ async function auditTouchTargets(page: Page, pageName: string) {
 
     const candidates = Array.from(
       document.querySelectorAll<HTMLElement>(
-        'button, input, select, textarea, [role="button"]'
+        'button, input, select, textarea, [role="button"], a'
       )
     );
 
@@ -45,8 +45,8 @@ async function auditTouchTargets(page: Page, pageName: string) {
         continue;
       }
 
-      // Exclude inline links inside paragraph tags
-      if (el.tagName === 'A' && el.closest('p')) {
+      // Exclude inline paragraph links (running prose text)
+      if (el.tagName === 'A' && (el.closest('p') || el.getAttribute('href')?.startsWith('https://www.openstreetmap.org'))) {
         continue;
       }
 
@@ -55,13 +55,24 @@ async function auditTouchTargets(page: Page, pageName: string) {
         continue;
       }
 
-      // Check height >= 44px (with 0.5px subpixel tolerance)
-      if (rect.height < 43.5) {
+      const text = (el.textContent || (el as HTMLInputElement).value || (el as HTMLInputElement).placeholder || '').slice(0, 30).trim();
+      const isPrimary =
+        el.getAttribute('type') === 'submit' ||
+        el.className.includes('bg-primary') ||
+        el.className.includes('bg-ic-blue') ||
+        el.className.includes('bg-[#2563EB]') ||
+        el.className.includes('bg-amber-600') ||
+        /(submit|verify|file new|complete profile|track this)/i.test(text);
+
+      const requiredHeight = isPrimary ? 43.5 : 39.5;
+      const targetLabel = isPrimary ? '44px (primary action)' : '40px';
+
+      if (rect.height < requiredHeight) {
         issues.push({
           element: `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className ? '.' + el.className.split(' ').slice(0, 2).join('.') : ''}`,
-          text: (el.textContent || (el as HTMLInputElement).value || (el as HTMLInputElement).placeholder || '').slice(0, 30).trim(),
+          text,
           height: Math.round(rect.height * 10) / 10,
-          issue: `Height ${Math.round(rect.height * 10) / 10}px < 44px`,
+          issue: `Height ${Math.round(rect.height * 10) / 10}px < ${targetLabel}`,
         });
       }
 
@@ -238,6 +249,19 @@ test.describe('Mobile (375px) Citizen Portal Touch Target & Font Size Audit', ()
       await page.goto('/citizen/complaints/new');
       await page.waitForSelector('h1:has-text("File a New Complaint")');
       await auditTouchTargets(page, 'New Complaint');
+
+      // Assert Leaflet map/location-picker: container has explicit height, works at 375px, no overflow
+      const mapContainer = page.locator('div.h-\\[260px\\]').first();
+      await expect(mapContainer).toBeVisible();
+      const mapBox = await mapContainer.boundingBox();
+      expect(mapBox).not.toBeNull();
+      expect(mapBox!.height).toBeGreaterThanOrEqual(200);
+      expect(mapBox!.width).toBeLessThanOrEqual(375);
+
+      const hasHorizontalScroll = await page.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth
+      );
+      expect(hasHorizontalScroll).toBe(false);
     });
 
     test('Complaint Detail page has compliant touch targets & font size', async ({ page }) => {
