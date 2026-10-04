@@ -228,7 +228,7 @@ function CitizenProfileForm() {
                         placeholder="https://example.com/avatar.jpg"
                         value={avatarUrl}
                         onChange={(e) => setAvatarUrl(e.target.value)}
-                        className="text-xs font-mono flex-1"
+                        className="font-mono w-full sm:flex-1"
                       />
                       <input
                         type="file"

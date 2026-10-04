@@ -25,10 +25,10 @@ export function PwaInstallBanner({
       <div className="relative overflow-hidden rounded-xl border border-slate-700 bg-[#0F2747] p-4 shadow-lg text-slate-100">
         <button
           onClick={onDismiss}
-          className="absolute right-2.5 top-2.5 rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+          className="absolute right-2 top-2 rounded-lg inline-flex items-center justify-center h-11 w-11 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
           aria-label="Dismiss install banner"
         >
-          <X className="h-4 w-4" />
+          <X className="h-5 w-5" />
         </button>
 
         <div className="flex items-start gap-3.5 pr-6">
@@ -66,18 +66,18 @@ export function PwaInstallBanner({
             <Button
               size="sm"
               onClick={() => setShowIosTooltip(!showIosTooltip)}
-              className="h-8 text-xs font-semibold bg-[#1769AA] hover:bg-[#1769AA]/90 text-white shadow-xs gap-1.5"
+              className="h-11 px-4 text-sm font-semibold bg-[#1769AA] hover:bg-[#1769AA]/90 text-white shadow-xs gap-1.5"
             >
-              <Share className="h-3.5 w-3.5" />
+              <Share className="h-4 w-4" />
               How to Install (iOS)
             </Button>
           ) : (
             <Button
               size="sm"
               onClick={onInstall}
-              className="h-8 text-xs font-semibold bg-[#1769AA] hover:bg-[#1769AA]/90 text-white shadow-xs gap-1.5"
+              className="h-11 px-4 text-sm font-semibold bg-[#1769AA] hover:bg-[#1769AA]/90 text-white shadow-xs gap-1.5"
             >
-              <Download className="h-3.5 w-3.5" />
+              <Download className="h-4 w-4" />
               Install App
             </Button>
           )}

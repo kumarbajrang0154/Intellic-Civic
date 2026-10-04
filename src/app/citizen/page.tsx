@@ -178,7 +178,7 @@ export default function CitizenDashboardPage() {
               <div className="text-xs text-amber-700 mt-0.5">Please fill out your Full Name, Gmail, Address, and Profile Picture to get started.</div>
             </div>
             <Link href="/citizen/profile?firstTime=true">
-              <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white text-xs shrink-0 font-medium">
+              <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white shrink-0 font-medium">
                 Complete Profile Now
               </Button>
             </Link>
