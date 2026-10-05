@@ -34,6 +34,8 @@ export async function GET(request: NextRequest) {
 
     // Role-based scope enforcement
     let citizenId: string | undefined = undefined;
+    let assignedFieldWorkerId: string | undefined = undefined;
+    let departmentOfficerId: string | undefined = undefined;
     if (payload.role === 'CITIZEN') {
       const auth = await requireCitizen();
       if (!auth.authorized) return auth.response;
@@ -52,15 +54,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    let assignedFieldWorkerId: string | undefined = undefined;
-    let departmentOfficerId: string | undefined = undefined;
+    const allowedRoles = ['CITIZEN', 'DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER', 'FIELD_WORKER', 'ADMIN', 'SUPER_ADMIN'];
+    if (!allowedRoles.includes(payload.role)) {
+      return NextResponse.json({ statusCode: 403, message: 'Forbidden: Invalid role' }, { status: 403 });
+    }
 
-    if (assignedToMe) {
-      if (payload.role === 'FIELD_WORKER') {
-        assignedFieldWorkerId = payload.sub;
-      } else if (payload.role === 'DEPARTMENT_OFFICER') {
-        departmentOfficerId = payload.sub;
-      }
+    if (payload.role === 'FIELD_WORKER') {
+      // Field workers can only access complaints assigned to them
+      assignedFieldWorkerId = payload.sub;
+    } else if (assignedToMe && payload.role === 'DEPARTMENT_OFFICER') {
+      departmentOfficerId = payload.sub;
     }
 
     const result = await listComplaints({

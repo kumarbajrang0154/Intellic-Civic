@@ -117,7 +117,7 @@ export default function FieldWorkerComplaintDetailPage() {
       setAfterPhotos(afterList);
     } catch (err: any) {
       setError(err.message || 'Error loading detail');
-    } fontally: {
+    } finally {
       setLoading(false);
     }
   }, [id]);

@@ -59,11 +59,9 @@ export async function GET() {
           isSuspended: true,
         },
       });
+    }
 
-      if (!staffUser) {
-        return NextResponse.json({ user: null }, { status: 401 });
-      }
-    } else if (userEmail) {
+    if (!staffUser && userEmail) {
       staffUser = await prismaClient.user.findFirst({
         where: {
           email: { equals: userEmail.trim(), mode: 'insensitive' as const },
@@ -80,6 +78,10 @@ export async function GET() {
           isSuspended: true,
         },
       });
+    }
+
+    if (!staffUser) {
+      return NextResponse.json({ user: null }, { status: 401 });
     }
 
     if (staffUser) {

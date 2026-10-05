@@ -29,15 +29,15 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { name, email, address, avatarUrl } = body;
 
-    if (!name || !name.trim()) {
+    if (!name || typeof name !== 'string' || !name.trim()) {
       return NextResponse.json({ statusCode: 400, message: 'Full name is required' }, { status: 400 });
     }
 
-    if (!email || !email.trim() || !email.includes('@')) {
+    if (!email || typeof email !== 'string' || !email.trim() || !email.includes('@')) {
       return NextResponse.json({ statusCode: 400, message: 'Valid Gmail / Email address is required' }, { status: 400 });
     }
 
-    if (!address || !address.trim()) {
+    if (!address || typeof address !== 'string' || !address.trim()) {
       return NextResponse.json({ statusCode: 400, message: 'Residential address is required' }, { status: 400 });
     }
 

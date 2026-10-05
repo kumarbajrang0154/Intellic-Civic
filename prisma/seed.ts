@@ -155,6 +155,7 @@ async function main() {
       name: 'Bajrang Kumar',
       mobileNumber: '9876543210',
       email: 'kumarbajrang0154@gmail.com',
+      address: '42 Civic Avenue, Ward 3, Coimbatore',
       role: UserRole.CITIZEN,
       authProvider: AuthProvider.MOBILE_OTP,
       isAuthorized: true,
@@ -181,6 +182,7 @@ async function main() {
         authProvider: user.authProvider,
         departmentId: user.departmentId ?? existing.departmentId,
         assignedOfficerId: (user as any).assignedOfficerId ?? existing.assignedOfficerId,
+        address: (user as any).address ?? existing.address,
         isAuthorized: user.isAuthorized,
         isSuspended: user.isSuspended,
       };
@@ -215,6 +217,18 @@ async function main() {
 
   // 4. Seed Demo Complaints
   const demoComplaints = [
+    {
+      id: 'cmp-submitted-demo',
+      ticketId: 'INC-2026-0903-0001',
+      title: 'Water Leakage Near Sector 4 Market',
+      description: 'Clean drinking water is continuously leaking from a municipal pipe joint.',
+      status: ComplaintStatus.SUBMITTED,
+      priority: PriorityLevel.MEDIUM,
+      citizenId: citizenUserId,
+      categoryId: 'cat-water',
+      originalCategoryId: 'cat-water',
+      departmentId: null,
+    },
     {
       id: 'cmp-resolved-demo',
       ticketId: 'INC-2026-0901-1001',

@@ -180,6 +180,13 @@ export async function requireStaff(allowedRoles?: string[]): Promise<RequireStaf
     };
   }
 
+  if (effectiveRole === 'CITIZEN') {
+    return {
+      authorized: false,
+      response: NextResponse.json({ message: 'Forbidden: Staff access required.' }, { status: 403 }),
+    };
+  }
+
   if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(effectiveRole)) {
     return {
       authorized: false,

@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listUsers } from '@/lib/staff-dept-store';
+import { requireStaff } from '@/lib/admin-auth';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } },
 ) {
   try {
+    const auth = await requireStaff(['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER']);
+    if (!auth.authorized) {
+      return auth.response;
+    }
+
     const { searchParams } = new URL(request.url);
     const assignedOfficerId = searchParams.get('assignedOfficerId') || undefined;
     const role = searchParams.get('role') || undefined;

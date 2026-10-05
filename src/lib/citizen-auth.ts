@@ -80,6 +80,16 @@ export async function requireCitizen(): Promise<RequireCitizenResult> {
     };
   }
 
+  if (payload.role !== 'CITIZEN' || (dbUser.role && dbUser.role !== 'CITIZEN')) {
+    return {
+      authorized: false,
+      response: NextResponse.json(
+        { statusCode: 403, message: 'Forbidden: Citizen role required.' },
+        { status: 403 },
+      ),
+    };
+  }
+
   return {
     authorized: true,
     user: {
