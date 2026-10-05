@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { OfflineBanner } from './OfflineBanner';
 
 export type UserRole =
   | 'CITIZEN'
@@ -683,6 +684,19 @@ export function AppShell({ children, user }: AppShellProps) {
   const effectiveUser = { ...user, avatarUrl: effectiveAvatarUrl };
 
   const handleLogout = async () => {
+    if (user.role === 'CITIZEN' && typeof window !== 'undefined') {
+      try {
+        const { getDrafts } = await import('@/lib/offline-queue');
+        const drafts = await getDrafts();
+        const pending = drafts.filter((d) => d.status === 'pending' || d.status === 'syncing');
+        if (pending.length > 0) {
+          const confirmLogout = window.confirm(
+            `You have ${pending.length} unsynced offline complaint(s). They will remain saved on this device, but won't be submitted until you log in again. Proceed with logout?`,
+          );
+          if (!confirmLogout) return;
+        }
+      } catch (e) {}
+    }
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } finally {
@@ -804,6 +818,7 @@ export function AppShell({ children, user }: AppShellProps) {
             </div>
           </div>
         </header>
+        <OfflineBanner />
 
         {/* Page Content */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden bg-[#F6F8FB]">

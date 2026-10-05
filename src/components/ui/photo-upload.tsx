@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { compressPhoto } from '@/lib/offline-queue';
 
 export interface PhotoUploadProps {
   value?: string[];
@@ -138,19 +139,20 @@ export function PhotoUpload({
           // Cloudinary unavailable, proceed to data URL fallback
         }
 
-        // Local Data URL Fallback if Cloudinary is not configured
+        // Local Data URL Fallback if Cloudinary is not configured or offline
         if (!secureUrl) {
-          // Hard client-side size check before Base64 fallback (2MB max per image without Cloudinary)
-          const maxBase64FileSize = 2 * 1024 * 1024;
-          if (file.size > maxBase64FileSize) {
-            throw new Error(`File "${file.name}" (${(file.size / 1024 / 1024).toFixed(1)}MB) exceeds the 2MB direct upload limit. Please select a smaller photo or compress it.`);
+          let fileToRead: Blob = file;
+          if (file.size > 1024 * 1024) {
+            try {
+              fileToRead = await compressPhoto(file);
+            } catch {}
           }
 
           secureUrl = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onloadend = () => resolve(reader.result as string);
             reader.onerror = reject;
-            reader.readAsDataURL(file);
+            reader.readAsDataURL(fileToRead);
           });
         }
 

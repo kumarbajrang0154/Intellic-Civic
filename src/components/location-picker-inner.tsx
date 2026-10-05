@@ -74,6 +74,8 @@ function MapCenterController({ center }: { center: [number, number] }) {
   return null;
 }
 
+import { WifiOff, MapPin } from 'lucide-react';
+
 export default function LocationPickerInner({
   latitude,
   longitude,
@@ -82,6 +84,21 @@ export default function LocationPickerInner({
   defaultCenter = [12.9716, 77.5946], // Bengaluru
   defaultZoom = 13,
 }: LocationPickerInnerProps) {
+  const [isOnline, setIsOnline] = React.useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true,
+  );
+
+  React.useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   const hasCoordinates =
     typeof latitude === 'number' &&
     typeof longitude === 'number' &&
@@ -109,6 +126,28 @@ export default function LocationPickerInner({
     }),
     [onChange],
   );
+
+  if (!isOnline) {
+    return (
+      <div className={`${className} bg-slate-900 text-slate-100 p-4 flex flex-col justify-center items-center rounded-xl border border-slate-700 select-none`}>
+        <div className="flex items-center gap-2 mb-1.5 text-amber-400">
+          <WifiOff className="w-5 h-5" />
+          <span className="font-semibold text-sm">Offline Mode: Map Tiles Skipped</span>
+        </div>
+        <p className="text-xs text-slate-400 text-center max-w-sm mb-3">
+          Map tiles are skipped while offline. Your GPS coordinates will still be saved with your complaint.
+        </p>
+        {hasCoordinates ? (
+          <div className="flex items-center gap-2 bg-slate-800/90 border border-slate-700 rounded-lg px-3.5 py-2 font-mono text-xs text-emerald-400">
+            <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>Captured Coordinates: {latitude!.toFixed(5)}, {longitude!.toFixed(5)}</span>
+          </div>
+        ) : (
+          <div className="text-xs text-slate-500 italic">No GPS coordinates captured yet. Click "Use My Location" above.</div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={`${className} relative z-0`}>

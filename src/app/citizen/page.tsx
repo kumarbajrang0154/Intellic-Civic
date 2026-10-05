@@ -13,6 +13,10 @@ import {
   Search,
   RefreshCw,
   X,
+  WifiOff,
+  Trash2,
+  Clock,
+  AlertTriangle,
 } from 'lucide-react';
 import { AppShell } from '@/components/shared/app-shell';
 import { Button } from '@/components/ui/button';
@@ -22,6 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 interface Complaint {
   id: string;
@@ -38,13 +43,15 @@ interface Complaint {
 export default function CitizenDashboardPage() {
   const router = useRouter();
 
-  const [user, setUser] = React.useState<{ name: string; role: 'CITIZEN'; isProfileComplete?: boolean }>({
+  const [user, setUser] = React.useState<{ id?: string; name: string; role: 'CITIZEN'; isProfileComplete?: boolean }>({
     name: 'Citizen',
     role: 'CITIZEN',
     isProfileComplete: true,
   });
 
   const [complaints, setComplaints] = React.useState<Complaint[]>([]);
+  const [drafts, setDrafts] = React.useState<any[]>([]);
+  const [syncingDraftId, setSyncingDraftId] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = React.useState<string | null>(null);
@@ -59,6 +66,73 @@ export default function CitizenDashboardPage() {
   const [debouncedSearch, setDebouncedSearch] = React.useState('');
   const [fromDate, setFromDate] = React.useState('');
   const [toDate, setToDate] = React.useState('');
+
+  const loadDrafts = React.useCallback(async () => {
+    try {
+      const { getDrafts } = await import('@/lib/offline-queue');
+      const allDrafts = await getDrafts(user.id);
+      setDrafts(allDrafts);
+    } catch {
+      setDrafts([]);
+    }
+  }, [user.id]);
+
+  React.useEffect(() => {
+    loadDrafts();
+
+    const handleDraftsChanged = () => loadDrafts();
+    const handleDraftSynced = (e: any) => {
+      loadDrafts();
+      fetchComplaints(true);
+      toast.success(`Complaint synced successfully! Ticket #${e.detail?.ticketId || ''}`);
+    };
+
+    const handleOnline = async () => {
+      if (user.id) {
+        const { syncDrafts } = await import('@/lib/offline-queue');
+        await syncDrafts(user.id);
+        await loadDrafts();
+        fetchComplaints(true);
+      }
+    };
+
+    window.addEventListener('intellicivic:drafts-changed', handleDraftsChanged);
+    window.addEventListener('intellicivic:draft-synced', handleDraftSynced);
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      window.removeEventListener('intellicivic:drafts-changed', handleDraftsChanged);
+      window.removeEventListener('intellicivic:draft-synced', handleDraftSynced);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [user.id, loadDrafts]);
+
+  const handleRetryDraft = async (draftId: string) => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      toast.error('Cannot sync while offline. Please connect to internet.');
+      return;
+    }
+    setSyncingDraftId(draftId);
+    try {
+      const { syncDrafts } = await import('@/lib/offline-queue');
+      await syncDrafts(user.id || '');
+      await loadDrafts();
+      await fetchComplaints(true);
+    } finally {
+      setSyncingDraftId(null);
+    }
+  };
+
+  const handleDeleteDraft = async (draftId: string) => {
+    try {
+      const { deleteDraft } = await import('@/lib/offline-queue');
+      await deleteDraft(draftId);
+      await loadDrafts();
+      toast.success('Draft deleted');
+    } catch {
+      toast.error('Failed to delete draft');
+    }
+  };
 
   React.useEffect(() => {
     const timer = setTimeout(() => {
@@ -79,6 +153,7 @@ export default function CitizenDashboardPage() {
               return;
             }
             setUser({
+              id: data.user.id,
               name: data.user.name,
               role: 'CITIZEN',
               isProfileComplete: true,
@@ -202,6 +277,104 @@ export default function CitizenDashboardPage() {
             </Button>
           </Link>
         </div>
+
+        {/* Pending Offline Drafts Section */}
+        {drafts.length > 0 && (
+          <Card className="border-amber-300 bg-amber-50/60 shadow-xs rounded-xl overflow-hidden" data-testid="pending-complaints-section">
+            <CardHeader className="p-4 pb-2 border-b border-amber-200/70 flex flex-row items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                  <WifiOff className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-sm font-bold text-slate-900">
+                    Pending Offline Complaints ({drafts.length})
+                  </CardTitle>
+                  <CardDescription className="text-xs text-slate-600">
+                    Saved locally on this device. Submits automatically once reconnected.
+                  </CardDescription>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-9 px-3 text-xs gap-1.5 border-amber-300 text-amber-900 hover:bg-amber-100"
+                onClick={async () => {
+                  if (user.id) {
+                    const { syncDrafts } = await import('@/lib/offline-queue');
+                    await syncDrafts(user.id);
+                    await loadDrafts();
+                    await fetchComplaints(true);
+                  }
+                }}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Sync All
+              </Button>
+            </CardHeader>
+            <CardContent className="p-4 pt-3 divide-y divide-amber-200/60">
+              {drafts.map((d) => (
+                <div key={d.id} className="py-3 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3" data-testid={`pending-draft-${d.id}`}>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm text-slate-900">{d.fields.title}</span>
+                      {d.status === 'pending' && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 border border-amber-300">
+                          <Clock className="w-3 h-3" />
+                          Pending Sync
+                        </span>
+                      )}
+                      {d.status === 'syncing' && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-800 border border-blue-300">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Syncing...
+                        </span>
+                      )}
+                      {d.status === 'failed' && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-800 border border-rose-300">
+                          <AlertTriangle className="w-3 h-3" />
+                          Failed
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-600 line-clamp-1">{d.fields.description}</p>
+                    <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                      <span>Captured: {new Date(d.capturedAt).toLocaleTimeString()}</span>
+                      {d.photos?.length > 0 && <span>{d.photos.length} photo(s) attached</span>}
+                      {d.lastError && <span className="text-rose-600 font-medium">{d.lastError}</span>}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 px-3 text-xs gap-1"
+                      disabled={syncingDraftId === d.id}
+                      onClick={() => handleRetryDraft(d.id)}
+                    >
+                      {syncingDraftId === d.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-3.5 w-3.5" />
+                      )}
+                      Retry
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-9 px-3 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                      onClick={() => handleDeleteDraft(d.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Summary Stats Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

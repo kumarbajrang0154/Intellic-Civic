@@ -405,6 +405,8 @@ export async function createComplaint(data: {
   voiceTranscript?: string;
   imageUrl?: string;
   municipalityId?: string;
+  clientRequestId?: string;
+  capturedAt?: Date | string;
 }): Promise<Complaint> {
   const ticketId = generateTicketId();
   const mun = await getDefaultMunicipality();
@@ -478,6 +480,8 @@ export async function createComplaint(data: {
       municipalityId: targetMunicipalityId,
       isVoiceInput: Boolean(data.isVoiceInput),
       voiceTranscript: data.voiceTranscript || undefined,
+      clientRequestId: data.clientRequestId || undefined,
+      capturedAt: data.capturedAt ? new Date(data.capturedAt) : undefined,
       images: data.imageUrl
         ? {
             create: {

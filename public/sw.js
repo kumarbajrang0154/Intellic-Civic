@@ -1,6 +1,8 @@
-const CACHE_NAME = 'intellicivic-v1';
+const CACHE_NAME = 'intellicivic-v2'; // upgraded from intellicivic-v1
 const STATIC_ASSETS = [
   '/',
+  '/citizen',
+  '/citizen/complaints/new',
   '/manifest.webmanifest',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -41,42 +43,35 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET requests or browser extension requests
+  // Skip non-GET requests or non-http protocols
   if (request.method !== 'GET' || !url.protocol.startsWith('http')) {
     return;
   }
 
-  // 1. API Calls — Network First with fallback
+  // 1. API Calls — Never cache API responses (avoids caching personal/authenticated data)
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          return response;
-        })
-        .catch(() => {
-          return caches.match(request).then((cachedResponse) => {
-            if (cachedResponse) return cachedResponse;
-            return new Response(
-              JSON.stringify({
-                error: 'Offline',
-                message: 'You are currently offline. Please check your internet connection.',
-              }),
-              {
-                status: 503,
-                headers: { 'Content-Type': 'application/json' },
-              }
-            );
-          });
-        })
+      fetch(request).catch(() => {
+        return new Response(
+          JSON.stringify({
+            error: 'Offline',
+            message: 'You are currently offline. Please check your internet connection.',
+          }),
+          {
+            status: 503,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        );
+      })
     );
     return;
   }
 
-  // 2. Static Assets & Pages — Cache-First, fallback to Network
+  // 2. Static Assets & Pages — Cache-First with Network fallback (Stale-While-Revalidate)
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Fetch in background to update cache (stale-while-revalidate)
+        // Fetch in background to update cache for next time
         fetch(request)
           .then((networkResponse) => {
             if (networkResponse && networkResponse.status === 200) {
@@ -96,11 +91,30 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => {
-          // If HTML navigation request fails offline, return cached home shell
+          // If HTML navigation request fails offline, fallback to cached offline route
           if (request.mode === 'navigate') {
+            if (url.pathname.includes('/citizen/complaints/new')) {
+              return caches.match('/citizen/complaints/new').then((res) => res || caches.match('/'));
+            }
+            if (url.pathname.includes('/citizen')) {
+              return caches.match('/citizen').then((res) => res || caches.match('/'));
+            }
             return caches.match('/');
           }
         });
     })
   );
+});
+
+// 3. Background Sync (where supported by browser)
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'sync-complaints') {
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window' }).then((clients) => {
+        clients.forEach((client) => {
+          client.postMessage({ type: 'TRIGGER_SYNC' });
+        });
+      })
+    );
+  }
 });

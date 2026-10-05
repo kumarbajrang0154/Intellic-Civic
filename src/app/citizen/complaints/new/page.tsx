@@ -19,6 +19,7 @@ import {
   ExternalLink,
   ShieldAlert,
   ArrowRight,
+  WifiOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,6 +30,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PhotoUpload } from '@/components/ui/photo-upload';
 import { AppShell } from '@/components/shared/app-shell';
 import { LocationPicker } from '@/components/location-picker';
+import { compressPhoto, saveDraft, registerBackgroundSync } from '@/lib/offline-queue';
 import { toast } from 'sonner';
 
 interface Category {
@@ -50,7 +52,7 @@ interface PotentialDuplicate {
 export default function NewComplaintPage() {
   const router = useRouter();
 
-  const [user, setUser] = React.useState<{ name: string; role: 'CITIZEN' }>({
+  const [user, setUser] = React.useState<{ id?: string; name: string; role: 'CITIZEN' }>({
     name: 'Citizen',
     role: 'CITIZEN',
   });
@@ -90,6 +92,8 @@ export default function NewComplaintPage() {
   const [createdTicketId, setCreatedTicketId] = React.useState<string | null>(null);
   const [createdComplaintId, setCreatedComplaintId] = React.useState<string | null>(null);
   const [evidenceWarning, setEvidenceWarning] = React.useState<string | null>(null);
+  const [isSavedOffline, setIsSavedOffline] = React.useState(false);
+  const [savedOfflineDraftId, setSavedOfflineDraftId] = React.useState<string | null>(null);
 
   // Inline validation errors
   const [errors, setErrors] = React.useState<{
@@ -105,7 +109,7 @@ export default function NewComplaintPage() {
         if (res.ok) {
           const data = await res.json();
           if (data.user) {
-            setUser({ name: data.user.name || 'Citizen User', role: 'CITIZEN' });
+            setUser({ id: data.user.id, name: data.user.name || 'Citizen User', role: 'CITIZEN' });
           }
         }
       } catch (err) {}
@@ -324,13 +328,82 @@ export default function NewComplaintPage() {
     return Object.keys(newErrors).length === 0;
   };
 
+  const saveOfflineDraft = async () => {
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      const clientRequestId = crypto.randomUUID();
+      const photos: { name: string; type: string; blob: Blob }[] = [];
+
+      for (let i = 0; i < evidenceUrls.length; i++) {
+        const url = evidenceUrls[i];
+        let blob: Blob;
+        if (url.startsWith('data:')) {
+          const res = await fetch(url);
+          blob = await res.blob();
+        } else {
+          try {
+            const res = await fetch(url);
+            blob = await res.blob();
+          } catch {
+            blob = new Blob(['photo-evidence'], { type: 'image/jpeg' });
+          }
+        }
+        const compressed = await compressPhoto(blob);
+        photos.push({
+          name: `evidence-${i + 1}.jpg`,
+          type: compressed.type || 'image/jpeg',
+          blob: compressed,
+        });
+      }
+
+      await saveDraft({
+        id: clientRequestId,
+        userId: user.id || 'current_citizen',
+        fields: {
+          title: title.trim(),
+          description: description.trim(),
+          categoryId: categoryId || undefined,
+          isVoiceInput: usedVoiceInput || transcriptPreview !== '',
+          voiceTranscript: transcriptPreview || undefined,
+        },
+        latitude: latitude !== 0 && latitude !== null ? latitude : null,
+        longitude: longitude !== 0 && longitude !== null ? longitude : null,
+        photos,
+        capturedAt: new Date().toISOString(),
+        status: 'pending',
+        attempts: 0,
+      });
+
+      registerBackgroundSync();
+      setSavedOfflineDraftId(clientRequestId);
+      setIsSavedOffline(true);
+      toast.success('Saved offline, will submit when online');
+    } catch (err: any) {
+      console.error('Failed to save offline draft', err);
+      setSubmitError('Failed to save draft locally. Please ensure device storage is available.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const executeFinalSubmit = async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      await saveOfflineDraft();
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitError(null);
     setEvidenceWarning(null);
 
+    const clientRequestId = crypto.randomUUID();
+    const capturedAt = new Date().toISOString();
+
     try {
       const complaintPayload: any = {
+        clientRequestId,
+        capturedAt,
         title: title.trim(),
         description: description.trim(),
         evidence: evidenceUrls,
@@ -393,6 +466,16 @@ export default function NewComplaintPage() {
         }
       }
     } catch (err: any) {
+      const isNetworkFail =
+        (typeof navigator !== 'undefined' && !navigator.onLine) ||
+        err.message?.includes('Failed to fetch') ||
+        err.message?.includes('NetworkError') ||
+        err.name === 'TypeError';
+
+      if (isNetworkFail) {
+        await saveOfflineDraft();
+        return;
+      }
       setSubmitError(err.message || 'An unexpected error occurred during submission.');
     } finally {
       setIsSubmitting(false);
@@ -402,6 +485,11 @@ export default function NewComplaintPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      await saveOfflineDraft();
+      return;
+    }
 
     if (!bypassDuplicateCheck) {
       setCheckingDuplicates(true);
@@ -435,6 +523,55 @@ export default function NewComplaintPage() {
 
     await executeFinalSubmit();
   };
+
+  if (isSavedOffline) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+        <Card className="w-full max-w-lg shadow-md border border-amber-300 bg-white rounded-xl text-center">
+          <CardHeader className="space-y-2">
+            <div className="mx-auto h-16 w-16 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mb-2">
+              <WifiOff className="h-10 w-10" />
+            </div>
+            <CardTitle className="text-2xl font-bold text-slate-900">Saved Offline</CardTitle>
+            <CardDescription className="text-slate-600 text-sm">
+              Saved offline, will submit when online
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 pt-2">
+            <div className="bg-amber-50/70 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 text-left space-y-1">
+              <div className="font-semibold text-slate-900 text-sm">{title}</div>
+              <p className="line-clamp-2 text-slate-600">{description}</p>
+              <div className="text-[11px] text-amber-700 font-mono pt-1">
+                Draft ID: {savedOfflineDraftId}
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <Button
+                onClick={() => router.push('/citizen')}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+              >
+                View in Citizen Dashboard
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setTitle('');
+                  setDescription('');
+                  setEvidenceUrls([]);
+                  setCategoryId('');
+                  setIsSavedOffline(false);
+                  setSavedOfflineDraftId(null);
+                }}
+                className="flex-1"
+              >
+                File Another Complaint
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (createdTicketId && createdComplaintId) {
     return (

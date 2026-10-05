@@ -209,6 +209,8 @@ model Complaint {
   assignedFieldWorkerId      String?
   readyForReview             Boolean         @default(false)
   fieldWorkerRemarks         String?         @db.Text
+  clientRequestId            String?         @unique
+  capturedAt                 DateTime?
   createdAt                  DateTime        @default(now())
   updatedAt                  DateTime        @updatedAt
   resolvedAt                 DateTime?

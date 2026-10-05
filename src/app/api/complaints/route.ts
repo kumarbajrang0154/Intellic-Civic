@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { decodeJwtToken } from '@/lib/auth-jwt';
 import { requireCitizen } from '@/lib/citizen-auth';
 import { createComplaint, listComplaints } from '@/lib/complaints-store';
+import prisma from '@/lib/prisma';
 
 export async function GET(request: NextRequest) {
   try {
@@ -99,16 +100,76 @@ export async function POST(request: NextRequest) {
     if (!auth.authorized) return auth.response;
 
     const body = await request.json();
-    const { title, description, categoryId, location, isVoiceInput, voiceTranscript, imageUrl, imageUrls } = body;
+    const {
+      title,
+      description,
+      categoryId,
+      location,
+      isVoiceInput,
+      voiceTranscript,
+      imageUrl,
+      imageUrls,
+      clientRequestId,
+      capturedAt,
+    } = body;
 
-    if (!title || !title.trim()) {
+    // Validate clientRequestId if provided
+    if (clientRequestId !== undefined && clientRequestId !== null) {
+      if (typeof clientRequestId !== 'string' || !clientRequestId.trim()) {
+        return NextResponse.json(
+          { statusCode: 400, message: 'Invalid clientRequestId: must be a non-empty string' },
+          { status: 400 },
+        );
+      }
+    }
+
+    // Validate capturedAt if provided
+    let parsedCapturedAt: Date | undefined = undefined;
+    if (capturedAt !== undefined && capturedAt !== null) {
+      const d = new Date(capturedAt);
+      if (isNaN(d.getTime())) {
+        return NextResponse.json(
+          { statusCode: 400, message: 'Invalid capturedAt timestamp' },
+          { status: 400 },
+        );
+      }
+      parsedCapturedAt = d;
+    }
+
+    const trimmedClientRequestId = typeof clientRequestId === 'string' ? clientRequestId.trim() : undefined;
+
+    // Idempotency: if clientRequestId already exists, return existing complaint with status 200
+    if (trimmedClientRequestId) {
+      const existing = await prisma.complaint.findUnique({
+        where: { clientRequestId: trimmedClientRequestId },
+        include: {
+          category: true,
+          department: true,
+          location: true,
+          images: true,
+        },
+      });
+
+      if (existing) {
+        if (existing.citizenId === auth.user.id) {
+          return NextResponse.json(existing, { status: 200 });
+        } else {
+          return NextResponse.json(
+            { statusCode: 403, message: 'Forbidden: clientRequestId belongs to another user' },
+            { status: 403 },
+          );
+        }
+      }
+    }
+
+    if (!title || typeof title !== 'string' || !title.trim()) {
       return NextResponse.json(
         { statusCode: 400, message: 'Complaint title is required' },
         { status: 400 },
       );
     }
 
-    if (!description || description.trim().length < 20) {
+    if (!description || typeof description !== 'string' || description.trim().length < 20) {
       return NextResponse.json(
         { statusCode: 400, message: 'Detailed description (min 20 characters) is required' },
         { status: 400 },
@@ -134,14 +195,16 @@ export async function POST(request: NextRequest) {
     const newComplaint = await createComplaint({
       title: title.trim(),
       description: description.trim(),
-      categoryId,
+      categoryId: typeof categoryId === 'string' ? categoryId : undefined,
       location,
       citizenId: auth.user.id,
       citizenName: auth.user.name || 'Citizen User',
       citizenMobile: auth.user.mobileNumber ?? undefined,
       isVoiceInput: Boolean(isVoiceInput),
-      voiceTranscript: voiceTranscript || undefined,
+      voiceTranscript: typeof voiceTranscript === 'string' ? voiceTranscript : undefined,
       imageUrl: firstImage,
+      clientRequestId: trimmedClientRequestId,
+      capturedAt: parsedCapturedAt,
     });
 
     return NextResponse.json(newComplaint, { status: 201 });
