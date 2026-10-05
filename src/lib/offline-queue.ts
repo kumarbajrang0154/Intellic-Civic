@@ -297,17 +297,16 @@ async function reverseGeocodeCoords(lat: number, lng: number): Promise<string | 
 let isSyncRunning = false;
 
 /**
- * Process all pending drafts for the current user
+ * Process all pending drafts for the user (or all drafts if userId not supplied)
  */
-export async function syncDrafts(userId: string): Promise<{ synced: number; failed: number; pending: number }> {
+export async function syncDrafts(userId?: string): Promise<{ synced: number; failed: number; pending: number }> {
   if (typeof window === 'undefined') return { synced: 0, failed: 0, pending: 0 };
   if (!navigator.onLine) return { synced: 0, failed: 0, pending: 0 };
-  if (!userId) return { synced: 0, failed: 0, pending: 0 };
 
-  // Single-flight lock via memory flag + Web Locks API / localStorage timestamp
+  // Single-flight lock via memory flag + localStorage timestamp
   if (isSyncRunning) return { synced: 0, failed: 0, pending: 0 };
 
-  const LOCK_KEY = `ic_sync_lock_${userId}`;
+  const LOCK_KEY = userId ? `ic_sync_lock_${userId}` : 'ic_sync_lock_global';
   const now = Date.now();
   const lastLock = localStorage.getItem(LOCK_KEY);
   if (lastLock && now - parseInt(lastLock, 10) < 15000) {
@@ -324,7 +323,23 @@ export async function syncDrafts(userId: string): Promise<{ synced: number; fail
 
   try {
     const drafts = await getDrafts(userId);
-    const eligibleDrafts = drafts.filter((d) => d.status === 'pending');
+    const TWO_MINUTES_MS = 2 * 60 * 1000;
+    const eligibleDrafts: OfflineDraft[] = [];
+
+    for (const d of drafts) {
+      if (d.status === 'pending') {
+        eligibleDrafts.push(d);
+      } else if (d.status === 'syncing') {
+        const capturedTime = new Date(d.capturedAt || 0).getTime();
+        // Stale syncing older than 2 minutes counts as stale and is retried
+        if (now - capturedTime > TWO_MINUTES_MS) {
+          d.status = 'pending';
+          d.attempts = (d.attempts || 0) + 1;
+          await saveDraft(d);
+          eligibleDrafts.push(d);
+        }
+      }
+    }
 
     for (const draft of eligibleDrafts) {
       if (!navigator.onLine) break;
@@ -389,7 +404,7 @@ export async function syncDrafts(userId: string): Promise<{ synced: number; fail
         } else if (res.status === 401) {
           // Session expired: keep pending, prompt re-login
           draft.status = 'pending';
-          draft.lastError = 'Session expired. Please sign in again to sync.';
+          draft.lastError = 'Session expired - log in to sync';
           await saveDraft(draft);
           pending++;
 
@@ -419,7 +434,7 @@ export async function syncDrafts(userId: string): Promise<{ synced: number; fail
       } catch (err: any) {
         if (err && err.status === 401) {
           draft.status = 'pending';
-          draft.lastError = 'Session expired. Please sign in again to sync.';
+          draft.lastError = 'Session expired - log in to sync';
           await saveDraft(draft);
           pending++;
           window.dispatchEvent(new CustomEvent('intellicivic:auth-required', { detail: { draftId: draft.id } }));

@@ -12,10 +12,26 @@ export function OfflineBanner() {
 
     setIsOnline(navigator.onLine);
 
+    const triggerGlobalSync = async () => {
+      if (typeof window === 'undefined' || !navigator.onLine) return;
+      try {
+        const { getDrafts, syncDrafts } = await import('@/lib/offline-queue');
+        const drafts = await getDrafts();
+        if (drafts.some((d) => d.status === 'pending' || d.status === 'syncing')) {
+          await syncDrafts();
+        }
+      } catch {}
+    };
+
+    if (navigator.onLine) {
+      triggerGlobalSync();
+    }
+
     let timer: any = null;
     const handleOnline = () => {
       setIsOnline(true);
       setShowReconnected(true);
+      triggerGlobalSync();
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => setShowReconnected(false), 4000);
     };
@@ -26,13 +42,28 @@ export function OfflineBanner() {
       if (timer) clearTimeout(timer);
     };
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        triggerGlobalSync();
+      }
+    };
+
+    const intervalTimer = setInterval(() => {
+      if (navigator.onLine) {
+        triggerGlobalSync();
+      }
+    }, 30000);
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       if (timer) clearTimeout(timer);
+      clearInterval(intervalTimer);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 

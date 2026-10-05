@@ -480,4 +480,134 @@ test.describe('Offline-First Citizen Complaint Submission & Sync Suite', () => {
     expect(consoleErrors, `Expected zero console errors on 375px mobile, found: ${consoleErrors.join(', ')}`).toEqual([]);
     expect(failedRequests, `Expected zero failed requests on 375px mobile, found: ${failedRequests.join(', ')}`).toEqual([]);
   });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 8. Real Failure 1: Submit offline, close page, reopen online -> must sync
+  // ─────────────────────────────────────────────────────────────────────────────
+  test('8. Real Failure 1: submit offline, close the page, reopen online -> must sync', async ({ page, context }) => {
+    // 1. Load complaint page online
+    await page.goto('/citizen/complaints/new');
+    await page.waitForLoadState('domcontentloaded');
+
+    const offlineTitle = `Offline Close Reopen Ticket ${Date.now()}`;
+    await page.fill('input[id="title"]', offlineTitle);
+    await page.fill('textarea[id="description"]', 'This complaint was submitted while completely offline, then tab was closed.');
+
+    // Upload sample photo via hidden file input
+    const fileInput = page.locator('input[type="file"]').first();
+    await fileInput.setInputFiles({
+      name: 'offline-sample.jpg',
+      mimeType: 'image/jpeg',
+      buffer: Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=', 'base64'),
+    });
+    await expect(page.locator('img[alt^="Evidence"]').first()).toBeVisible({ timeout: 10000 });
+
+    // Go offline
+    await context.setOffline(true);
+    await page.click('button[type="submit"]:has-text("Submit Complaint")');
+
+    // Confirm saved offline banner/toast
+    await expect(page.locator('text=Saved offline').or(page.locator('text=Saved offline, will submit when online')).first()).toBeVisible({ timeout: 15000 });
+
+    const draftsBefore = await getDraftsFromIdb(page);
+    expect(draftsBefore.length, 'Draft must be saved in IndexedDB').toBeGreaterThan(0);
+    const crId = draftsBefore[0].id;
+
+    // 2. Close the page while offline
+    await page.close();
+
+    // 3. Reconnect to internet
+    await context.setOffline(false);
+
+    // 4. Reopen online on citizen dashboard in a new page (no 'online' event fires because it loads already online)
+    const newPage = await context.newPage();
+    await newPage.goto('/citizen');
+    await newPage.waitForLoadState('domcontentloaded');
+
+    // Wait for auto-sync on load
+    await expect.poll(async () => {
+      const dbRecord = await prisma.complaint.findUnique({ where: { clientRequestId: crId } });
+      return !!dbRecord;
+    }, { timeout: 20000, intervals: [1000] }).toBe(true);
+
+    const remainingDrafts = await getDraftsFromIdb(newPage);
+    expect(remainingDrafts.find((d) => d.id === crId)).toBeUndefined();
+    await newPage.close();
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 9. Real Failure 2: Close page while status='syncing', reopen -> must recover and sync
+  // ─────────────────────────────────────────────────────────────────────────────
+  test('9. Real Failure 2: close page while status=\'syncing\', reopen -> must recover and sync', async ({ page }) => {
+    await page.goto('/citizen');
+    await page.waitForLoadState('domcontentloaded');
+
+    const crIdStale = `cr-stale-sync-${Date.now()}`;
+    // Insert a draft with status='syncing' older than 2 minutes
+    const staleCapturedAt = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+    await saveDraftInPage(page, {
+      id: crIdStale,
+      userId: citizenId,
+      fields: {
+        title: 'Mid-Sync Crash Stale Recovery Incident',
+        description: 'Phone died mid-sync leaving status in syncing state.',
+      },
+      latitude: null,
+      longitude: null,
+      photos: [{ name: 'crash-photo.jpg', type: 'image/jpeg' }],
+      capturedAt: staleCapturedAt,
+      status: 'syncing',
+      attempts: 1,
+    });
+
+    // Reload the page online
+    await page.reload();
+    await page.waitForLoadState('domcontentloaded');
+
+    // Stale draft must be recovered and synced
+    await expect.poll(async () => {
+      const dbRecord = await prisma.complaint.findUnique({ where: { clientRequestId: crIdStale } });
+      return !!dbRecord;
+    }, { timeout: 20000, intervals: [1000] }).toBe(true);
+
+    const draftsAfter = await getDraftsFromIdb(page);
+    expect(draftsAfter.find((d) => d.id === crIdStale)).toBeUndefined();
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 10. Real Failure 3: No 'online' event at all (just load the page online) -> must sync on load
+  // ─────────────────────────────────────────────────────────────────────────────
+  test('10. Real Failure 3: no online event at all (just load the page online) -> must sync on load', async ({ page }) => {
+    await page.goto('/citizen');
+    await page.waitForLoadState('domcontentloaded');
+
+    const crIdPending = `cr-load-sync-${Date.now()}`;
+    await saveDraftInPage(page, {
+      id: crIdPending,
+      userId: citizenId,
+      fields: {
+        title: 'Initial Load Auto Sync Ticket',
+        description: 'Saved earlier, user visits citizen dashboard while already online without online event.',
+      },
+      latitude: null,
+      longitude: null,
+      photos: [{ name: 'load-photo.jpg', type: 'image/jpeg' }],
+      capturedAt: new Date().toISOString(),
+      status: 'pending',
+      attempts: 0,
+    });
+
+    // Navigate to citizen dashboard fresh (already online)
+    await page.goto('/citizen');
+    await page.waitForLoadState('domcontentloaded');
+
+    // Must automatically sync on page load without any manual online event trigger
+    await expect.poll(async () => {
+      const dbRecord = await prisma.complaint.findUnique({ where: { clientRequestId: crIdPending } });
+      return !!dbRecord;
+    }, { timeout: 20000, intervals: [1000] }).toBe(true);
+
+    const draftsAfter = await getDraftsFromIdb(page);
+    expect(draftsAfter.find((d) => d.id === crIdPending)).toBeUndefined();
+  });
 });

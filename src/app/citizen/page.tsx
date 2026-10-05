@@ -80,30 +80,54 @@ export default function CitizenDashboardPage() {
   React.useEffect(() => {
     loadDrafts();
 
+    const runSync = async () => {
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        const { syncDrafts } = await import('@/lib/offline-queue');
+        await syncDrafts(user.id || '');
+        await loadDrafts();
+        fetchComplaints(true);
+      }
+    };
+
+    // Auto-sync on initial mount if online
+    runSync();
+
     const handleDraftsChanged = () => loadDrafts();
     const handleDraftSynced = (e: any) => {
       loadDrafts();
       fetchComplaints(true);
       toast.success(`Complaint synced successfully! Ticket #${e.detail?.ticketId || ''}`);
     };
+    const handleAuthRequired = () => {
+      loadDrafts();
+      toast.error('Session expired - log in to sync');
+    };
 
-    const handleOnline = async () => {
-      if (user.id) {
-        const { syncDrafts } = await import('@/lib/offline-queue');
-        await syncDrafts(user.id);
-        await loadDrafts();
-        fetchComplaints(true);
+    const handleOnline = () => runSync();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        runSync();
       }
     };
 
+    // 30s retry timer while drafts are pending/failed and online
+    const intervalTimer = setInterval(() => {
+      runSync();
+    }, 30000);
+
     window.addEventListener('intellicivic:drafts-changed', handleDraftsChanged);
     window.addEventListener('intellicivic:draft-synced', handleDraftSynced);
+    window.addEventListener('intellicivic:auth-required', handleAuthRequired);
     window.addEventListener('online', handleOnline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
+      clearInterval(intervalTimer);
       window.removeEventListener('intellicivic:drafts-changed', handleDraftsChanged);
       window.removeEventListener('intellicivic:draft-synced', handleDraftSynced);
+      window.removeEventListener('intellicivic:auth-required', handleAuthRequired);
       window.removeEventListener('online', handleOnline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [user.id, loadDrafts]);
 
@@ -114,8 +138,14 @@ export default function CitizenDashboardPage() {
     }
     setSyncingDraftId(draftId);
     try {
-      const { syncDrafts } = await import('@/lib/offline-queue');
-      await syncDrafts(user.id || '');
+      const { getDraft, saveDraft, syncDrafts } = await import('@/lib/offline-queue');
+      const draft = await getDraft(draftId);
+      if (draft) {
+        draft.status = 'pending';
+        draft.lastError = undefined;
+        await saveDraft(draft);
+      }
+      await syncDrafts(user.id || draft?.userId || '');
       await loadDrafts();
       await fetchComplaints(true);
     } finally {
@@ -300,8 +330,20 @@ export default function CitizenDashboardPage() {
                 variant="outline"
                 className="h-9 px-3 text-xs gap-1.5 border-amber-300 text-amber-900 hover:bg-amber-100"
                 onClick={async () => {
+                  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+                    toast.error('Cannot sync while offline. Please connect to internet.');
+                    return;
+                  }
                   if (user.id) {
-                    const { syncDrafts } = await import('@/lib/offline-queue');
+                    const { getDrafts, saveDraft, syncDrafts } = await import('@/lib/offline-queue');
+                    const allDrafts = await getDrafts(user.id);
+                    for (const d of allDrafts) {
+                      if (d.status === 'failed') {
+                        d.status = 'pending';
+                        d.lastError = undefined;
+                        await saveDraft(d);
+                      }
+                    }
                     await syncDrafts(user.id);
                     await loadDrafts();
                     await fetchComplaints(true);
@@ -341,25 +383,41 @@ export default function CitizenDashboardPage() {
                     <div className="flex items-center gap-3 text-[11px] text-slate-500">
                       <span>Captured: {new Date(d.capturedAt).toLocaleTimeString()}</span>
                       {d.photos?.length > 0 && <span>{d.photos.length} photo(s) attached</span>}
-                      {d.lastError && <span className="text-rose-600 font-medium">{d.lastError}</span>}
                     </div>
+                    {d.lastError && (
+                      <p className="text-[11px] text-rose-600 font-medium">
+                        {d.lastError}
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-9 px-3 text-xs gap-1"
-                      disabled={syncingDraftId === d.id}
-                      onClick={() => handleRetryDraft(d.id)}
-                    >
-                      {syncingDraftId === d.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-3.5 w-3.5" />
-                      )}
-                      Retry
-                    </Button>
+                    {d.lastError?.includes('Session expired') || d.lastError?.includes('log in') ? (
+                      <Link href="/login/citizen">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-9 px-3 text-xs gap-1 border-rose-300 text-rose-700 hover:bg-rose-50 font-semibold"
+                        >
+                          Log In to Sync
+                        </Button>
+                      </Link>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-9 px-3 text-xs gap-1"
+                        disabled={syncingDraftId === d.id}
+                        onClick={() => handleRetryDraft(d.id)}
+                      >
+                        {syncingDraftId === d.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        )}
+                        Retry
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="ghost"
