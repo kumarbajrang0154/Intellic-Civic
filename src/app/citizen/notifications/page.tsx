@@ -134,14 +134,17 @@ export default function CitizenNotificationsPage() {
               size="sm"
               onClick={handleMarkAllAsRead}
               disabled={markingAll}
-              className="text-xs gap-1.5 self-start sm:self-auto"
+              className="h-11 px-3 md:h-9 md:px-3 text-xs gap-1.5 self-start sm:self-auto shrink-0"
+              aria-label="Mark All as Read"
+              title="Mark All as Read"
             >
               {markingAll ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-4 w-4 md:h-3.5 md:h-3.5 animate-spin shrink-0" />
               ) : (
-                <CheckCheck className="h-3.5 w-3.5 text-ic-action" />
+                <CheckCheck className="h-4 w-4 md:h-3.5 md:h-3.5 text-ic-action shrink-0" />
               )}
-              <span>Mark All as Read</span>
+              <span className="hidden md:inline">Mark All as Read</span>
+              <span className="sr-only md:hidden">Mark All as Read</span>
             </Button>
           )}
         </div>
@@ -166,7 +169,7 @@ export default function CitizenNotificationsPage() {
               </div>
               <div className="pt-2">
                 <Link href="/citizen" className="inline-block">
-                  <Button size="sm" variant="outline" className="gap-1.5">
+                  <Button size="sm" variant="outline" className="h-11 px-4 md:h-9 md:px-3 gap-1.5">
                     <FileText className="h-4 w-4" />
                     <span>View My Complaints</span>
                   </Button>

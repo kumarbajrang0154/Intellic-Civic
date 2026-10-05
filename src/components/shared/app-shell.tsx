@@ -800,12 +800,13 @@ export function AppShell({ children, user }: AppShellProps) {
               return (
                 <Link
                   href={notifHref}
-                  className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#E5E2D9] text-[#6E6B64] hover:text-[#131E20] hover:bg-[#F2EFE6] transition-colors"
+                  className="relative inline-flex h-11 w-11 md:h-10 md:w-10 items-center justify-center rounded-full border border-[#E5E2D9] text-[#6E6B64] hover:text-[#131E20] hover:bg-[#F2EFE6] transition-colors shrink-0"
                   aria-label="Notifications"
+                  title="Notifications"
                 >
                   <Bell className="w-4 h-4" />
                   {unreadCount > 0 && (
-                    <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white" />
+                    <span className="absolute top-2 right-2 md:top-1.5 md:right-1.5 flex h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white" />
                   )}
                 </Link>
               );
@@ -815,17 +816,21 @@ export function AppShell({ children, user }: AppShellProps) {
             <button
               type="button"
               onClick={handleLogout}
-              className="inline-flex items-center gap-1.5 h-10 px-3.5 rounded-full border border-[#E5E2D9] bg-white text-xs font-semibold text-[#6E6B64] hover:text-[#131E20] hover:bg-[#F2EFE6] transition-colors shadow-2xs"
+              className="inline-flex items-center justify-center gap-1.5 h-11 md:h-10 px-3 md:px-3.5 rounded-full border border-[#E5E2D9] bg-white text-xs font-semibold text-[#6E6B64] hover:text-[#131E20] hover:bg-[#F2EFE6] transition-colors shadow-2xs shrink-0"
+              aria-label="Logout"
+              title="Logout"
             >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Logout</span>
+              <LogOut className="w-4 h-4 md:w-3.5 md:h-3.5 shrink-0" />
+              <span className="hidden md:inline">Logout</span>
+              <span className="sr-only md:hidden">Logout</span>
             </button>
 
             {/* Round Profile Button */}
             <Link
               href={effectiveUser.role === 'CITIZEN' ? '/citizen/profile' : '/admin/settings'}
-              className="w-10 h-10 rounded-full border border-[#E5E2D9] bg-[#C9DFDC] flex items-center justify-center text-[#131E20] font-bold text-xs shrink-0 shadow-2xs overflow-hidden hover:opacity-90 transition-opacity"
+              className="w-11 h-11 md:w-10 md:h-10 rounded-full border border-[#E5E2D9] bg-[#C9DFDC] flex items-center justify-center text-[#131E20] font-bold text-xs shrink-0 shadow-2xs overflow-hidden hover:opacity-90 transition-opacity"
               aria-label="Account Profile"
+              title="Account Profile"
             >
               {effectiveUser.avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element

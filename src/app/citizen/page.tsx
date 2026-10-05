@@ -310,17 +310,17 @@ export default function CitizenDashboardPage() {
 
         {/* Pending Offline Drafts Section */}
         {drafts.length > 0 && (
-          <Card className="border-amber-300 bg-amber-50/60 shadow-xs rounded-xl overflow-hidden" data-testid="pending-complaints-section">
-            <CardHeader className="p-4 pb-2 border-b border-amber-200/70 flex flex-row items-center justify-between">
-              <div className="flex items-center gap-2.5">
+          <Card className="border-amber-300 bg-amber-50/60 shadow-xs rounded-xl overflow-hidden min-w-0" data-testid="pending-complaints-section">
+            <CardHeader className="p-4 pb-2 border-b border-amber-200/70 flex flex-row items-center justify-between gap-2 min-w-0">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
                 <div className="h-9 w-9 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
                   <WifiOff className="h-5 w-5" />
                 </div>
-                <div>
-                  <CardTitle className="text-sm font-bold text-slate-900">
+                <div className="min-w-0">
+                  <CardTitle className="text-sm font-bold text-slate-900 truncate">
                     Pending Offline Complaints ({drafts.length})
                   </CardTitle>
-                  <CardDescription className="text-xs text-slate-600">
+                  <CardDescription className="text-xs text-slate-600 truncate">
                     Saved locally on this device. Submits automatically once reconnected.
                   </CardDescription>
                 </div>
@@ -328,7 +328,9 @@ export default function CitizenDashboardPage() {
               <Button
                 size="sm"
                 variant="outline"
-                className="h-9 px-3 text-xs gap-1.5 border-amber-300 text-amber-900 hover:bg-amber-100"
+                className="h-11 px-3 md:h-9 md:px-3 text-xs gap-1.5 border-amber-300 text-amber-900 hover:bg-amber-100 shrink-0"
+                aria-label="Sync All"
+                title="Sync All"
                 onClick={async () => {
                   if (typeof navigator !== 'undefined' && !navigator.onLine) {
                     toast.error('Cannot sync while offline. Please connect to internet.');
@@ -351,41 +353,45 @@ export default function CitizenDashboardPage() {
                 }}
               >
                 <RefreshCw className="h-3.5 w-3.5" />
-                Sync All
+                <span className="hidden md:inline">Sync All</span>
+                <span className="sr-only md:hidden">Sync All</span>
               </Button>
             </CardHeader>
-            <CardContent className="p-4 pt-3 divide-y divide-amber-200/60">
+            <CardContent className="p-4 pt-3 divide-y divide-amber-200/60 min-w-0">
               {drafts.map((d) => (
-                <div key={d.id} className="py-3 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3" data-testid={`pending-draft-${d.id}`}>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm text-slate-900">{d.fields.title}</span>
+                <div key={d.id} className="py-3 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0" data-testid={`pending-draft-${d.id}`}>
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-sm text-slate-900 break-words">{d.fields.title}</span>
                       {d.status === 'pending' && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 border border-amber-300">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 border border-amber-300 shrink-0" title="Pending Sync">
                           <Clock className="w-3 h-3" />
-                          Pending Sync
+                          <span className="hidden md:inline">Pending Sync</span>
+                          <span className="sr-only md:hidden">Pending Sync</span>
                         </span>
                       )}
                       {d.status === 'syncing' && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-800 border border-blue-300">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-800 border border-blue-300 shrink-0" title="Syncing...">
                           <Loader2 className="w-3 h-3 animate-spin" />
-                          Syncing...
+                          <span className="hidden md:inline">Syncing...</span>
+                          <span className="sr-only md:hidden">Syncing...</span>
                         </span>
                       )}
                       {d.status === 'failed' && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-800 border border-rose-300">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-800 border border-rose-300 shrink-0" title="Failed">
                           <AlertTriangle className="w-3 h-3" />
-                          Failed
+                          <span className="hidden md:inline">Failed</span>
+                          <span className="sr-only md:hidden">Failed</span>
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-slate-600 line-clamp-1">{d.fields.description}</p>
+                    <p className="text-xs text-slate-600 line-clamp-1 break-words">{d.fields.description}</p>
                     <div className="flex items-center gap-3 text-[11px] text-slate-500">
                       <span>Captured: {new Date(d.capturedAt).toLocaleTimeString()}</span>
                       {d.photos?.length > 0 && <span>{d.photos.length} photo(s) attached</span>}
                     </div>
                     {d.lastError && (
-                      <p className="text-[11px] text-rose-600 font-medium">
+                      <p className="text-[11px] text-rose-600 font-medium break-words">
                         {d.lastError}
                       </p>
                     )}
@@ -397,7 +403,7 @@ export default function CitizenDashboardPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-9 px-3 text-xs gap-1 border-rose-300 text-rose-700 hover:bg-rose-50 font-semibold"
+                          className="h-11 px-3 md:h-9 md:px-3 text-xs gap-1 border-rose-300 text-rose-700 hover:bg-rose-50 font-semibold shrink-0"
                         >
                           Log In to Sync
                         </Button>
@@ -406,26 +412,32 @@ export default function CitizenDashboardPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-9 px-3 text-xs gap-1"
+                        className="h-11 w-11 md:h-9 md:w-auto md:px-3 text-xs gap-1 shrink-0 p-0 md:px-3 inline-flex items-center justify-center"
                         disabled={syncingDraftId === d.id}
                         onClick={() => handleRetryDraft(d.id)}
+                        aria-label="Retry sync"
+                        title="Retry sync"
                       >
                         {syncingDraftId === d.id ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
                           <RefreshCw className="h-3.5 w-3.5" />
                         )}
-                        Retry
+                        <span className="hidden md:inline">Retry</span>
+                        <span className="sr-only md:hidden">Retry</span>
                       </Button>
                     )}
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-9 px-3 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                      className="h-11 w-11 md:h-9 md:w-auto md:px-3 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 shrink-0 p-0 md:px-3 inline-flex items-center justify-center"
                       onClick={() => handleDeleteDraft(d.id)}
+                      aria-label="Delete draft"
+                      title="Delete draft"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
-                      Delete
+                      <span className="hidden md:inline">Delete</span>
+                      <span className="sr-only md:hidden">Delete</span>
                     </Button>
                   </div>
                 </div>
@@ -435,82 +447,82 @@ export default function CitizenDashboardPage() {
         )}
 
         {/* Summary Stats Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <Card className="border border-slate-200 shadow-xs bg-white rounded-xl p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Reports</p>
-                <p className="text-2xl font-extrabold text-slate-900 mt-1">{complaints.length}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          <Card className="border border-slate-200 shadow-xs bg-white rounded-xl p-3 sm:p-4 min-w-0">
+            <div className="flex items-center justify-between gap-2 min-w-0">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">Total Reports</p>
+                <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 truncate">{complaints.length}</p>
               </div>
-              <div className="h-10 w-10 rounded-xl bg-blue-50 text-ic-blue flex items-center justify-center shrink-0">
-                <FileText className="h-5 w-5" />
+              <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-blue-50 text-ic-blue flex items-center justify-center shrink-0">
+                <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
             </div>
           </Card>
 
-          <Card className="border border-slate-200 shadow-xs bg-white rounded-xl p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Under Review</p>
-                <p className="text-2xl font-extrabold text-amber-600 mt-1">
+          <Card className="border border-slate-200 shadow-xs bg-white rounded-xl p-3 sm:p-4 min-w-0">
+            <div className="flex items-center justify-between gap-2 min-w-0">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">Under Review</p>
+                <p className="text-xl sm:text-2xl font-extrabold text-amber-600 mt-1 truncate">
                   {complaints.filter((c) => ['SUBMITTED', 'AI_PROCESSING', 'PENDING_DEPT_REVIEW'].includes(c.status)).length}
                 </p>
               </div>
-              <div className="h-10 w-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                <Calendar className="h-5 w-5" />
+              <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
             </div>
           </Card>
 
-          <Card className="border border-slate-200 shadow-xs bg-white rounded-xl p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">In Progress</p>
-                <p className="text-2xl font-extrabold text-indigo-600 mt-1">
+          <Card className="border border-slate-200 shadow-xs bg-white rounded-xl p-3 sm:p-4 min-w-0">
+            <div className="flex items-center justify-between gap-2 min-w-0">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">In Progress</p>
+                <p className="text-xl sm:text-2xl font-extrabold text-indigo-600 mt-1 truncate">
                   {complaints.filter((c) => ['ASSIGNED', 'IN_PROGRESS'].includes(c.status)).length}
                 </p>
               </div>
-              <div className="h-10 w-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                <RefreshCw className="h-5 w-5" />
+              <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
             </div>
           </Card>
 
-          <Card className="border border-slate-200 shadow-xs bg-white rounded-xl p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Resolved</p>
-                <p className="text-2xl font-extrabold text-emerald-600 mt-1">
+          <Card className="border border-slate-200 shadow-xs bg-white rounded-xl p-3 sm:p-4 min-w-0">
+            <div className="flex items-center justify-between gap-2 min-w-0">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">Resolved</p>
+                <p className="text-xl sm:text-2xl font-extrabold text-emerald-600 mt-1 truncate">
                   {complaints.filter((c) => ['RESOLVED', 'CLOSED'].includes(c.status)).length}
                 </p>
               </div>
-              <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                <PlusCircle className="h-5 w-5 rotate-45" />
+              <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <PlusCircle className="h-4 w-4 sm:h-5 sm:w-5 rotate-45" />
               </div>
             </div>
           </Card>
         </div>
 
         {/* Filter & Search Controls Card */}
-        <Card className="border border-slate-200 shadow-xs bg-white rounded-xl">
-          <CardContent className="p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
-                <Filter className="h-4 w-4 text-ic-blue" />
-                <span>Search &amp; Filter Complaints</span>
+        <Card className="border border-slate-200 shadow-xs bg-white rounded-xl min-w-0">
+          <CardContent className="p-4 space-y-3 min-w-0">
+            <div className="flex items-center justify-between gap-2 min-w-0">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-900 min-w-0">
+                <Filter className="h-4 w-4 text-ic-blue shrink-0" />
+                <span className="truncate">Search &amp; Filter Complaints</span>
               </div>
 
               {lastUpdated && (
-                <span className="text-[11px] text-slate-400 flex items-center gap-1 font-mono">
+                <span className="text-[11px] text-slate-400 flex items-center gap-1 font-mono shrink-0">
                   <RefreshCw className="h-3 w-3 text-ic-blue animate-spin" />
-                  Live (Updated {lastUpdated})
+                  <span className="hidden sm:inline">Live (Updated {lastUpdated})</span>
                 </span>
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 min-w-0">
+              <div className="relative min-w-0">
+                <Search className="absolute left-3 top-3.5 md:top-2.5 h-4 w-4 text-slate-400" />
                 <Input
                   placeholder="Search title or ID..."
                   value={searchQuery}
@@ -518,7 +530,7 @@ export default function CitizenDashboardPage() {
                     setSearchQuery(e.target.value);
                     setPage(1);
                   }}
-                  className="pl-9"
+                  className="pl-9 min-w-0"
                 />
               </div>
 
@@ -528,7 +540,7 @@ export default function CitizenDashboardPage() {
                   setStatusFilter(e.target.value);
                   setPage(1);
                 }}
-                className=""
+                className="min-w-0"
               >
                 <option value="ALL">All Statuses</option>
                 <option value="SUBMITTED">Submitted</option>
@@ -541,7 +553,7 @@ export default function CitizenDashboardPage() {
                 <option value="DUPLICATE">Duplicate</option>
               </Select>
 
-              <div className="space-y-0.5">
+              <div className="space-y-0.5 min-w-0">
                 <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">From Date</label>
                 <Input
                   type="date"
@@ -550,11 +562,11 @@ export default function CitizenDashboardPage() {
                     setFromDate(e.target.value);
                     setPage(1);
                   }}
-                  className=""
+                  className="min-w-0"
                 />
               </div>
 
-              <div className="space-y-0.5">
+              <div className="space-y-0.5 min-w-0">
                 <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">To Date</label>
                 <Input
                   type="date"
@@ -563,7 +575,7 @@ export default function CitizenDashboardPage() {
                     setToDate(e.target.value);
                     setPage(1);
                   }}
-                  className=""
+                  className="min-w-0"
                 />
               </div>
             </div>
@@ -574,10 +586,11 @@ export default function CitizenDashboardPage() {
                   variant="ghost"
                   size="sm"
                   onClick={clearFilters}
-                  className="text-slate-500 hover:text-slate-900 gap-1"
+                  className="h-11 px-3 md:h-9 md:px-3 text-slate-500 hover:text-slate-900 gap-1.5"
+                  aria-label="Clear All Filters"
                 >
-                  <X className="h-3 w-3" />
-                  Clear All Filters
+                  <X className="h-4 w-4 md:h-3 md:w-3" />
+                  <span>Clear All Filters</span>
                 </Button>
               </div>
             )}
@@ -598,7 +611,7 @@ export default function CitizenDashboardPage() {
         ) : error ? (
           <Card className="p-6 text-center border-rose-200 bg-rose-50 text-rose-800 rounded-xl">
             <CardDescription className="text-xs font-semibold text-rose-800">{error}</CardDescription>
-            <Button variant="outline" size="sm" onClick={() => fetchComplaints()} className="mt-4 border-rose-200">
+            <Button variant="outline" size="sm" onClick={() => fetchComplaints()} className="mt-4 h-11 px-4 md:h-9 md:px-3 border-rose-200">
               Retry
             </Button>
           </Card>
@@ -617,40 +630,42 @@ export default function CitizenDashboardPage() {
                 </CardDescription>
               </div>
               <Link href="/citizen/complaints/new">
-                <Button size="sm" className="bg-ic-blue text-white font-medium">Submit Your First Complaint</Button>
+                <Button size="sm" className="h-11 px-4 md:h-9 md:px-3 bg-ic-blue text-white font-medium">Submit Your First Complaint</Button>
               </Link>
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-4 min-w-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
               {complaints.map((complaint) => {
                 return (
                   <Link
                     key={complaint.id}
                     href={`/citizen/complaints/${complaint.id}`}
-                    className="block group"
+                    className="block group min-w-0"
                   >
-                    <Card className="h-full hover:shadow-md transition-shadow border border-slate-200 bg-white rounded-xl hover:border-ic-blue/40 flex flex-col justify-between overflow-hidden">
-                      <CardHeader className="p-5 pb-3">
-                        <div className="flex items-center justify-between gap-2 mb-1.5">
-                          <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                    <Card className="h-full hover:shadow-md transition-shadow border border-slate-200 bg-white rounded-xl hover:border-ic-blue/40 flex flex-col justify-between overflow-hidden min-w-0">
+                      <CardHeader className="p-4 sm:p-5 pb-3 min-w-0">
+                        <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
+                          <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 shrink-0">
                             #{complaint.ticketId}
                           </span>
-                          {getStatusBadge(complaint.status)}
+                          <div className="shrink-0">
+                            {getStatusBadge(complaint.status)}
+                          </div>
                         </div>
-                        <CardTitle className="text-base font-bold text-slate-900 line-clamp-1 group-hover:text-ic-blue transition-colors">
+                        <CardTitle className="text-base font-bold text-slate-900 line-clamp-1 group-hover:text-ic-blue transition-colors break-words">
                           {complaint.title}
                         </CardTitle>
                       </CardHeader>
 
-                      <CardContent className="p-5 pt-0 space-y-3 flex-1 flex flex-col justify-between">
-                        <p className="text-xs text-slate-600 line-clamp-2">
+                      <CardContent className="p-4 sm:p-5 pt-0 space-y-3 flex-1 flex flex-col justify-between min-w-0">
+                        <p className="text-xs text-slate-600 line-clamp-2 break-words">
                           {complaint.description}
                         </p>
 
-                        <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs text-slate-500">
-                          <div className="flex items-center gap-1.5">
+                        <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs text-slate-500 gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 shrink-0">
                             <Calendar className="h-3.5 w-3.5 text-ic-blue" />
                             <span>
                               {new Date(complaint.createdAt).toLocaleDateString(undefined, {
@@ -662,7 +677,7 @@ export default function CitizenDashboardPage() {
                           </div>
 
                           {complaint.category && (
-                            <span className="bg-slate-50 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-semibold text-slate-700">
+                            <span className="bg-slate-50 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-semibold text-slate-700 truncate max-w-[150px]">
                               {complaint.category.name}
                             </span>
                           )}
@@ -676,7 +691,7 @@ export default function CitizenDashboardPage() {
 
             {/* Pagination Controls */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+              <div className="flex items-center justify-between pt-4 border-t border-slate-200 gap-2 flex-wrap">
                 <span className="text-xs text-slate-500">
                   Page {page} of {totalPages}
                 </span>
@@ -686,19 +701,21 @@ export default function CitizenDashboardPage() {
                     size="sm"
                     disabled={page <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="border-slate-200"
+                    className="h-11 px-3 md:h-9 md:px-3 border-slate-200"
+                    aria-label="Previous page"
                   >
                     <ChevronLeft className="h-4 w-4 mr-1" />
-                    Previous
+                    <span>Previous</span>
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     disabled={page >= totalPages}
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    className="border-slate-200"
+                    className="h-11 px-3 md:h-9 md:px-3 border-slate-200"
+                    aria-label="Next page"
                   >
-                    Next
+                    <span>Next</span>
                     <ChevronRight className="h-4 w-4 ml-1" />
                   </Button>
                 </div>
@@ -710,4 +727,5 @@ export default function CitizenDashboardPage() {
     </AppShell>
   );
 }
+
 

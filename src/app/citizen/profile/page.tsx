@@ -264,14 +264,17 @@ function CitizenProfileForm() {
                         size="sm"
                         disabled={uploadingAvatar}
                         onClick={() => fileInputRef.current?.click()}
-                      className="gap-1.5 shrink-0"
+                        className="h-11 px-3 md:h-9 md:px-3 text-xs gap-1.5 shrink-0"
+                        aria-label="Upload Photo"
+                        title="Upload Photo"
                       >
                         {uploadingAvatar ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <Loader2 className="h-4 w-4 md:h-3.5 md:h-3.5 animate-spin shrink-0" />
                         ) : (
-                          <UploadCloud className="h-3.5 w-3.5" />
+                          <UploadCloud className="h-4 w-4 md:h-3.5 md:h-3.5 shrink-0" />
                         )}
-                        <span>{uploadingAvatar ? 'Uploading...' : 'Upload Photo'}</span>
+                        <span className="hidden md:inline">{uploadingAvatar ? 'Uploading...' : 'Upload Photo'}</span>
+                        <span className="sr-only md:hidden">Upload Photo</span>
                       </Button>
                     </div>
                     <p className="text-[11px] text-muted-foreground">

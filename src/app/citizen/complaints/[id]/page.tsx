@@ -368,46 +368,49 @@ export default function CitizenComplaintDetailPage() {
         </div>
 
         {/* Live Auto-Refresh Status Pill & Delete Button */}
-        <div className="flex items-center gap-3 self-end sm:self-center">
+        <div className="flex items-center gap-3 self-end sm:self-center flex-wrap">
           {isDeletable && (
             <Button
               variant="destructive"
               size="sm"
               disabled={deleting}
               onClick={handleDeleteComplaint}
-              className="gap-1.5 font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-xs"
+              className="h-11 px-3 md:h-9 md:px-3 text-xs gap-1.5 font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-xs shrink-0"
+              aria-label="Delete Complaint"
+              title="Delete Complaint"
             >
               {deleting ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-4 w-4 md:h-3.5 md:h-3.5 animate-spin shrink-0" />
               ) : (
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="h-4 w-4 md:h-3.5 md:h-3.5 shrink-0" />
               )}
-              <span>Delete Complaint</span>
+              <span className="hidden md:inline">Delete Complaint</span>
+              <span className="sr-only md:hidden">Delete Complaint</span>
             </Button>
           )}
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <RefreshCw className="h-3.5 w-3.5 text-primary animate-spin" />
-            <span>Auto-polling (Updated {lastUpdated})</span>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground min-w-0">
+            <RefreshCw className="h-3.5 w-3.5 text-primary animate-spin shrink-0" />
+            <span className="truncate">Auto-polling (Updated {lastUpdated})</span>
           </div>
         </div>
       </div>
 
       {/* Progress Stepper Card */}
-      <Card className="shadow-sm">
-        <CardHeader className="pb-2">
+      <Card className="shadow-sm min-w-0">
+        <CardHeader className="pb-2 min-w-0">
           <CardTitle className="text-base font-semibold">Resolution Progress</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 min-w-0">
           <Stepper status={complaint.status} />
 
           {/* Batch C: Rejection / Duplicate Specific Staff Reason Display */}
           {(complaint.status === 'REJECTED' || complaint.status === 'DUPLICATE') && latestReasonNote && (
-            <Alert variant={complaint.status === 'REJECTED' ? 'destructive' : 'default'} className="mt-3">
-              <AlertCircle className="h-4 w-4" />
+            <Alert variant={complaint.status === 'REJECTED' ? 'destructive' : 'default'} className="mt-3 min-w-0">
+              <AlertCircle className="h-4 w-4 shrink-0" />
               <AlertTitle className="font-bold text-sm">
                 Official Municipal Note ({complaint.status.replace('_', ' ')})
               </AlertTitle>
-              <AlertDescription className="text-xs mt-1 leading-relaxed">
+              <AlertDescription className="text-xs mt-1 leading-relaxed break-words">
                 {latestReasonNote}
               </AlertDescription>
             </Alert>
@@ -415,9 +418,9 @@ export default function CitizenComplaintDetailPage() {
 
           {/* Batch C: Category Override Badge Notice */}
           {isCategoryOverridden && (
-            <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg text-xs flex items-center gap-2 text-foreground">
+            <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg text-xs flex items-center gap-2 text-foreground min-w-0">
               <Sparkles className="h-4 w-4 text-primary shrink-0" />
-              <span>
+              <span className="break-words">
                 <strong>Category Reclassified:</strong> Originally filed under{' '}
                 <span className="underline">{complaint.originalCategory?.name}</span>, reclassified by AI/Staff to{' '}
                 <span className="font-bold text-primary">{complaint.category?.name}</span> for faster resolution.
@@ -427,19 +430,19 @@ export default function CitizenComplaintDetailPage() {
 
           {/* Batch A: Post-Resolution Decision Bar (Shown when RESOLVED) */}
           {complaint.status === 'RESOLVED' && (
-            <div className="p-4 bg-emerald-500/10 border-2 border-emerald-500/30 rounded-xl space-y-3">
+            <div className="p-4 bg-emerald-500/10 border-2 border-emerald-500/30 rounded-xl space-y-3 min-w-0">
               <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                <span>Department Marked This Complaint as Resolved!</span>
+                <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+                <span className="break-words">Department Marked This Complaint as Resolved!</span>
               </div>
-              <p className="text-xs text-muted-foreground leading-relaxed">
+              <p className="text-xs text-muted-foreground leading-relaxed break-words">
                 Please verify the work done. If satisfied, mark it satisfactory to close the ticket. If the issue persists, you may reopen this ticket.
               </p>
               <div className="flex flex-col sm:flex-row items-center gap-3 pt-1">
                 <Button
                   onClick={handleMarkSatisfactory}
                   disabled={actionLoading}
-                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5"
+                  className="w-full sm:w-auto h-11 md:h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5"
                 >
                   <ThumbsUp className="h-4 w-4" />
                   {actionLoading ? 'Closing Ticket...' : 'Mark as Satisfactory & Close'}
@@ -448,7 +451,7 @@ export default function CitizenComplaintDetailPage() {
                   variant="outline"
                   onClick={() => setReopenModalOpen(true)}
                   disabled={actionLoading}
-                  className="w-full sm:w-auto border-amber-500 text-amber-700 hover:bg-amber-50 font-bold text-xs gap-1.5"
+                  className="w-full sm:w-auto h-11 md:h-9 border-amber-500 text-amber-700 hover:bg-amber-50 font-bold text-xs gap-1.5"
                 >
                   <RotateCcw className="h-4 w-4" />
                   Reopen Complaint
@@ -542,7 +545,7 @@ export default function CitizenComplaintDetailPage() {
                       type="submit"
                       disabled={submittingFeedback}
                       size="sm"
-                      className="bg-primary text-xs font-semibold"
+                      className="h-11 px-4 md:h-9 md:px-3 bg-primary text-xs font-semibold w-full sm:w-auto"
                     >
                       {submittingFeedback ? 'Submitting...' : 'Submit Feedback'}
                     </Button>
@@ -755,14 +758,14 @@ export default function CitizenComplaintDetailPage() {
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReopenModalOpen(false)}>
+          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setReopenModalOpen(false)} className="h-11 px-4 md:h-9 md:px-3 w-full sm:w-auto">
               Cancel
             </Button>
             <Button
               onClick={handleReopenComplaint}
               disabled={actionLoading}
-              className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
+              className="h-11 px-4 md:h-9 md:px-3 bg-amber-600 hover:bg-amber-700 text-white font-bold w-full sm:w-auto"
             >
               {actionLoading ? 'Reopening...' : 'Confirm & Reopen Ticket'}
             </Button>

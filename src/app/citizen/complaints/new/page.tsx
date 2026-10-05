@@ -784,17 +784,21 @@ export default function NewComplaintPage() {
                       variant={listeningTarget === 'title' ? 'destructive' : 'ghost'}
                       size="sm"
                       onClick={() => startListening('title')}
-                      className="h-11 px-2 gap-1 text-ai-indigo hover:text-indigo-700"
+                      className="h-11 px-2.5 gap-1.5 text-ai-indigo hover:text-indigo-700 shrink-0"
+                      aria-label={listeningTarget === 'title' ? 'Stop listening' : 'Dictate Title'}
+                      title={listeningTarget === 'title' ? 'Stop listening' : 'Dictate Title'}
                     >
                       {listeningTarget === 'title' ? (
                         <>
-                          <MicOff className="h-3.5 w-3.5" />
-                          <span>Stop</span>
+                          <MicOff className="h-4 w-4 shrink-0" />
+                          <span className="hidden md:inline">Stop</span>
+                          <span className="sr-only md:hidden">Stop</span>
                         </>
                       ) : (
                         <>
-                          <Mic className="h-3.5 w-3.5" />
-                          <span>Dictate Title</span>
+                          <Mic className="h-4 w-4 shrink-0" />
+                          <span className="hidden md:inline">Dictate Title</span>
+                          <span className="sr-only md:hidden">Dictate Title</span>
                         </>
                       )}
                     </Button>
@@ -848,17 +852,21 @@ export default function NewComplaintPage() {
                       variant={listeningTarget === 'description' ? 'destructive' : 'ghost'}
                       size="sm"
                       onClick={() => startListening('description')}
-                      className="h-11 px-2 gap-1 text-ai-indigo hover:text-indigo-700"
+                      className="h-11 px-2.5 gap-1.5 text-ai-indigo hover:text-indigo-700 shrink-0"
+                      aria-label={listeningTarget === 'description' ? 'Stop listening' : 'Dictate Description'}
+                      title={listeningTarget === 'description' ? 'Stop listening' : 'Dictate Description'}
                     >
                       {listeningTarget === 'description' ? (
                         <>
-                          <MicOff className="h-3.5 w-3.5" />
-                          <span>Stop</span>
+                          <MicOff className="h-4 w-4 shrink-0" />
+                          <span className="hidden md:inline">Stop</span>
+                          <span className="sr-only md:hidden">Stop</span>
                         </>
                       ) : (
                         <>
-                          <Mic className="h-3.5 w-3.5" />
-                          <span>Dictate Description</span>
+                          <Mic className="h-4 w-4 shrink-0" />
+                          <span className="hidden md:inline">Dictate Description</span>
+                          <span className="sr-only md:hidden">Dictate Description</span>
                         </>
                       )}
                     </Button>
@@ -879,24 +887,27 @@ export default function NewComplaintPage() {
               </div>
 
               {/* Location Section with Auto-Fetch Landmark, GPS & Interactive Map */}
-              <div className="space-y-3 p-4 rounded-xl border border-slate-200 bg-slate-50/50">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 font-bold text-xs text-slate-800 uppercase tracking-wide">
+              <div className="space-y-3 p-4 rounded-xl border border-slate-200 bg-slate-50/50 min-w-0">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
+                  <div className="flex items-center gap-2 font-bold text-xs text-slate-800 uppercase tracking-wide min-w-0">
                     <MapPin className="h-4 w-4 text-ic-blue shrink-0" />
-                    <span>Issue Location & Map Pin</span>
+                    <span className="truncate">Issue Location &amp; Map Pin</span>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     {speechSupported && (
                       <Button
                         type="button"
                         variant={listeningTarget === 'address' ? 'destructive' : 'outline'}
                         size="sm"
                         onClick={() => startListening('address')}
-                        className="gap-1 h-11 border-slate-200"
+                        className="gap-1.5 h-11 px-3 border-slate-200"
+                        aria-label="Dictate Landmark"
+                        title="Dictate Landmark"
                       >
-                        <Mic className="h-3.5 w-3.5" />
-                        <span>Dictate Landmark</span>
+                        <Mic className="h-4 w-4 shrink-0" />
+                        <span className="hidden md:inline">Dictate Landmark</span>
+                        <span className="sr-only md:hidden">Dictate Landmark</span>
                       </Button>
                     )}
 
@@ -906,17 +917,21 @@ export default function NewComplaintPage() {
                       size="sm"
                       onClick={handleGetCurrentLocation}
                       disabled={gettingLocation || fetchingLandmark}
-                      className="gap-1.5 h-11 border-slate-200 text-ic-blue"
+                      className="gap-1.5 h-11 px-3 border-slate-200 text-ic-blue"
+                      aria-label="Use My Current Location"
+                      title="Use My Current Location"
                     >
                       {gettingLocation || fetchingLandmark ? (
                         <>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          <span>Auto-Fetching Landmark...</span>
+                          <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                          <span className="hidden md:inline">Auto-Fetching Landmark...</span>
+                          <span className="sr-only md:hidden">Auto-Fetching Landmark...</span>
                         </>
                       ) : (
                         <>
-                          <Navigation className="h-3.5 w-3.5 text-ic-blue" />
-                          <span>Use My Current Location</span>
+                          <Navigation className="h-4 w-4 text-ic-blue shrink-0" />
+                          <span className="hidden md:inline">Use My Current Location</span>
+                          <span className="sr-only md:hidden">Use My Current Location</span>
                         </>
                       )}
                     </Button>
@@ -973,13 +988,13 @@ export default function NewComplaintPage() {
               </div>
 
               {/* Form Actions */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-                <Link href="/citizen">
-                  <Button variant="outline" type="button" disabled={isSubmitting || checkingDuplicates} className="border-slate-200">
+              <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <Link href="/citizen" className="w-full sm:w-auto">
+                  <Button variant="outline" type="button" disabled={isSubmitting || checkingDuplicates} className="w-full sm:w-auto border-slate-200">
                     Cancel
                   </Button>
                 </Link>
-                <Button type="submit" disabled={isSubmitting || checkingDuplicates} className="min-w-[140px] bg-ic-blue hover:bg-blue-700 text-white font-medium">
+                <Button type="submit" disabled={isSubmitting || checkingDuplicates} className="w-full sm:w-auto min-w-[140px] bg-ic-blue hover:bg-blue-700 text-white font-medium">
                   {checkingDuplicates ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
