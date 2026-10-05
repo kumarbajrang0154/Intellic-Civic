@@ -1,7 +1,15 @@
 import { SignJWT } from 'jose';
 
+const isProduction =
+  process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
+const rawJwtSecret = process.env.JWT_SECRET;
+
+if (isProduction && !rawJwtSecret) {
+  throw new Error('JWT_SECRET environment variable is required in production');
+}
+
 const JWT_SECRET_KEY = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'intellicivic-super-secret-jwt-key-2026',
+  rawJwtSecret || 'intellicivic-super-secret-jwt-key-2026',
 );
 
 export async function createJwtToken(payload: Record<string, any>, expiresIn = '7d'): Promise<string> {

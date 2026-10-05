@@ -1,8 +1,14 @@
 import { test, expect } from '@playwright/test';
-import { attachOutcomeListeners, createAuthJwt, setAuthCookie, VIEWPORTS } from './sweep-helpers';
+import { attachOutcomeListeners, createAuthJwt, setAuthCookie, getSeededUser, VIEWPORTS } from './sweep-helpers';
 import prisma from '../../src/lib/prisma';
 
 test.describe('Citizen Portal Outcome-Based Bug Sweep', () => {
+  let citizenUser: any;
+
+  test.beforeAll(async () => {
+    citizenUser = await getSeededUser({ role: 'CITIZEN', id: 'citizen_9876543210' });
+  });
+
   for (const vp of VIEWPORTS) {
     test.describe(`Viewport: ${vp.name} (${vp.width}x${vp.height})`, () => {
       test.beforeEach(async ({ page, context }) => {
@@ -73,10 +79,10 @@ test.describe('Citizen Portal Outcome-Based Bug Sweep', () => {
         context,
       }) => {
         const token = await createAuthJwt({
-          sub: 'citizen_9876543210',
+          sub: citizenUser.id,
           role: 'CITIZEN',
-          name: 'Bajrang Kumar',
-          mobileNumber: '9876543210',
+          name: citizenUser.name || 'Bajrang Kumar',
+          mobileNumber: citizenUser.mobileNumber || '9876543210',
         });
         await setAuthCookie(context, token);
 
@@ -125,10 +131,10 @@ test.describe('Citizen Portal Outcome-Based Bug Sweep', () => {
         context,
       }) => {
         const token = await createAuthJwt({
-          sub: 'citizen_9876543210',
+          sub: citizenUser.id,
           role: 'CITIZEN',
-          name: 'Bajrang Kumar',
-          mobileNumber: '9876543210',
+          name: citizenUser.name || 'Bajrang Kumar',
+          mobileNumber: citizenUser.mobileNumber || '9876543210',
         });
         await setAuthCookie(context, token);
 
@@ -168,6 +174,7 @@ test.describe('Citizen Portal Outcome-Based Bug Sweep', () => {
 
         // Explicitly wait for photo evidence upload to complete and render preview
         await expect(page.locator('img[alt="Evidence 1"]')).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('img[alt="Uploading preview"]')).not.toBeVisible({ timeout: 15000 });
         await page.waitForTimeout(1000);
 
         // Submit form (triggers duplicate check first)
@@ -196,7 +203,7 @@ test.describe('Citizen Portal Outcome-Based Bug Sweep', () => {
         // Ensure cmp-submitted-demo is in SUBMITTED status
         await prisma.complaint.upsert({
           where: { id: 'cmp-submitted-demo' },
-          update: { status: 'SUBMITTED' },
+          update: { status: 'SUBMITTED', citizenId: citizenUser.id },
           create: {
             id: 'cmp-submitted-demo',
             ticketId: 'INC-2026-0903-0001',
@@ -204,16 +211,16 @@ test.describe('Citizen Portal Outcome-Based Bug Sweep', () => {
             description: 'Clean drinking water is continuously leaking from a municipal pipe joint.',
             status: 'SUBMITTED',
             priority: 'MEDIUM',
-            citizenId: 'citizen_9876543210',
+            citizenId: citizenUser.id,
             categoryId: 'cat-water',
           },
         });
 
         const token = await createAuthJwt({
-          sub: 'citizen_9876543210',
+          sub: citizenUser.id,
           role: 'CITIZEN',
-          name: 'Bajrang Kumar',
-          mobileNumber: '9876543210',
+          name: citizenUser.name || 'Bajrang Kumar',
+          mobileNumber: citizenUser.mobileNumber || '9876543210',
         });
         await setAuthCookie(context, token);
 
@@ -255,7 +262,7 @@ test.describe('Citizen Portal Outcome-Based Bug Sweep', () => {
         // Ensure cmp-resolved-demo is in RESOLVED status
         await prisma.complaint.upsert({
           where: { id: 'cmp-resolved-demo' },
-          update: { status: 'RESOLVED', readyForReview: false },
+          update: { status: 'RESOLVED', readyForReview: false, citizenId: citizenUser.id },
           create: {
             id: 'cmp-resolved-demo',
             ticketId: 'INC-2026-0901-1001',
@@ -263,7 +270,7 @@ test.describe('Citizen Portal Outcome-Based Bug Sweep', () => {
             description: 'Deep asphalt pothole near Signal 4 causing traffic congestion.',
             status: 'RESOLVED',
             priority: 'HIGH',
-            citizenId: 'citizen_9876543210',
+            citizenId: citizenUser.id,
             categoryId: 'cat-roads',
             departmentId: 'dept_roads_infra',
             resolvedAt: new Date(),
@@ -271,10 +278,10 @@ test.describe('Citizen Portal Outcome-Based Bug Sweep', () => {
         });
 
         const token = await createAuthJwt({
-          sub: 'citizen_9876543210',
+          sub: citizenUser.id,
           role: 'CITIZEN',
-          name: 'Bajrang Kumar',
-          mobileNumber: '9876543210',
+          name: citizenUser.name || 'Bajrang Kumar',
+          mobileNumber: citizenUser.mobileNumber || '9876543210',
         });
         await setAuthCookie(context, token);
 
@@ -327,10 +334,10 @@ test.describe('Citizen Portal Outcome-Based Bug Sweep', () => {
 
       test('6. Profile Management: edit citizen details and save', async ({ page, context }) => {
         const token = await createAuthJwt({
-          sub: 'citizen_9876543210',
+          sub: citizenUser.id,
           role: 'CITIZEN',
-          name: 'Bajrang Kumar',
-          mobileNumber: '9876543210',
+          name: citizenUser.name || 'Bajrang Kumar',
+          mobileNumber: citizenUser.mobileNumber || '9876543210',
         });
         await setAuthCookie(context, token);
 
@@ -348,6 +355,11 @@ test.describe('Citizen Portal Outcome-Based Bug Sweep', () => {
         await expect(addressInput).toBeVisible({ timeout: 10000 });
         await addressInput.fill('Sector 4, Main Municipal District, Smart City');
 
+        const emailInput = page.locator('input#email');
+        if (await emailInput.isVisible()) {
+          await emailInput.fill('citizen@test.gov');
+        }
+
         const saveBtn = page.getByRole('button', { name: /save changes|save & continue|update profile/i }).first();
         const [profileRes] = await Promise.all([
           page.waitForResponse((r) => r.url().includes('/api/citizen/profile') && r.request().method() === 'PUT'),
@@ -360,10 +372,10 @@ test.describe('Citizen Portal Outcome-Based Bug Sweep', () => {
 
       test('7. Notifications & Logout: mark all notifications as read and sign out', async ({ page, context }) => {
         const token = await createAuthJwt({
-          sub: 'citizen_9876543210',
+          sub: citizenUser.id,
           role: 'CITIZEN',
-          name: 'Bajrang Kumar',
-          mobileNumber: '9876543210',
+          name: citizenUser.name || 'Bajrang Kumar',
+          mobileNumber: citizenUser.mobileNumber || '9876543210',
         });
         await setAuthCookie(context, token);
 

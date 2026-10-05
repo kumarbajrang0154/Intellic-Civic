@@ -152,7 +152,7 @@ export default function FieldWorkerProfilePage() {
               <div className="relative h-16 w-16 rounded-full border-2 border-cyan-300 overflow-hidden bg-cyan-50 flex items-center justify-center shrink-0">
                 {avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={avatarUrl} alt={user.name} className="h-full w-full object-cover" />
+                  <img src={avatarUrl} alt={user.name} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
                   <User className="h-8 w-8 text-cyan-400" />
                 )}

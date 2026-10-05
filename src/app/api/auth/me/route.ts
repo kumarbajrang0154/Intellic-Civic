@@ -37,48 +37,27 @@ export async function GET() {
       }
     }
 
-    // Check DB for user info
+    // Check DB for user info strictly by sub (userId)
     const userId = payload.sub;
-    const userEmail = payload.email;
+    if (!userId) {
+      return NextResponse.json({ user: null }, { status: 401 });
+    }
 
-    let staffUser = null;
     const prismaClient = (await import('@/lib/prisma')).default;
-
-    if (userId) {
-      staffUser = await prismaClient.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          avatarUrl: true,
-          departmentId: true,
-          municipalityId: true,
-          isAuthorized: true,
-          isSuspended: true,
-        },
-      });
-    }
-
-    if (!staffUser && userEmail) {
-      staffUser = await prismaClient.user.findFirst({
-        where: {
-          email: { equals: userEmail.trim(), mode: 'insensitive' as const },
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          avatarUrl: true,
-          departmentId: true,
-          municipalityId: true,
-          isAuthorized: true,
-          isSuspended: true,
-        },
-      });
-    }
+    const staffUser = await prismaClient.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        avatarUrl: true,
+        departmentId: true,
+        municipalityId: true,
+        isAuthorized: true,
+        isSuspended: true,
+      },
+    });
 
     if (!staffUser) {
       return NextResponse.json({ user: null }, { status: 401 });

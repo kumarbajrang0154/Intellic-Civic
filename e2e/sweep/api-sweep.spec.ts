@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { SignJWT } from 'jose';
+import { getSeededUser } from './sweep-helpers';
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'intellicivic-dev-jwt-secret-key-32bytes!');
 
@@ -22,11 +23,17 @@ test.describe('API Security & Robustness Sweep across all /api/** endpoints', ()
   let adminToken: string;
 
   test.beforeAll(async () => {
-    citizenToken = await createToken({ sub: 'citizen_9876543210', role: 'CITIZEN' });
-    fwToken = await createToken({ sub: 'fw-demo-1', role: 'FIELD_WORKER', departmentId: 'dept_roads_infra' });
-    officerToken = await createToken({ sub: 'usr_officer_roads_1', role: 'DEPARTMENT_OFFICER', departmentId: 'dept_roads_infra' });
-    deptHeadToken = await createToken({ sub: 'usr_dept_head_roads', role: 'DEPARTMENT_HEAD', departmentId: 'dept_roads_infra' });
-    adminToken = await createToken({ sub: 'usr_super_admin', role: 'SUPER_ADMIN' });
+    const citizen = await getSeededUser({ role: 'CITIZEN' });
+    const fw = await getSeededUser({ role: 'FIELD_WORKER', email: 'fieldworker@intellicivic.gov.in' });
+    const officer = await getSeededUser({ role: 'DEPARTMENT_OFFICER', email: 'officer.roads@smartcity.gov.in' });
+    const deptHead = await getSeededUser({ role: 'DEPARTMENT_HEAD', email: 'head.roads@smartcity.gov.in' });
+    const admin = await getSeededUser({ role: 'SUPER_ADMIN' });
+
+    citizenToken = await createToken({ sub: citizen.id, role: 'CITIZEN' });
+    fwToken = await createToken({ sub: fw.id, role: 'FIELD_WORKER', departmentId: fw.departmentId || 'dept_roads_infra' });
+    officerToken = await createToken({ sub: officer.id, role: 'DEPARTMENT_OFFICER', departmentId: officer.departmentId || 'dept_roads_infra' });
+    deptHeadToken = await createToken({ sub: deptHead.id, role: 'DEPARTMENT_HEAD', departmentId: deptHead.departmentId || 'dept_roads_infra' });
+    adminToken = await createToken({ sub: admin.id, role: 'SUPER_ADMIN' });
   });
 
   const routes: {

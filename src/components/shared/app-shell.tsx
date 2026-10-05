@@ -237,7 +237,7 @@ const FIELD_WORKER_NAV: NavSection[] = [
   {
     label: 'WORK',
     items: [
-      { type: 'leaf', title: 'My Assignments', href: '/field-worker/complaints', icon: ClipboardList },
+      { type: 'leaf', title: 'My Assignments', href: '/field-worker', icon: ClipboardList },
     ],
   },
   {
@@ -289,13 +289,7 @@ function isAdminRole(role: UserRole) {
 
 function getNotificationHref(role?: string): string | null {
   if (!role) return null;
-  if (
-    role === 'ADMIN' ||
-    role === 'SUPER_ADMIN' ||
-    role === 'DEPARTMENT_HEAD' ||
-    role === 'DEPARTMENT_OFFICER' ||
-    role === 'FIELD_WORKER'
-  ) {
+  if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
     return '/admin/notifications';
   }
   if (role === 'CITIZEN') {
@@ -533,7 +527,7 @@ function SidebarContent({
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#2563EB] to-[#0891B2] flex items-center justify-center shrink-0 text-white font-bold text-xs shadow-xs overflow-hidden">
             {user.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={user.avatarUrl} alt={user.name || 'Avatar'} className="w-full h-full object-cover" />
+              <img src={user.avatarUrl} alt={user.name || 'Avatar'} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             ) : (
               (user.name || 'U').charAt(0).toUpperCase()
             )}
@@ -801,7 +795,7 @@ export function AppShell({ children, user }: AppShellProps) {
               <div className="w-8 h-8 rounded-full bg-ic-blue flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-xs overflow-hidden">
                 {effectiveUser.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={effectiveUser.avatarUrl} alt={effectiveUser.name || 'Avatar'} className="w-full h-full object-cover" />
+                  <img src={effectiveUser.avatarUrl} alt={effectiveUser.name || 'Avatar'} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
                   (effectiveUser.name || 'U').charAt(0).toUpperCase()
                 )}

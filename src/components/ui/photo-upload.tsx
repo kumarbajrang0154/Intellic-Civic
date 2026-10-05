@@ -156,11 +156,8 @@ export function PhotoUpload({
           });
         }
 
-        setUploadingFiles((prev) =>
-          prev.map((item) =>
-            item.id === fileId ? { ...item, progress: 100, url: secureUrl } : item,
-          ),
-        );
+        URL.revokeObjectURL(preview);
+        setUploadingFiles((prev) => prev.filter((item) => item.id !== fileId));
 
         if (onChange) {
           onChange([...value, secureUrl]);

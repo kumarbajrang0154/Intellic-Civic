@@ -1,8 +1,16 @@
 import { test, expect } from '@playwright/test';
-import { attachOutcomeListeners, createAuthJwt, setAuthCookie, VIEWPORTS } from './sweep-helpers';
+import { attachOutcomeListeners, createAuthJwt, setAuthCookie, getSeededUser, VIEWPORTS } from './sweep-helpers';
 import prisma from '../../src/lib/prisma';
 
 test.describe('Admin & RBAC Destructive Edge Flows Outcome Sweep', () => {
+  let superAdminUser: any;
+  let citizenUser: any;
+
+  test.beforeAll(async () => {
+    superAdminUser = await getSeededUser({ role: 'SUPER_ADMIN', email: 'kumarbajrang325@gmail.com' });
+    citizenUser = await getSeededUser({ role: 'CITIZEN' });
+  });
+
   for (const vp of VIEWPORTS) {
     test.describe(`Viewport: ${vp.name} (${vp.width}x${vp.height})`, () => {
       test.beforeEach(async ({ page }) => {
@@ -14,10 +22,10 @@ test.describe('Admin & RBAC Destructive Edge Flows Outcome Sweep', () => {
       // ─────────────────────────────────────────────────────────────────────────
       test('1. Admin: overview dashboard stats and platform settings update', async ({ page, context }) => {
         const token = await createAuthJwt({
-          sub: 'usr_super_admin',
+          sub: superAdminUser.id,
           role: 'SUPER_ADMIN',
-          name: 'Bajrang Kumar (Super Admin)',
-          email: 'kumarbajrang325@gmail.com',
+          name: superAdminUser.name || 'Bajrang Kumar (Super Admin)',
+          email: superAdminUser.email || 'kumarbajrang325@gmail.com',
         });
         await setAuthCookie(context, token);
 
@@ -58,10 +66,10 @@ test.describe('Admin & RBAC Destructive Edge Flows Outcome Sweep', () => {
         request,
       }) => {
         const token = await createAuthJwt({
-          sub: 'd86d46dc-0d8b-4726-a151-bd7ab4e13ead',
+          sub: superAdminUser.id,
           role: 'SUPER_ADMIN',
-          name: 'Bajrang Kumar (Super Admin)',
-          email: 'kumarbajrang325@gmail.com',
+          name: superAdminUser.name || 'Bajrang Kumar (Super Admin)',
+          email: superAdminUser.email || 'kumarbajrang325@gmail.com',
         });
         await setAuthCookie(context, token);
 
@@ -136,10 +144,10 @@ test.describe('Admin & RBAC Destructive Edge Flows Outcome Sweep', () => {
       }) => {
         // Citizen token
         const citizenToken = await createAuthJwt({
-          sub: 'citizen_9876543210',
+          sub: citizenUser.id,
           role: 'CITIZEN',
-          name: 'Bajrang Kumar',
-          mobileNumber: '9876543210',
+          name: citizenUser.name || 'Bajrang Kumar',
+          mobileNumber: citizenUser.mobileNumber || '9876543210',
         });
         await setAuthCookie(context, citizenToken);
 
@@ -165,10 +173,10 @@ test.describe('Admin & RBAC Destructive Edge Flows Outcome Sweep', () => {
         request,
       }) => {
         const citizenToken = await createAuthJwt({
-          sub: 'citizen_9876543210',
+          sub: citizenUser.id,
           role: 'CITIZEN',
-          name: 'Bajrang Kumar',
-          mobileNumber: '9876543210',
+          name: citizenUser.name || 'Bajrang Kumar',
+          mobileNumber: citizenUser.mobileNumber || '9876543210',
         });
 
         // Attempt to DELETE cmp-field-assigned (status: ASSIGNED)

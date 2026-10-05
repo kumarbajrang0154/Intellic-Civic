@@ -127,6 +127,13 @@ export async function listStaff(filters: StaffListFilters): Promise<ServiceResul
     allUsers = allUsers.filter((u) => u.isSuspended);
   }
 
+  // Prioritize SUPER_ADMIN accounts at top of staff roster
+  allUsers.sort((a, b) => {
+    if (a.role === 'SUPER_ADMIN' && b.role !== 'SUPER_ADMIN') return -1;
+    if (b.role === 'SUPER_ADMIN' && a.role !== 'SUPER_ADMIN') return 1;
+    return 0;
+  });
+
   const total = allUsers.length;
   const offset = (page - 1) * limit;
   const pageItems = allUsers.slice(offset, offset + limit);

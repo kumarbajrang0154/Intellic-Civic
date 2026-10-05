@@ -107,6 +107,24 @@ function CitizenProfileForm() {
     loadProfile();
   }, []);
 
+  const redirectTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  React.useEffect(() => {
+    const cancelRedirect = () => {
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current);
+        redirectTimerRef.current = null;
+      }
+    };
+    window.addEventListener('beforeunload', cancelRedirect);
+    window.addEventListener('pagehide', cancelRedirect);
+    return () => {
+      cancelRedirect();
+      window.removeEventListener('beforeunload', cancelRedirect);
+      window.removeEventListener('pagehide', cancelRedirect);
+    };
+  }, []);
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -145,8 +163,11 @@ function CitizenProfileForm() {
       setIsProfileComplete(true);
       toast.success('Profile saved successfully!');
       if (isFirstTimeParam || !isProfileComplete) {
-        setTimeout(() => {
-          window.location.href = '/citizen';
+        if (redirectTimerRef.current) {
+          clearTimeout(redirectTimerRef.current);
+        }
+        redirectTimerRef.current = setTimeout(() => {
+          router.push('/citizen');
         }, 1000);
       }
     } catch (err: any) {
@@ -214,7 +235,7 @@ function CitizenProfileForm() {
                   <div className="relative h-20 w-20 rounded-full border-2 border-primary/30 overflow-hidden bg-muted flex items-center justify-center shrink-0">
                     {avatarUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={avatarUrl} alt={name || 'Avatar'} className="h-full w-full object-cover" />
+                      <img src={avatarUrl} alt={name || 'Avatar'} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
                       <User className="h-10 w-10 text-muted-foreground" />
                     )}

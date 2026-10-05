@@ -1,8 +1,20 @@
 import { test, expect } from '@playwright/test';
-import { attachOutcomeListeners, createAuthJwt, setAuthCookie, VIEWPORTS } from './sweep-helpers';
+import { attachOutcomeListeners, createAuthJwt, setAuthCookie, getSeededUser, VIEWPORTS } from './sweep-helpers';
 import prisma from '../../src/lib/prisma';
 
 test.describe('Staff Roles (Officer, Dept Head, Field Worker) Outcome-Based Bug Sweep', () => {
+  let officerUser: any;
+  let deptHeadUser: any;
+  let fwUser: any;
+  let citizenUser: any;
+
+  test.beforeAll(async () => {
+    officerUser = await getSeededUser({ role: 'DEPARTMENT_OFFICER', email: 'officer.roads@smartcity.gov.in' });
+    deptHeadUser = await getSeededUser({ role: 'DEPARTMENT_HEAD', email: 'head.roads@smartcity.gov.in' });
+    fwUser = await getSeededUser({ role: 'FIELD_WORKER', email: 'fieldworker@intellicivic.gov.in' });
+    citizenUser = await getSeededUser({ role: 'CITIZEN' });
+  });
+
   for (const vp of VIEWPORTS) {
     test.describe(`Viewport: ${vp.name} (${vp.width}x${vp.height})`, () => {
       test.beforeEach(async ({ page, context }) => {
@@ -21,11 +33,11 @@ test.describe('Staff Roles (Officer, Dept Head, Field Worker) Outcome-Based Bug 
         context,
       }) => {
         const token = await createAuthJwt({
-          sub: 'usr_officer_roads_1',
+          sub: officerUser.id,
           role: 'DEPARTMENT_OFFICER',
-          name: 'Amit Patel',
-          email: 'officer.roads@smartcity.gov.in',
-          departmentId: 'dept_roads_infra',
+          name: officerUser.name || 'Amit Patel',
+          email: officerUser.email || 'officer.roads@smartcity.gov.in',
+          departmentId: officerUser.departmentId || 'dept_roads_infra',
         });
         await setAuthCookie(context, token);
 
@@ -71,11 +83,11 @@ test.describe('Staff Roles (Officer, Dept Head, Field Worker) Outcome-Based Bug 
         });
 
         const officerToken = await createAuthJwt({
-          sub: 'usr_officer_roads_1',
+          sub: officerUser.id,
           role: 'DEPARTMENT_OFFICER',
-          name: 'Amit Patel',
-          email: 'officer.roads@smartcity.gov.in',
-          departmentId: 'dept_roads_infra',
+          name: officerUser.name || 'Amit Patel',
+          email: officerUser.email || 'officer.roads@smartcity.gov.in',
+          departmentId: officerUser.departmentId || 'dept_roads_infra',
         });
 
         const response = await request.post('/api/complaints/cmp-field-assigned/assign', {
@@ -109,18 +121,18 @@ test.describe('Staff Roles (Officer, Dept Head, Field Worker) Outcome-Based Bug 
             description: 'Heavy iron drainage cover displaced creating road hazard.',
             status: 'PENDING_DEPT_REVIEW',
             priority: 'HIGH',
-            citizenId: 'citizen_9876543210',
+            citizenId: citizenUser.id,
             categoryId: 'cat-roads',
             departmentId: 'dept_roads_infra',
           },
         });
 
         const token = await createAuthJwt({
-          sub: 'usr_dept_head_roads',
+          sub: deptHeadUser.id,
           role: 'DEPARTMENT_HEAD',
-          name: 'Rajesh Sharma',
-          email: 'head.roads@smartcity.gov.in',
-          departmentId: 'dept_roads_infra',
+          name: deptHeadUser.name || 'Rajesh Sharma',
+          email: deptHeadUser.email || 'head.roads@smartcity.gov.in',
+          departmentId: deptHeadUser.departmentId || 'dept_roads_infra',
         });
         await setAuthCookie(context, token);
 
@@ -160,10 +172,11 @@ test.describe('Staff Roles (Officer, Dept Head, Field Worker) Outcome-Based Bug 
         page,
         context,
       }) => {
-        // Ensure cmp-field-assigned is in ASSIGNED status
+        // Ensure cmp-field-assigned is in ASSIGNED status without stale evidence
+        await prisma.evidence.deleteMany({ where: { complaintId: 'cmp-field-assigned' } });
         await prisma.complaint.upsert({
           where: { id: 'cmp-field-assigned' },
-          update: { status: 'ASSIGNED', assignedFieldWorkerId: 'fw-demo-1' },
+          update: { status: 'ASSIGNED', assignedFieldWorkerId: fwUser.id, readyForReview: false },
           create: {
             id: 'cmp-field-assigned',
             ticketId: 'INC-2026-0902-7711',
@@ -171,19 +184,19 @@ test.describe('Staff Roles (Officer, Dept Head, Field Worker) Outcome-Based Bug 
             description: 'Traffic signal control box door damaged. Wires exposed causing traffic light disruption.',
             status: 'ASSIGNED',
             priority: 'HIGH',
-            citizenId: 'citizen_9876543210',
+            citizenId: citizenUser.id,
             categoryId: 'cat-electricity',
             departmentId: 'dept_roads_infra',
-            assignedFieldWorkerId: 'fw-demo-1',
+            assignedFieldWorkerId: fwUser.id,
           },
         });
 
         const token = await createAuthJwt({
-          sub: 'fw-demo-1',
+          sub: fwUser.id,
           role: 'FIELD_WORKER',
-          name: 'Ramesh Kumar',
-          email: 'fieldworker@intellicivic.gov.in',
-          departmentId: 'dept_roads_infra',
+          name: fwUser.name || 'Ramesh Kumar',
+          email: fwUser.email || 'fieldworker@intellicivic.gov.in',
+          departmentId: fwUser.departmentId || 'dept_roads_infra',
         });
         await setAuthCookie(context, token);
 
@@ -198,6 +211,7 @@ test.describe('Staff Roles (Officer, Dept Head, Field Worker) Outcome-Based Bug 
         // 4.2 Open Complaint Details
         await page.goto('/field-worker/complaints/cmp-field-assigned');
         await page.waitForLoadState('domcontentloaded');
+        await expect(page.locator('text=Loading field task details')).not.toBeVisible({ timeout: 10000 });
 
         // Locate Start Work button
         const startWorkBtn = page.getByRole('button', { name: /start work|commence work|start task/i });
