@@ -14,26 +14,43 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-poppins)', 'Poppins', 'system-ui', 'sans-serif'],
+        poppins: ['var(--font-poppins)', 'Poppins', 'system-ui', 'sans-serif'],
+      },
+      boxShadow: {
+        soft: '0 8px 30px rgba(19, 30, 32, 0.06)',
+        card: '0 8px 30px rgba(19, 30, 32, 0.06)',
       },
       colors: {
+        // Re-skin palette tokens
+        'theme-bg': '#F2EFE6',
+        'theme-card': '#FFFFFF',
+        'theme-primary': '#3468A1',
+        mint: '#C9DFDC',
+        'theme-mint': '#C9DFDC',
+        'theme-heading': '#131E20',
+        'theme-muted': '#6E6B64',
+        'theme-border': '#E5E2D9',
+        'theme-success': '#3B8F68',
+        'theme-amber': '#D98E2B',
+
         // Reference design system tokens
         brand: {
-          primary: '#2563EB',
-          'primary-from': '#2563EB',
-          'primary-to': '#0891B2', // High-contrast WCAG AA endpoint (cyan-600)
-          secondary: '#10B981',
-          'secondary-from': '#10B981',
-          'secondary-to': '#34D399',
-          accent: '#F59E0B',
-          'accent-from': '#F59E0B',
+          primary: '#3468A1',
+          'primary-from': '#3468A1',
+          'primary-to': '#2B5687',
+          secondary: '#3B8F68',
+          'secondary-from': '#3B8F68',
+          'secondary-to': '#C9DFDC',
+          accent: '#D98E2B',
+          'accent-from': '#D98E2B',
           'accent-to': '#F97316',
-          success: '#22C55E',
-          warning: '#F59E0B',
+          success: '#3B8F68',
+          warning: '#D98E2B',
           danger: '#EF4444',
-          neutral: '#64748B',
-          'wash-from': '#F8FAFC',
-          'wash-to': '#E0F2FE',
+          neutral: '#6E6B64',
+          'wash-from': '#F2EFE6',
+          'wash-to': '#F2EFE6',
         },
 
         // IntelliCivic design system palette
@@ -45,18 +62,18 @@ module.exports = {
         'ic-light': 'hsl(var(--background))',
         
         // Exact brand hex utility shortcuts
-        'civic-navy': '#0F2747',
-        'nav-parent': '#284A70',
-        'nav-hover': '#183A5F',
-        'civic-blue': '#1769AA',
-        'nav-icon': '#7FA9CC',
-        'nav-muted': '#A8BDD1',
-        'nav-section': '#8FAAC2',
-        'nav-secondary': '#C4D3E0',
-        'civic-teal': '#0F8B8D',
-        'ai-indigo': '#6366F1',
-        'success-green': '#16A34A',
-        'warning-amber': '#F59E0B',
+        'civic-navy': '#131E20',
+        'nav-parent': '#3468A1',
+        'nav-hover': '#C9DFDC',
+        'civic-blue': '#3468A1',
+        'nav-icon': '#6E6B64',
+        'nav-muted': '#6E6B64',
+        'nav-section': '#6E6B64',
+        'nav-secondary': '#C9DFDC',
+        'civic-teal': '#3B8F68',
+        'ai-indigo': '#3468A1',
+        'success-green': '#3B8F68',
+        'warning-amber': '#D98E2B',
         'danger-red': '#DC2626',
 
         border: 'hsl(var(--border))',

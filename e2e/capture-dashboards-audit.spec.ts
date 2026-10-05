@@ -18,7 +18,7 @@ async function createRoleJwt(role: string, name: string) {
     .sign(JWT_SECRET);
 }
 
-const OUT_DIR = path.resolve(process.cwd(), 'docs/screenshots/dashboard-audit');
+const OUT_DIR = path.resolve(process.cwd(), 'docs/screenshots/reskin');
 
 test.beforeAll(() => {
   if (!fs.existsSync(OUT_DIR)) {
@@ -26,34 +26,77 @@ test.beforeAll(() => {
   }
 });
 
+// 1. Unauthenticated Login Pages
+const loginPages = [
+  {
+    name: 'Citizen Login',
+    path: '/login/citizen',
+    key: 'citizen-login',
+  },
+  {
+    name: 'Staff Login',
+    path: '/login/staff',
+    key: 'staff-login',
+  },
+];
+
+for (const lp of loginPages) {
+  test.describe(`Audit Screenshot: ${lp.name} (${lp.path})`, () => {
+    test(`Capture 375px & 1280px for ${lp.key}`, async ({ page }) => {
+      // 1280px Desktop
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.goto(lp.path);
+      await page.waitForLoadState('domcontentloaded');
+      await page.waitForTimeout(1000);
+      await page.screenshot({
+        path: path.join(OUT_DIR, `${lp.key}-1280px.png`),
+        fullPage: true,
+      });
+
+      // 375px Mobile
+      await page.setViewportSize({ width: 375, height: 667 });
+      await page.goto(lp.path);
+      await page.waitForLoadState('domcontentloaded');
+      await page.waitForTimeout(1000);
+      await page.screenshot({
+        path: path.join(OUT_DIR, `${lp.key}-375px.png`),
+        fullPage: true,
+      });
+    });
+  });
+}
+
+// 2. Dashboards (One per role)
 const dashboards = [
+  {
+    role: 'CITIZEN',
+    name: 'Citizen',
+    path: '/citizen',
+    key: 'citizen',
+  },
   {
     role: 'ADMIN',
     name: 'Super Admin',
     path: '/admin',
     key: 'admin',
-    waitFor: 'text=Overview',
   },
   {
     role: 'DEPARTMENT_HEAD',
     name: 'Department Head',
     path: '/dept-head',
     key: 'dept-head',
-    waitFor: 'text=Overview',
   },
   {
     role: 'DEPARTMENT_OFFICER',
     name: 'Nodal Officer',
     path: '/officer',
     key: 'officer',
-    waitFor: 'text=Assigned Complaints',
   },
   {
     role: 'FIELD_WORKER',
     name: 'Field Technician',
     path: '/field-worker',
     key: 'field-worker',
-    waitFor: 'text=Field Worker Tasks',
   },
 ];
 
@@ -93,6 +136,7 @@ for (const dash of dashboards) {
               name: dash.name,
               email: `${dash.role.toLowerCase()}@intellicivic.gov.in`,
               departmentId: 'dept-1',
+              isProfileComplete: true,
             },
           }),
         });

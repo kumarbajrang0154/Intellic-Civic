@@ -4,39 +4,42 @@
 
 @layer base {
   :root {
-    /* IntelliCivic Reference Design Tokens */
-    --background: 210 40% 98%;   /* #F8FAFC Background Wash Start */
-    --foreground: 222 47% 11%;   /* #0F172A Primary Text */
+    /* Re-skin Tokens */
+    --background: 45 27% 93%;     /* #F2EFE6 Cream Page Background */
+    --foreground: 189 26% 10%;    /* #131E20 Heading / Dark Text */
 
-    --card: 0 0% 100%;           /* #FFFFFF Surface */
-    --card-foreground: 222 47% 11%;
+    --card: 0 0% 100%;            /* #FFFFFF Surface */
+    --card-foreground: 189 26% 10%;
 
-    --primary: 221 83% 53%;       /* #2563EB Primary Brand Blue */
+    --primary: 211 51% 42%;       /* #3468A1 Primary Blue */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 160 84% 39%;     /* #10B981 Secondary Emerald Green */
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 172 26% 83%;     /* #C9DFDC Mint Accent */
+    --secondary-foreground: 189 26% 10%;
 
-    --muted: 214 32% 94%;
-    --muted-foreground: 215 16% 40%; /* #64748B Neutral Secondary Text */
+    --muted: 45 15% 90%;
+    --muted-foreground: 42 5% 41%; /* #6E6B64 Muted Warm Gray */
 
-    --accent: 38 92% 50%;        /* #F59E0B Accent Amber */
+    --accent: 34 71% 51%;         /* #D98E2B Amber */
     --accent-foreground: 0 0% 100%;
+
+    --success: 153 41% 40%;       /* #3B8F68 Green Accent */
+    --success-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;     /* #EF4444 Danger Red */
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 32% 91%;        /* #E2E8F0 Border */
-    --input: 214 32% 91%;
-    --ring: 221 83% 53%;
+    --border: 45 18% 87%;         /* #E5E2D9 Light Warm-Gray Border */
+    --input: 45 18% 87%;
+    --ring: 211 51% 42%;          /* #3468A1 */
 
-    --radius: 0.5rem;             /* 8px radius */
+    --radius: 1.5rem;             /* 24px - rounded-3xl */
 
     /* IntelliCivic Brand Palette */
-    --ic-navy: 214 65% 17%;       /* #0F2747 Deep Navy */
-    --ic-blue: 221 83% 53%;       /* #2563EB Civic Blue */
-    --ic-teal: 187 92% 38%;       /* #0891B2 Civic Cyan */
-    --ic-indigo: 239 84% 67%;     /* #6366F1 AI Indigo */
+    --ic-navy: 189 26% 10%;       /* #131E20 */
+    --ic-blue: 211 51% 42%;       /* #3468A1 */
+    --ic-teal: 172 26% 83%;       /* #C9DFDC Mint */
+    --ic-indigo: 211 51% 42%;
   }
   /* NOTE: No .dark block defined — darkMode is set to 'class' in tailwind.config.js
    * but no code in this app ever applies class="dark" to <html> or <body>.
@@ -48,31 +51,31 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased font-sans;
+    @apply bg-[#F2EFE6] text-[#131E20] antialiased font-sans;
   }
 }
 
 @layer components {
   /* Typography Classes matching Reference Design Spec */
   .typo-h1 {
-    @apply text-[32px] leading-[40px] font-bold text-slate-900 tracking-tight;
+    @apply text-[32px] leading-[40px] font-bold text-[#131E20] tracking-tight;
   }
   .typo-h2 {
-    @apply text-[24px] leading-[32px] font-semibold text-slate-900 tracking-tight;
+    @apply text-[24px] leading-[32px] font-semibold text-[#131E20] tracking-tight;
   }
   .typo-h3 {
-    @apply text-[18px] leading-[28px] font-semibold text-slate-900;
+    @apply text-[18px] leading-[28px] font-semibold text-[#131E20];
   }
   .typo-body {
-    @apply text-[14px] leading-[20px] font-normal text-slate-700;
+    @apply text-[14px] leading-[20px] font-normal text-[#131E20];
   }
   .typo-caption {
-    @apply text-[12px] leading-[16px] font-normal text-slate-600;
+    @apply text-[12px] leading-[16px] font-normal text-[#6E6B64];
   }
 
   /* Reference Background Wash */
   .bg-brand-wash {
-    @apply bg-gradient-to-br from-[#F8FAFC] via-[#F1F5F9] to-[#E0F2FE];
+    @apply bg-[#F2EFE6];
   }
 }
 

@@ -12,24 +12,24 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <button
         className={cn(
-          'inline-flex items-center justify-center rounded-lg font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50 leading-snug text-center select-none active:scale-[0.99]',
+          'inline-flex items-center justify-center rounded-2xl font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50 leading-snug text-center select-none active:scale-[0.99]',
           {
-            // Primary Button: Blue -> Cyan gradient fill with high-contrast white text (WCAG AA 4.5:1+)
-            'bg-gradient-to-r from-[#2563EB] to-[#0891B2] text-white hover:opacity-95 shadow-sm border border-transparent':
+            // Primary Button: #3468A1 fill with high-contrast white text
+            'bg-[#3468A1] text-white hover:bg-[#2B5687] shadow-sm border border-transparent':
               variant === 'default',
-            // Outline Button: Transparent background with slate border
-            'border border-slate-300 bg-white/80 backdrop-blur-xs text-slate-800 hover:bg-slate-50 hover:text-slate-900 shadow-xs':
+            // Outline Button: White fill with warm border
+            'border border-[#E5E2D9] bg-white text-[#131E20] hover:bg-[#F2EFE6] hover:text-[#131E20] shadow-xs':
               variant === 'outline',
-            'hover:bg-slate-100 text-slate-700 hover:text-slate-900':
+            'hover:bg-[#F2EFE6] text-[#6E6B64] hover:text-[#131E20]':
               variant === 'ghost',
             'bg-rose-600 text-white hover:bg-rose-700 shadow-sm border border-transparent':
               variant === 'destructive',
-            // Secondary Button: Reference Green fill (#059669 for WCAG AA 4.54:1 white text contrast)
-            'bg-[#059669] text-white hover:bg-[#047857] shadow-sm border border-transparent':
+            // Secondary / Mint Button
+            'bg-[#C9DFDC] text-[#131E20] hover:bg-[#B9D4D0] shadow-xs border border-transparent font-semibold':
               variant === 'secondary',
-            'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm border border-indigo-500/30':
+            'bg-[#3468A1] text-white hover:bg-[#2B5687] shadow-sm border border-[#3468A1]/30':
               variant === 'ai',
-            'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm border border-emerald-500/30':
+            'bg-[#3B8F68] text-white hover:bg-[#2E7353] shadow-sm border border-transparent':
               variant === 'success',
           },
           {

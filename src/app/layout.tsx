@@ -1,18 +1,19 @@
 import React from 'react';
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import { Poppins } from 'next/font/google';
 import './globals.css';
 import { Toaster } from 'sonner';
 import { PwaRegister } from '@/components/pwa/PwaRegister';
 
-const inter = Inter({
+const poppins = Poppins({
   subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
   display: 'swap',
-  variable: '--font-inter',
+  variable: '--font-poppins',
 });
 
 export const viewport: Viewport = {
-  themeColor: '#2563eb',
+  themeColor: '#3468A1',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -39,8 +40,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className={inter.className}>
+    <html lang="en" className={poppins.variable}>
+      <body className={`${poppins.className} bg-[#F2EFE6] text-[#131E20] antialiased`}>
         {children}
         <PwaRegister />
         <Toaster position="top-right" richColors />
