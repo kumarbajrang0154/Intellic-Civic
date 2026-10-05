@@ -188,13 +188,13 @@ test.describe('Citizen Portal Interactive Button Click-Through Test Suite', () =
     });
   });
 
-  test('1. Login Page: Back link navigates to home', async ({ context, page }) => {
+  test('1. Login Page: Staff login link navigates to staff portal', async ({ context, page }) => {
     await context.clearCookies();
     await page.goto('/login/citizen');
-    const backLink = page.locator('a:has-text("Back to Home")');
-    await expect(backLink).toBeVisible();
-    await backLink.click();
-    await expect(page).toHaveURL('http://localhost:3000/');
+    const staffLink = page.locator('a[href="/login/staff"]');
+    await expect(staffLink).toBeVisible();
+    await staffLink.click();
+    await expect(page).toHaveURL(/\/login\/staff/);
   });
 
   test('2. Dashboard: Action card button navigates to new complaint', async ({ page }) => {

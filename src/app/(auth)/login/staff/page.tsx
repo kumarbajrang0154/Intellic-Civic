@@ -3,9 +3,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ArrowLeft, Building2, ShieldAlert } from 'lucide-react';
+import { Building2, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const ERROR_MESSAGES: Record<string, string> = {
   google_cancelled: 'Google sign-in was cancelled. Please try again.',
@@ -127,15 +126,7 @@ function StaffLoginContent() {
               </div>
 
               {/* Helper Links at bottom */}
-              <div className="pt-2 border-t border-[#E5E2D9] flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
-                <Link
-                  href="/"
-                  className="inline-flex items-center gap-1.5 text-[#6E6B64] hover:text-[#131E20] font-medium transition-colors h-11 min-h-[44px]"
-                >
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  Back to Home
-                </Link>
-
+              <div className="pt-2 border-t border-[#E5E2D9] flex items-center justify-center text-xs">
                 <Link
                   href="/login/citizen"
                   className="text-[#3468A1] hover:underline font-semibold h-11 min-h-[44px] inline-flex items-center"

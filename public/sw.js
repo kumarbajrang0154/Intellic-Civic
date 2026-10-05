@@ -1,6 +1,5 @@
-const CACHE_NAME = 'intellicivic-v3'; // upgraded cache version
+const CACHE_NAME = 'intellicivic-v3'; // upgraded from intellicivic-v1
 const STATIC_ASSETS = [
-  '/',
   '/manifest.webmanifest',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -9,11 +8,18 @@ const STATIC_ASSETS = [
 // Install Event — Pre-cache App Shell & Static Assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
+    caches.open(CACHE_NAME).then(async (cache) => {
       console.log('[ServiceWorker] Pre-caching offline app shell');
-      return cache.addAll(STATIC_ASSETS).catch((err) => {
+      await cache.addAll(STATIC_ASSETS).catch((err) => {
         console.warn('[ServiceWorker] Pre-cache warning:', err);
       });
+      try {
+        const citizenRes = await fetch('/citizen');
+        if (citizenRes && citizenRes.status === 200) {
+          await cache.put('/citizen', citizenRes.clone());
+          await cache.put('/', citizenRes);
+        }
+      } catch (err) {}
     })
   );
   self.skipWaiting();
@@ -22,18 +28,20 @@ self.addEventListener('install', (event) => {
 // Activate Event — Clean up stale caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            console.log('[ServiceWorker] Clearing old cache:', cache);
-            return caches.delete(cache);
-          }
-        })
-      );
-    })
+    Promise.all([
+      caches.keys().then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cache) => {
+            if (cache !== CACHE_NAME) {
+              console.log('[ServiceWorker] Clearing old cache:', cache);
+              return caches.delete(cache);
+            }
+          })
+        );
+      }),
+      self.clients.claim(),
+    ])
   );
-  self.clients.claim();
 });
 
 // Fetch Event
@@ -54,22 +62,38 @@ self.addEventListener('fetch', (event) => {
   // 2. Navigation requests — Network-first with offline fallback
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(async () => {
-        let cached = null;
-        if (url.pathname.includes('/citizen/complaints/new')) {
-          cached = await caches.match('/citizen/complaints/new');
-        }
-        if (!cached) {
-          cached = await caches.match('/');
-        }
-        return (
-          cached ||
-          new Response(
-            '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Offline - IntelliCivic</title></head><body><div style="font-family:sans-serif;padding:2rem;text-align:center;"><h2>Offline</h2><p>You are currently offline. Please check your internet connection.</p></div></body></html>',
-            { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
-          )
-        );
-      })
+      fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseToCache);
+              if (url.pathname === '/citizen') {
+                cache.put('/', networkResponse.clone());
+              }
+            });
+          }
+          return networkResponse;
+        })
+        .catch(async () => {
+          let cached = null;
+          if (url.pathname.includes('/citizen/complaints/new')) {
+            cached = await caches.match('/citizen/complaints/new');
+          }
+          if (!cached && (url.pathname === '/' || url.pathname.startsWith('/citizen'))) {
+            cached = (await caches.match('/citizen')) || (await caches.match('/citizen/complaints/new')) || (await caches.match('/'));
+          }
+          if (!cached) {
+            cached = (await caches.match(request)) || (await caches.match('/'));
+          }
+          return (
+            cached ||
+            new Response(
+              '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Offline - IntelliCivic</title></head><body><div style="font-family:sans-serif;padding:2rem;text-align:center;"><h2>Offline</h2><p>You are currently offline. Please check your internet connection.</p></div></body></html>',
+              { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+            )
+          );
+        })
     );
     return;
   }

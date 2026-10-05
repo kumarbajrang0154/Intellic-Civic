@@ -22,8 +22,8 @@ export default function AuthDeniedPage() {
             <p className="text-sm text-muted-foreground">
               If you believe this is an error, please contact your municipal IT administrator.
             </p>
-            <Link href="/" className="block w-full">
-              <Button variant="outline" className="w-full">Return to Landing Page</Button>
+            <Link href="/login/citizen" className="block w-full">
+              <Button variant="outline" className="w-full">Return to Login</Button>
             </Link>
           </CardContent>
         </Card>

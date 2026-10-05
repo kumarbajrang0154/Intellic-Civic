@@ -44,9 +44,9 @@ export default function PendingApprovalPage() {
             </div>
 
             <div className="flex gap-3">
-              <Link href="/" className="w-full">
+              <Link href="/login/citizen" className="w-full">
                 <Button variant="outline" className="w-full h-11 border-[#CBD5E1] text-[#172033] font-semibold hover:bg-slate-50 text-sm rounded-lg shadow-xs">
-                  Return Home
+                  Return to Login
                 </Button>
               </Link>
             </div>

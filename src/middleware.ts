@@ -54,6 +54,21 @@ export function middleware(request: NextRequest) {
   const isAuthenticated = !!payload;
   const role = payload?.role;
 
+  // 0. Site root redirect (unauthenticated -> /login/citizen, authenticated -> role dashboard)
+  if (pathname === '/') {
+    if (isAuthenticated) {
+      if (payload?.isAuthorized === false) {
+        return addCacheControlHeaders(NextResponse.redirect(new URL('/pending-approval', request.url)));
+      }
+      if (role === 'CITIZEN' && payload?.isProfileComplete === false) {
+        return addCacheControlHeaders(NextResponse.redirect(new URL('/citizen/profile?complete=required', request.url)));
+      }
+      const targetDashboard = getDashboardForRole(role);
+      return addCacheControlHeaders(NextResponse.redirect(new URL(targetDashboard, request.url)));
+    }
+    return addCacheControlHeaders(NextResponse.redirect(new URL('/login/citizen', request.url)));
+  }
+
   // 1. Unauthenticated users trying to access protected paths
   const isProtectedPath =
     pathname.startsWith('/citizen') ||

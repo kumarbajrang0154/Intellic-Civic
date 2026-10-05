@@ -4,11 +4,9 @@ export const dynamic = 'force-dynamic';
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, ShieldCheck, KeyRound, Check, Smartphone, Terminal } from 'lucide-react';
+import { Loader2, ShieldCheck, KeyRound, Check, Smartphone, Terminal } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { OtpInput } from '@/components/ui/otp-input';
 import { toast } from 'sonner';
@@ -16,7 +14,6 @@ import { auth } from '@/lib/firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
 
 export default function CitizenLoginPage() {
-  const router = useRouter();
   const [step, setStep] = React.useState<'PHONE' | 'OTP'>('PHONE');
   const [mobileNumber, setMobileNumber] = React.useState('');
   const [otp, setOtp] = React.useState('');
@@ -455,20 +452,12 @@ export default function CitizenLoginPage() {
               )}
 
               {/* Helper Links at bottom */}
-              <div className="pt-2 border-t border-[#E5E2D9] flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
-                <Link
-                  href="/"
-                  className="inline-flex items-center gap-1.5 text-[#6E6B64] hover:text-[#131E20] font-medium transition-colors h-11 min-h-[44px]"
-                >
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  Back to Home
-                </Link>
-
+              <div className="pt-2 border-t border-[#E5E2D9] flex items-center justify-center text-xs">
                 <Link
                   href="/login/staff"
                   className="text-[#3468A1] hover:underline font-semibold h-11 min-h-[44px] inline-flex items-center"
                 >
-                  Staff or Admin Portal &rarr;
+                  Staff Login &rarr;
                 </Link>
               </div>
             </div>

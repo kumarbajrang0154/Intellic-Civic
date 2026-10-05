@@ -120,7 +120,7 @@ test.describe('Module 5: Frontend Auth Pages & App Shell E2E Tests', () => {
     await expect(page.getByRole('link', { name: /Users|Staff/i })).toBeVisible();
   });
 
-  test('6. Logout clears cookies and redirects to landing page', async ({ page, context }) => {
+  test('6. Logout clears cookies and redirects to citizen login page', async ({ page, context }) => {
     const citizenToken = await createMockJwt('CITIZEN');
     await context.addCookies([
       {

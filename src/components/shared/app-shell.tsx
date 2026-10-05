@@ -5,10 +5,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  AlertTriangle,
   BarChart3,
   Bell,
-  Bot,
   Brain,
   Building2,
   ChevronDown,
@@ -17,11 +15,8 @@ import {
   Globe,
   Home,
   LayoutDashboard,
-  ListChecks,
-  Loader2,
   LogOut,
   Menu,
-  MessageSquare,
   PlusCircle,
   Settings,
   Shield,
@@ -29,10 +24,7 @@ import {
   Sparkles,
   User,
   Users,
-  X,
-  Zap,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { OfflineBanner } from './OfflineBanner';
 
@@ -139,45 +131,6 @@ const SUPER_ADMIN_NAV: NavSection[] = [
       { type: 'leaf', title: 'Security & Access', href: '/admin/security', icon: ShieldCheck },
       { type: 'leaf', title: 'System Management', href: '/admin/system', icon: Settings },
       { type: 'leaf', title: 'Organization Settings', href: '/admin/settings', icon: Globe },
-      { type: 'leaf', title: 'My Profile', href: '/admin/profile', icon: User },
-    ],
-  },
-];
-
-const ADMIN_NAV: NavSection[] = [
-  {
-    label: 'MAIN',
-    items: [
-      { type: 'leaf', title: 'Dashboard', href: '/admin', icon: LayoutDashboard },
-    ],
-  },
-  {
-    label: 'MANAGEMENT',
-    items: [
-      { type: 'leaf', title: 'Triage Queue', href: '/admin/triage', icon: AlertTriangle },
-      {
-        type: 'group',
-        title: 'Complaints',
-        icon: ClipboardList,
-        baseHref: '/admin/complaints',
-        children: [
-          { type: 'leaf', title: 'All Complaints', href: '/admin/complaints' },
-          { type: 'leaf', title: 'Pending Review', href: '/admin/complaints/pending' },
-          { type: 'leaf', title: 'In Progress', href: '/admin/complaints/in-progress' },
-          { type: 'leaf', title: 'Resolved', href: '/admin/complaints/resolved' },
-        ],
-      },
-      { type: 'leaf', title: 'Departments', href: '/admin/departments', icon: Building2 },
-      { type: 'leaf', title: 'Staff & User Management', href: '/admin/staff', icon: Users },
-      { type: 'leaf', title: 'Categories', href: '/admin/categories', icon: Sparkles },
-    ],
-  },
-  {
-    label: 'SYSTEM',
-    items: [
-      { type: 'leaf', title: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
-      { type: 'leaf', title: 'Notifications', href: '/admin/notifications', icon: Bell },
-      { type: 'leaf', title: 'Platform Settings', href: '/admin/settings', icon: Settings },
       { type: 'leaf', title: 'My Profile', href: '/admin/profile', icon: User },
     ],
   },
@@ -300,22 +253,6 @@ function getNotificationHref(role?: string): string | null {
 
 // ─── Role badge colours ──────────────────────────────────────────────────────
 
-function getRoleBadgeClass(role: string): string {
-  switch (role) {
-    case 'SUPER_ADMIN':
-    case 'ADMIN':
-      return 'bg-indigo-100 text-indigo-950 border border-indigo-300 font-semibold';
-    case 'DEPARTMENT_HEAD':
-      return 'bg-purple-100 text-purple-950 border border-purple-300 font-semibold';
-    case 'DEPARTMENT_OFFICER':
-      return 'bg-emerald-100 text-emerald-950 border border-emerald-300 font-semibold';
-    case 'FIELD_WORKER':
-      return 'bg-cyan-100 text-cyan-950 border border-cyan-300 font-semibold';
-    default:
-      return 'bg-slate-100 text-slate-900 border border-slate-300 font-semibold';
-  }
-}
-
 function getRoleLabel(role: string): string {
   switch (role) {
     case 'SUPER_ADMIN':
@@ -333,7 +270,7 @@ function getRoleLabel(role: string): string {
   }
 }
 
-function getPageTitle(pathname: string, role: UserRole): string {
+function getPageTitle(pathname: string, _role: UserRole): string {
   if (pathname === '/admin') return 'Admin Overview';
   if (pathname.startsWith('/admin/complaints')) return 'Complaint Management';
   if (pathname.startsWith('/admin/triage')) return 'AI Complaint Triage';
@@ -723,8 +660,7 @@ export function AppShell({ children, user }: AppShellProps) {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } finally {
-      const target = user.role === 'CITIZEN' ? '/login/citizen' : '/login/staff';
-      window.location.href = target;
+      window.location.href = '/login/citizen';
     }
   };
 
