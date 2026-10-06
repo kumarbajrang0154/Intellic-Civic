@@ -15,7 +15,6 @@ import {
   Navigation,
   Wand2,
   Volume2,
-  Copy,
   ExternalLink,
   ShieldAlert,
   ArrowRight,

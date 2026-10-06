@@ -5,20 +5,17 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft,
-  Calendar,
   MapPin,
   Building2,
   Clock,
   CheckCircle2,
   AlertCircle,
-  ImageIcon,
   Loader2,
   FileQuestion,
   Star,
   RefreshCw,
   RotateCcw,
   ThumbsUp,
-  MessageSquare,
   Sparkles,
   Trash2,
 } from 'lucide-react';

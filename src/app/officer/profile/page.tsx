@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { UserCheck, Mail, Building2, Shield, UploadCloud, Loader2, User } from 'lucide-react';
 import { AppShell } from '@/components/layout/app-shell';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

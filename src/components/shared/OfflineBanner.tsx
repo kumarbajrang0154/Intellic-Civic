@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { Wifi, WifiOff } from 'lucide-react';
 
 export function OfflineBanner() {
   const [isOnline, setIsOnline] = React.useState(true);

@@ -4,12 +4,10 @@ import * as React from 'react';
 import {
   UploadCloud,
   X,
-  Image as ImageIcon,
   Loader2,
   AlertCircle,
   Camera,
   RefreshCw,
-  CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';

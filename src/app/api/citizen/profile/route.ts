@@ -1,6 +1,5 @@
-import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-import { createJwtToken, decodeJwtToken } from '@/lib/auth-jwt';
+import { createJwtToken } from '@/lib/auth-jwt';
 import { requireCitizen } from '@/lib/citizen-auth';
 import { getOrCreateCitizenProfile, updateCitizenProfile } from '@/lib/user-store';
 

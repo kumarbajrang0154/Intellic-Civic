@@ -6,14 +6,14 @@ import { Download, X, Smartphone, Share, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface PwaInstallBannerProps {
-  deferredPrompt: any;
+  deferredPrompt?: any;
   onInstall: () => void;
   onDismiss: () => void;
   isIos: boolean;
 }
 
 export function PwaInstallBanner({
-  deferredPrompt,
+  deferredPrompt: _deferredPrompt,
   onInstall,
   onDismiss,
   isIos,

@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
 import { attachOutcomeListeners, createAuthJwt, setAuthCookie, getSeededUser, VIEWPORTS } from './sweep-helpers';
-import prisma from '../../src/lib/prisma';
 
 test.describe('Admin & RBAC Destructive Edge Flows Outcome Sweep', () => {
   let superAdminUser: any;

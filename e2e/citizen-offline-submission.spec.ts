@@ -91,13 +91,6 @@ test.describe('Offline-First Citizen Complaint Submission & Sync Suite', () => {
       mobileNumber: citizenMobile,
     });
     await setAuthCookie(context, token);
-    page.on('console', (msg) => console.log(`[BROWSER ${msg.type()}]:`, msg.text()));
-    page.on('pageerror', (err) => console.log(`[BROWSER PAGEERROR]:`, err.message, err.stack));
-    page.on('response', (res) => {
-      if (res.status() >= 400) {
-        console.log(`[HTTP FAIL ${res.status()}]:`, res.url());
-      }
-    });
   });
 
   // ─────────────────────────────────────────────────────────────────────────────

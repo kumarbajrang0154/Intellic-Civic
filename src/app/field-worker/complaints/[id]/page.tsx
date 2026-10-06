@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import {
   ArrowLeft,
   MapPin,
@@ -14,9 +14,7 @@ import {
   Send,
   Building2,
   Clock,
-  Sparkles,
   ShieldAlert,
-  FileText,
   ExternalLink,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/app-shell';
@@ -61,7 +59,6 @@ interface ComplaintDetail {
 
 export default function FieldWorkerComplaintDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const id = params?.id as string;
 
   const [user, setUser] = React.useState<{ name: string; role: 'FIELD_WORKER' }>({
@@ -75,7 +72,7 @@ export default function FieldWorkerComplaintDetailPage() {
 
   // Action states
   const [startingWork, setStartingWork] = React.useState(false);
-  const [uploadingStage, setUploadingStage] = React.useState<'BEFORE' | 'AFTER' | null>(null);
+  const [_uploadingStage, setUploadingStage] = React.useState<'BEFORE' | 'AFTER' | null>(null);
   const [submittingReview, setSubmittingReview] = React.useState(false);
 
   // Upload URLs state
