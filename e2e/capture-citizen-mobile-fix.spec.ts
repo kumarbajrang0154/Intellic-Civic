@@ -175,52 +175,52 @@ test.describe('Capture Citizen Portal Mobile (375px) Layout Screenshots', () => 
 
     // 1. Dashboard
     await page.goto('/citizen');
-    await page.waitForSelector('h1:has-text("Welcome to Citizen Portal")');
+    await page.locator('main').waitFor();
     await page.waitForTimeout(500);
     await page.screenshot({
-      path: path.join(OUT_DIR, 'dashboard-before-375px.png'),
+      path: path.join(OUT_DIR, 'dashboard-after-375px.png'),
       fullPage: true,
     });
 
     // 2. New Complaint
     await page.goto('/citizen/complaints/new');
-    await page.waitForSelector('h1:has-text("File a New Complaint")');
+    await page.waitForSelector('form');
     await page.waitForTimeout(500);
     await page.screenshot({
-      path: path.join(OUT_DIR, 'new-complaint-before-375px.png'),
+      path: path.join(OUT_DIR, 'new-complaint-after-375px.png'),
       fullPage: true,
     });
 
     // 3. Complaint Detail
     await page.goto('/citizen/complaints/c-1');
-    await page.waitForSelector('text=CMP-2026-1001');
+    await page.locator('main').waitFor();
     await page.waitForTimeout(500);
     await page.screenshot({
-      path: path.join(OUT_DIR, 'complaint-detail-before-375px.png'),
+      path: path.join(OUT_DIR, 'complaint-detail-after-375px.png'),
       fullPage: true,
     });
 
     // 4. Notifications
     await page.goto('/citizen/notifications');
-    await page.waitForSelector('h1:has-text("Notifications")');
+    await page.locator('main').waitFor();
     await page.waitForTimeout(500);
     await page.screenshot({
-      path: path.join(OUT_DIR, 'notifications-before-375px.png'),
+      path: path.join(OUT_DIR, 'notifications-after-375px.png'),
       fullPage: true,
     });
 
     // 5. Profile
     await page.goto('/citizen/profile');
-    await page.waitForSelector('text=Personal Information');
+    await page.locator('main').waitFor();
     await page.waitForTimeout(500);
     await page.screenshot({
-      path: path.join(OUT_DIR, 'profile-before-375px.png'),
+      path: path.join(OUT_DIR, 'profile-after-375px.png'),
       fullPage: true,
     });
 
     // 6. Pending Offline List
     await page.goto('/citizen');
-    await page.waitForSelector('h1:has-text("Welcome to Citizen Portal")');
+    await page.locator('main').waitFor();
     await page.evaluate(async () => {
       await new Promise<void>((resolve, reject) => {
         const req = indexedDB.open('intellicivic_offline_db', 1);
@@ -255,10 +255,10 @@ test.describe('Capture Citizen Portal Mobile (375px) Layout Screenshots', () => 
       });
     });
     await page.reload();
-    await page.waitForSelector('text=Fallen electric cable');
+    await page.locator('main').waitFor();
     await page.waitForTimeout(500);
     await page.screenshot({
-      path: path.join(OUT_DIR, 'pending-offline-before-375px.png'),
+      path: path.join(OUT_DIR, 'pending-offline-after-375px.png'),
       fullPage: true,
     });
   });

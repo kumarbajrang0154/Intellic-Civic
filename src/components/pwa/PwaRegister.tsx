@@ -1,12 +1,16 @@
 'use client';
 
 import * as React from 'react';
+import { usePathname } from 'next/navigation';
 import { PwaInstallBanner } from './PwaInstallBanner';
 
 export function PwaRegister() {
+  const pathname = usePathname();
   const [deferredPrompt, setDeferredPrompt] = React.useState<any>(null);
   const [showBanner, setShowBanner] = React.useState(false);
   const [isIos, setIsIos] = React.useState(false);
+
+  const isEligiblePage = pathname === '/citizen' || (pathname ? pathname.startsWith('/login') : false);
 
   React.useEffect(() => {
     // 1. Service Worker Registration
@@ -37,12 +41,11 @@ export function PwaRegister() {
     const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
     setIsIos(isIosDevice);
 
-    // 4. Check dismissal preference in localStorage
+    // 4. Check dismissal preference in localStorage (suppress for 14 days)
     const isDismissed = localStorage.getItem('ic_pwa_install_dismissed');
     if (isDismissed) {
       const dismissedAt = parseInt(isDismissed, 10);
-      // Suppress for 7 days
-      if (Date.now() - dismissedAt < 7 * 24 * 60 * 60 * 1000) {
+      if (Date.now() - dismissedAt < 14 * 24 * 60 * 60 * 1000) {
         return;
       }
     }
@@ -56,7 +59,7 @@ export function PwaRegister() {
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-    // Show banner after 3 seconds for iOS devices (since iOS doesn't support beforeinstallprompt)
+    // Show banner after 3 seconds for iOS devices
     if (isIosDevice) {
       const timer = setTimeout(() => {
         setShowBanner(true);
@@ -90,7 +93,7 @@ export function PwaRegister() {
     localStorage.setItem('ic_pwa_install_dismissed', Date.now().toString());
   };
 
-  if (!showBanner) {
+  if (!showBanner || !isEligiblePage) {
     return null;
   }
 

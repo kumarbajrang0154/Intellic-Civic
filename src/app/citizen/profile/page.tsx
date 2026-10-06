@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { User, Mail, MapPin, Phone, CheckCircle2, Sparkles, Loader2, UploadCloud } from 'lucide-react';
+import { User, Mail, MapPin, Phone, CheckCircle2, Sparkles, Loader2, UploadCloud, LogOut } from 'lucide-react';
 import { AppShell } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -178,6 +178,14 @@ function CitizenProfileForm() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } finally {
+      window.location.href = '/login/citizen';
+    }
+  };
+
   return (
     <AppShell
       user={{
@@ -199,7 +207,7 @@ function CitizenProfileForm() {
         )}
 
         <div className="border-b pb-4">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+          <h1 className="hidden md:block text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
             Citizen Profile Settings
           </h1>
           <p className="text-muted-foreground text-xs sm:text-sm mt-1">
@@ -222,7 +230,7 @@ function CitizenProfileForm() {
                 </CardDescription>
               </CardHeader>
 
-              <CardContent className="space-y-5">
+              <CardContent className="p-4 sm:p-6 space-y-5">
                 {error && (
                   <Alert variant="destructive">
                     <AlertTitle>Profile Update Error</AlertTitle>
@@ -246,7 +254,7 @@ function CitizenProfileForm() {
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                       <Input
                         type="url"
-                        placeholder="https://example.com/avatar.jpg"
+                        placeholder="Image URL or upload"
                         value={avatarUrl}
                         onChange={(e) => setAvatarUrl(e.target.value)}
                         className="font-mono w-full sm:flex-1"
@@ -363,7 +371,7 @@ function CitizenProfileForm() {
                   <Textarea
                     id="address"
                     rows={3}
-                    placeholder="e.g. House No. 42, Park View Colony, Ward 12, Main City"
+                    placeholder="e.g. House 42, Main Road"
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     required
@@ -372,25 +380,36 @@ function CitizenProfileForm() {
               </CardContent>
             </Card>
 
-            <div className="flex flex-col sm:flex-row items-center justify-end gap-3">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-200">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.push('/citizen')}
-                className="w-full sm:w-auto"
+                onClick={handleLogout}
+                className="w-full sm:w-auto text-rose-700 border-rose-200 hover:bg-rose-50 h-11 px-4 gap-1.5 md:hidden"
               >
-                Cancel
+                <LogOut className="h-4 w-4" />
+                Sign Out / Logout
               </Button>
-              <Button type="submit" disabled={saving} className="w-full sm:w-auto">
-                {saving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving Profile...
-                  </>
-                ) : (
-                  'Save & Continue'
-                )}
-              </Button>
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto sm:ml-auto">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => router.push('/citizen')}
+                  className="w-full sm:w-auto h-11 px-4"
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={saving} className="w-full sm:w-auto h-11 px-4">
+                  {saving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving Profile...
+                    </>
+                  ) : (
+                    'Save & Continue'
+                  )}
+                </Button>
+              </div>
             </div>
           </form>
         )}

@@ -247,7 +247,7 @@ test.describe('Mobile (375px) Citizen Portal Touch Target & Font Size Audit', ()
 
     test('New Complaint page has compliant touch targets & font size', async ({ page }) => {
       await page.goto('/citizen/complaints/new');
-      await page.waitForSelector('h1:has-text("File a New Complaint")');
+      await page.waitForSelector('form');
       await auditTouchTargets(page, 'New Complaint');
 
       // Assert Leaflet map/location-picker: container has explicit height, works at 375px, no overflow
@@ -272,7 +272,7 @@ test.describe('Mobile (375px) Citizen Portal Touch Target & Font Size Audit', ()
 
     test('Notifications page has compliant touch targets & font size', async ({ page }) => {
       await page.goto('/citizen/notifications');
-      await page.waitForSelector('h1:has-text("Notifications")');
+      await page.locator('main').waitFor();
       await auditTouchTargets(page, 'Notifications');
     });
 

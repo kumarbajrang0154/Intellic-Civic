@@ -530,7 +530,7 @@ function SidebarContent({
         <button
           type="button"
           onClick={onLogout}
-          className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-rose-700 hover:text-rose-900 hover:bg-rose-50 rounded-2xl transition-colors w-full"
+          className="flex items-center gap-2.5 px-3 py-2.5 min-h-[44px] text-xs font-semibold text-rose-700 hover:text-rose-900 hover:bg-rose-50 rounded-2xl transition-colors w-full"
         >
           <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
           <span>Sign Out</span>
@@ -748,17 +748,16 @@ export function AppShell({ children, user }: AppShellProps) {
               );
             })()}
 
-            {/* Logout Pill */}
+            {/* Logout Pill (visible on desktop md and up; drawer & profile on mobile) */}
             <button
               type="button"
               onClick={handleLogout}
-              className="inline-flex items-center justify-center gap-1.5 h-11 md:h-10 px-3 md:px-3.5 rounded-full border border-[#E5E2D9] bg-white text-xs font-semibold text-[#6E6B64] hover:text-[#131E20] hover:bg-[#F2EFE6] transition-colors shadow-2xs shrink-0"
+              className="hidden md:inline-flex items-center justify-center gap-1.5 h-10 px-3.5 rounded-full border border-[#E5E2D9] bg-white text-xs font-semibold text-[#6E6B64] hover:text-[#131E20] hover:bg-[#F2EFE6] transition-colors shadow-2xs shrink-0"
               aria-label="Logout"
               title="Logout"
             >
-              <LogOut className="w-4 h-4 md:w-3.5 md:h-3.5 shrink-0" />
-              <span className="hidden md:inline">Logout</span>
-              <span className="sr-only md:hidden">Logout</span>
+              <LogOut className="w-3.5 h-3.5 shrink-0" />
+              <span>Logout</span>
             </button>
 
             {/* Round Profile Button */}

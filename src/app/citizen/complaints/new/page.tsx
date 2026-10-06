@@ -630,7 +630,7 @@ export default function NewComplaintPage() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">File a New Complaint</h1>
+            <h1 className="hidden md:block text-2xl font-bold tracking-tight text-slate-900">File a New Complaint</h1>
             <p className="text-xs text-slate-500 mt-0.5">
               Report municipal issues via text typing or Voice Assistant for automated AI triage.
             </p>
@@ -704,22 +704,24 @@ export default function NewComplaintPage() {
 
         {/* Smart Voice Assistant Banner Card */}
         {speechSupported && (
-          <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-l-4 border-l-indigo-600">
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-lg bg-indigo-100 flex items-center justify-center text-ai-indigo shrink-0 mt-0.5">
-                <Wand2 className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                  <span>Smart AI Voice Assistant</span>
-                  <span className="text-[10px] px-2 py-0.5 bg-indigo-100 text-indigo-950 border border-indigo-300 font-bold rounded-full uppercase">
-                    Voice Dictation
-                  </span>
+          <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4 border-l-4 border-l-indigo-600">
+            <div className="w-full md:w-auto">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-lg bg-indigo-100 flex items-center justify-center text-ai-indigo shrink-0">
+                  <Wand2 className="h-4.5 w-4.5" />
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Click the mic to dictate your whole complaint by speaking naturally. Our AI fills out title and description automatically.
-                </p>
+                <div className="font-bold text-sm text-slate-900 truncate">
+                  Smart AI Voice Assistant
+                </div>
               </div>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-[10px] px-2 py-0.5 bg-indigo-100 text-indigo-950 border border-indigo-300 font-bold rounded-full uppercase whitespace-nowrap shrink-0">
+                  Voice Dictation
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Click the mic to dictate your whole complaint by speaking naturally. Our AI fills out title and description automatically.
+              </p>
             </div>
 
             <Button
@@ -760,7 +762,7 @@ export default function NewComplaintPage() {
 
         {/* Main Form Card */}
         <Card className="shadow-xs border border-slate-200 bg-white rounded-xl">
-          <CardContent className="p-6 space-y-6">
+          <CardContent className="p-4 sm:p-6 space-y-6">
             {submitError && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
@@ -806,7 +808,7 @@ export default function NewComplaintPage() {
 
                 <Input
                   id="title"
-                  placeholder="e.g. Large pothole on Main Street near Metro station"
+                  placeholder="e.g. Pothole on Main Street"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   maxLength={200}
@@ -826,7 +828,7 @@ export default function NewComplaintPage() {
                   onChange={(e) => setCategoryId(e.target.value)}
                   disabled={loadingCategories}
                 >
-                  <option value="">Select issue category (Auto-detected if left blank)</option>
+                  <option value="">Select category</option>
                   {categories.map((cat) => (
                     <option key={cat.id} value={cat.id}>
                       {cat.name}
@@ -834,7 +836,7 @@ export default function NewComplaintPage() {
                   ))}
                 </Select>
                 <p className="text-xs text-slate-600 font-medium">
-                  If omitted, our Gemini AI will analyze your description to auto-categorize.
+                  Optional. If omitted, Gemini AI will auto-detect category from your description.
                 </p>
               </div>
 
@@ -874,7 +876,7 @@ export default function NewComplaintPage() {
 
                 <Textarea
                   id="description"
-                  placeholder="Describe the issue in detail (location landmarks, severity, hazards)... min 20 characters."
+                  placeholder="Describe the issue..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={4}
@@ -938,7 +940,7 @@ export default function NewComplaintPage() {
                 </div>
 
                 <Input
-                  placeholder="Street address, landmark, or area name (Auto-fetched from map/GPS or type manually)"
+                  placeholder="Street or landmark"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                 />

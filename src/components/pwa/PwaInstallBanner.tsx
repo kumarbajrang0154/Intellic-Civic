@@ -21,81 +21,65 @@ export function PwaInstallBanner({
   const [showIosTooltip, setShowIosTooltip] = React.useState(false);
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:bottom-6 z-50 max-w-md animate-in slide-in-from-bottom-5 duration-300">
-      <div className="relative overflow-hidden rounded-xl border border-slate-700 bg-[#0F2747] p-4 shadow-lg text-slate-100">
-        <button
-          onClick={onDismiss}
-          className="absolute right-2 top-2 rounded-lg inline-flex items-center justify-center h-11 w-11 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-          aria-label="Dismiss install banner"
-        >
-          <X className="h-5 w-5" />
-        </button>
-
-        <div className="flex items-start gap-3.5 pr-6">
-          <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-blue-500/30 bg-blue-950/50 p-1 shadow-md">
+    <div className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom,0.75rem))] left-3 right-3 sm:left-4 sm:right-4 md:left-auto md:right-6 md:bottom-6 z-50 max-w-md animate-in slide-in-from-bottom-5 duration-300">
+      <div className="relative flex items-center justify-between gap-2.5 rounded-2xl border border-[#E5E2D9] bg-white p-2.5 sm:p-3 shadow-lg text-[#131E20]">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-[#E5E2D9] bg-slate-50 p-0.5 shadow-2xs">
             <Image
               src="/icons/icon-192.png"
-              alt="IntelliCivic PWA App Icon"
-              width={48}
-              height={48}
+              alt="IntelliCivic App Icon"
+              width={36}
+              height={36}
               className="h-full w-full object-cover rounded-lg"
             />
           </div>
-
-          <div className="space-y-1">
-            <div className="flex items-center gap-1.5">
-              <h4 className="text-sm font-bold text-slate-100">Install IntelliCivic App</h4>
-              <span className="inline-flex items-center rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-semibold text-blue-400 border border-blue-500/30">
-                PWA
-              </span>
-            </div>
-            <p className="text-xs text-slate-300 leading-snug">
-              Add IntelliCivic to your home screen for quick offline complaint tracking & instant field updates.
-            </p>
+          <div className="min-w-0">
+            <h4 className="text-xs sm:text-sm font-bold text-[#131E20] truncate">Install IntelliCivic</h4>
+            <p className="text-[11px] text-[#6E6B64] truncate">Offline-ready smart city app</p>
           </div>
         </div>
 
-        {/* Action Controls */}
-        <div className="mt-3.5 flex items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
-          <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-            <span>Fast & Offline Ready</span>
-          </div>
-
+        <div className="flex items-center gap-1.5 shrink-0">
           {isIos ? (
             <Button
               size="sm"
               onClick={() => setShowIosTooltip(!showIosTooltip)}
-              className="h-11 px-4 text-sm font-semibold bg-[#1769AA] hover:bg-[#1769AA]/90 text-white shadow-xs gap-1.5"
+              className="h-11 px-3 text-xs font-semibold bg-[#1769AA] hover:bg-[#1769AA]/90 text-white shadow-xs gap-1 rounded-xl"
             >
-              <Share className="h-4 w-4" />
-              How to Install (iOS)
+              <Share className="h-3.5 w-3.5" />
+              Install
             </Button>
           ) : (
             <Button
               size="sm"
               onClick={onInstall}
-              className="h-11 px-4 text-sm font-semibold bg-[#1769AA] hover:bg-[#1769AA]/90 text-white shadow-xs gap-1.5"
+              className="h-11 px-3 text-xs font-semibold bg-[#1769AA] hover:bg-[#1769AA]/90 text-white shadow-xs gap-1 rounded-xl"
             >
-              <Download className="h-4 w-4" />
-              Install App
+              <Download className="h-3.5 w-3.5" />
+              Install
             </Button>
           )}
+          <button
+            onClick={onDismiss}
+            className="rounded-xl inline-flex items-center justify-center h-11 w-11 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+            aria-label="Dismiss install banner"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
-
-        {/* iOS Tooltip Instructions */}
-        {isIos && showIosTooltip && (
-          <div className="mt-2.5 rounded-xl bg-slate-800/90 p-2.5 text-xs text-slate-200 border border-slate-700/60 animate-in fade-in duration-200 space-y-1">
-            <p className="font-semibold text-blue-400 flex items-center gap-1">
-              <Smartphone className="h-3.5 w-3.5" /> iOS Safari Installation:
-            </p>
-            <ol className="list-decimal list-inside space-y-0.5 text-[11px] text-slate-300">
-              <li>Tap the <span className="font-semibold text-slate-100">Share</span> button at bottom of Safari</li>
-              <li>Scroll down & tap <span className="font-semibold text-slate-100">"Add to Home Screen"</span></li>
-            </ol>
-          </div>
-        )}
       </div>
+
+      {isIos && showIosTooltip && (
+        <div className="mt-1.5 rounded-xl bg-white p-2.5 text-xs text-[#131E20] border border-[#E5E2D9] shadow-md animate-in fade-in duration-200 space-y-1">
+          <p className="font-semibold text-[#1769AA] flex items-center gap-1">
+            <Smartphone className="h-3.5 w-3.5" /> iOS Safari:
+          </p>
+          <ol className="list-decimal list-inside text-[11px] text-[#6E6B64]">
+            <li>Tap <span className="font-semibold text-slate-800">Share</span> in Safari toolbar</li>
+            <li>Tap <span className="font-semibold text-slate-800">&quot;Add to Home Screen&quot;</span></li>
+          </ol>
+        </div>
+      )}
     </div>
   );
 }

@@ -358,7 +358,7 @@ export default function CitizenComplaintDetailPage() {
                 </Badge>
               )}
             </div>
-            <h1 className="text-xl font-bold text-foreground line-clamp-1">
+            <h1 className="hidden md:block text-xl font-bold text-foreground line-clamp-1 break-words">
               {complaint.title}
             </h1>
           </div>
@@ -531,7 +531,7 @@ export default function CitizenComplaintDetailPage() {
                       <Textarea
                         id="comment"
                         rows={2}
-                        placeholder="Share your thoughts on the promptness and quality of municipal work..."
+                        placeholder="Share your thoughts on the resolution..."
                         value={feedbackComment}
                         onChange={(e) => setFeedbackComment(e.target.value)}
                         className=""
@@ -582,12 +582,12 @@ export default function CitizenComplaintDetailPage() {
 
           {/* Evidence Photos Gallery */}
           <Card className="shadow-sm">
-            <CardHeader className="pb-2 flex flex-row items-center justify-between">
-              <div>
+            <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2">
+              <div className="min-w-0">
                 <CardTitle className="text-base font-semibold">Photo Evidence</CardTitle>
-                <CardDescription className="text-xs">{sanitizedAiStatus}</CardDescription>
+                <CardDescription className="text-xs break-words">{sanitizedAiStatus}</CardDescription>
               </div>
-              <Badge variant="secondary" className="text-xs">
+              <Badge variant="secondary" className="text-xs shrink-0 whitespace-nowrap">
                 {complaint.evidence?.length || 0} Photo(s)
               </Badge>
             </CardHeader>
@@ -748,7 +748,7 @@ export default function CitizenComplaintDetailPage() {
               <Textarea
                 id="reopenReason"
                 rows={4}
-                placeholder="Explain why the resolution is incomplete or unsatisfactory (min 10 characters)..."
+                placeholder="Reason for reopening (min 10 characters)..."
                 value={reopenReason}
                 onChange={(e) => setReopenReason(e.target.value)}
                 className=""
