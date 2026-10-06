@@ -67,7 +67,7 @@ export default function CitizensListPage() {
 
   // Modal State
   const [selectedCitizen, setSelectedCitizen] = useState<Citizen | null>(null);
-  const [activeModal, setActiveModal] = useState<'suspend' | 'activate' | 'delete' | null>(null);
+  const [activeModal, setActiveModal] = useState<'suspend' | 'activate' | 'delete' | 'restore' | null>(null);
   const [suspendReason, setSuspendReason] = useState('');
   const [submittingAction, setSubmittingAction] = useState(false);
 
@@ -200,6 +200,30 @@ export default function CitizensListPage() {
         fetchCitizens(pagination.page);
       } else {
         setActionNotice({ type: 'error', message: data.message || 'Failed to delete citizen account' });
+      }
+    } catch (err: any) {
+      setActionNotice({ type: 'error', message: err.message || 'Error executing action' });
+    } finally {
+      setSubmittingAction(false);
+      setActiveModal(null);
+      setSelectedCitizen(null);
+    }
+  };
+
+  const handleRestoreConfirm = async () => {
+    if (!selectedCitizen) return;
+    setSubmittingAction(true);
+    setActionNotice(null);
+    try {
+      const res = await fetch(`/api/admin/citizens/${selectedCitizen.id}/restore`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setActionNotice({ type: 'success', message: `Citizen "${selectedCitizen.name}" account restored successfully.` });
+        fetchCitizens(pagination.page);
+      } else {
+        setActionNotice({ type: 'error', message: data.message || 'Failed to restore citizen account' });
       }
     } catch (err: any) {
       setActionNotice({ type: 'error', message: err.message || 'Error executing action' });
@@ -367,6 +391,7 @@ export default function CitizensListPage() {
                           <div className="space-y-0.5">
                             <div className="flex items-center gap-1.5 text-xs text-slate-700 font-medium">
                               <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span className="sr-only">{c.mobileNumber}</span>
                               {formatPhone(c.mobileNumber)}
                             </div>
                             <div className="text-xs text-slate-500 truncate max-w-[200px]">
@@ -431,23 +456,24 @@ export default function CitizensListPage() {
                               </Button>
                             </Link>
 
-                            {/* Suspend / Activate Toggle */}
-                            {!isDeleted && (
-                              isSuspended ? (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 text-xs font-medium border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                                  onClick={() => {
-                                    setSelectedCitizen(c);
-                                    setActiveModal('activate');
-                                  }}
-                                  title="Activate Account"
-                                >
-                                  <Power className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-                                  Activate
-                                </Button>
-                              ) : (
+                            {/* Restore Button for Deleted or Suspended accounts */}
+                            {(isDeleted || isSuspended) ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs font-medium border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                onClick={() => {
+                                  setSelectedCitizen(c);
+                                  setActiveModal('restore');
+                                }}
+                                title="Restore Account"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                                Restore
+                              </Button>
+                            ) : (
+                              <>
+                                {/* Suspend Button */}
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -461,23 +487,21 @@ export default function CitizensListPage() {
                                   <ShieldAlert className="w-3.5 h-3.5 mr-1 text-red-600" />
                                   Suspend
                                 </Button>
-                              )
-                            )}
 
-                            {/* Delete Soft Button */}
-                            {!isDeleted && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 px-2 text-xs border-slate-200 text-slate-500 hover:text-red-700 hover:border-red-200 hover:bg-red-50"
-                                onClick={() => {
-                                  setSelectedCitizen(c);
-                                  setActiveModal('delete');
-                                }}
-                                title="Soft Delete Account"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </Button>
+                                {/* Delete Soft Button */}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 px-2 text-xs border-slate-200 text-slate-500 hover:text-red-700 hover:border-red-200 hover:bg-red-50"
+                                  onClick={() => {
+                                    setSelectedCitizen(c);
+                                    setActiveModal('delete');
+                                  }}
+                                  title="Soft Delete Account"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </>
                             )}
                           </div>
                         </td>
@@ -677,6 +701,50 @@ export default function CitizensListPage() {
                 onClick={handleDeleteConfirm}
               >
                 {submittingAction ? 'Deleting...' : 'Confirm Soft Delete'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RESTORE CONFIRMATION MODAL */}
+      {activeModal === 'restore' && selectedCitizen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center gap-3 text-emerald-600">
+              <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+                <RefreshCw className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Restore Citizen Account</h3>
+                <p className="text-xs text-slate-500">{selectedCitizen.name}</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Are you sure you want to restore full access for this citizen? Their account will be reactivated, and they will immediately be able to log in and access all their historical complaints.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-slate-200 text-xs"
+                disabled={submittingAction}
+                onClick={() => {
+                  setActiveModal(null);
+                  setSelectedCitizen(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+                disabled={submittingAction}
+                onClick={handleRestoreConfirm}
+              >
+                {submittingAction ? 'Restoring...' : 'Confirm Restore'}
               </Button>
             </div>
           </div>

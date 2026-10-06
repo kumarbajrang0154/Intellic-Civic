@@ -20,6 +20,32 @@ export async function GET() {
     if (payload.role === 'CITIZEN') {
       const identifier = payload.sub || payload.mobileNumber || payload.email;
       if (identifier) {
+        const prismaClient = (await import('@/lib/prisma')).default;
+        const dbUser = await prismaClient.user.findFirst({
+          where: {
+            OR: [
+              { id: identifier },
+              ...(payload.sub ? [{ id: payload.sub }] : []),
+              ...(payload.mobileNumber ? [{ mobileNumber: payload.mobileNumber }] : []),
+            ],
+          },
+          select: {
+            id: true,
+            isSuspended: true,
+            deletedAt: true,
+          },
+        });
+
+        if (dbUser && (dbUser.isSuspended || dbUser.deletedAt)) {
+          const response = NextResponse.json(
+            { user: null, message: 'Your account has been deactivated by administration.' },
+            { status: 403 },
+          );
+          response.cookies.delete('ic_access_token');
+          response.cookies.delete('ic_refresh_token');
+          return response;
+        }
+
         const profile = await getOrCreateCitizenProfile(identifier);
         return NextResponse.json({
           user: {

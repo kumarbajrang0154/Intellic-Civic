@@ -60,6 +60,7 @@ export async function requireCitizen(): Promise<RequireCitizenResult> {
       mobileNumber: true,
       role: true,
       isSuspended: true,
+      deletedAt: true,
     },
   });
 
@@ -70,11 +71,11 @@ export async function requireCitizen(): Promise<RequireCitizenResult> {
     };
   }
 
-  if (dbUser.isSuspended) {
+  if (dbUser.isSuspended || dbUser.deletedAt) {
     return {
       authorized: false,
       response: NextResponse.json(
-        { statusCode: 403, message: 'Your account has been suspended by administration.' },
+        { statusCode: 403, message: 'Your account has been deactivated by administration.' },
         { status: 403 },
       ),
     };

@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
           const dbUser = await prisma.user.findUnique({ where: { id: profile.id } });
           if (dbUser?.isSuspended || dbUser?.deletedAt) {
             return NextResponse.json(
-              { statusCode: 403, message: 'Your account has been suspended or deactivated by administration.' },
+              { statusCode: 403, message: 'Your account has been deactivated by the administrator. Please contact support.' },
               { status: 403 },
             );
           }
@@ -189,7 +189,7 @@ export async function POST(req: NextRequest) {
         const dbUser = await prisma.user.findUnique({ where: { id: profile.id } });
         if (dbUser?.isSuspended || dbUser?.deletedAt) {
           return NextResponse.json(
-            { statusCode: 403, message: 'Your account has been suspended or deactivated by administration.' },
+            { statusCode: 403, message: 'Your account has been deactivated by the administrator. Please contact support.' },
             { status: 403 },
           );
         }

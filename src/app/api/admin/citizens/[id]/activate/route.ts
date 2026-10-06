@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireSuperAdmin } from '@/lib/admin-auth';
+import { requireAdmin } from '@/lib/admin-auth';
 import { addAuditLog } from '@/lib/audit-store';
 import prisma from '@/lib/prisma';
 import { UserRole } from '@prisma/client';
@@ -11,7 +11,7 @@ export async function PATCH(
   { params }: { params: { id: string } },
 ) {
   try {
-    const auth = await requireSuperAdmin();
+    const auth = await requireAdmin();
     if (!auth.authorized) return auth.response;
 
     const citizenId = params.id;

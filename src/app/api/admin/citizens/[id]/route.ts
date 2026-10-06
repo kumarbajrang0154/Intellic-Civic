@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireSuperAdmin } from '@/lib/admin-auth';
+import { requireAdmin, protectSuperAdminTarget } from '@/lib/admin-auth';
 import { addAuditLog } from '@/lib/audit-store';
 import prisma from '@/lib/prisma';
 import { UserRole } from '@prisma/client';
@@ -11,7 +11,7 @@ export async function GET(
   { params }: { params: { id: string } },
 ) {
   try {
-    const auth = await requireSuperAdmin();
+    const auth = await requireAdmin();
     if (!auth.authorized) return auth.response;
 
     const citizenId = params.id;
@@ -104,10 +104,17 @@ export async function DELETE(
   { params }: { params: { id: string } },
 ) {
   try {
-    const auth = await requireSuperAdmin();
+    const auth = await requireAdmin();
     if (!auth.authorized) return auth.response;
 
     const citizenId = params.id;
+
+    if (auth.admin.id === citizenId) {
+      return NextResponse.json(
+        { success: false, message: 'You cannot delete your own account.' },
+        { status: 403 },
+      );
+    }
 
     const citizen = await prisma.user.findFirst({
       where: {
@@ -122,6 +129,9 @@ export async function DELETE(
         { status: 404 },
       );
     }
+
+    const superAdminGuard = protectSuperAdminTarget(citizen, 'deleted');
+    if (!superAdminGuard.allowed) return superAdminGuard.response;
 
     const now = new Date();
 

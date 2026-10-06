@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireSuperAdmin } from '@/lib/admin-auth';
+import { requireAdmin } from '@/lib/admin-auth';
 import prisma from '@/lib/prisma';
 import { UserRole } from '@prisma/client';
 
@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireSuperAdmin();
+    const auth = await requireAdmin();
     if (!auth.authorized) return auth.response;
 
     const { searchParams } = new URL(req.url);
@@ -33,18 +33,26 @@ export async function GET(req: NextRequest) {
     } else if (status === 'DELETED') {
       whereCondition.deletedAt = { not: null };
     } else {
-      // ALL by default excludes soft-deleted unless explicitly filtered
-      whereCondition.deletedAt = null;
+      // ALL: If search query is provided, search across ALL statuses (deleted included).
+      // Only default to active/suspended when viewing unfiltered "ALL" list without search.
+      if (!search) {
+        whereCondition.deletedAt = null;
+      }
     }
 
     // Search condition
     if (search) {
-      whereCondition.OR = [
+      const cleanDigits = search.replace(/\D/g, '');
+      const searchConditions: any[] = [
         { name: { contains: search, mode: 'insensitive' } },
         { email: { contains: search, mode: 'insensitive' } },
         { mobileNumber: { contains: search, mode: 'insensitive' } },
         { id: { contains: search, mode: 'insensitive' } },
       ];
+      if (cleanDigits.length >= 4 && cleanDigits !== search) {
+        searchConditions.push({ mobileNumber: { contains: cleanDigits, mode: 'insensitive' } });
+      }
+      whereCondition.OR = searchConditions;
     }
 
     const [total, citizens] = await Promise.all([
