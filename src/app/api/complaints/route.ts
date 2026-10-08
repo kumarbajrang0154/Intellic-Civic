@@ -111,6 +111,7 @@ export async function POST(request: NextRequest) {
       imageUrls,
       clientRequestId,
       capturedAt,
+      language,
     } = body;
 
     // Validate clientRequestId if provided
@@ -205,6 +206,7 @@ export async function POST(request: NextRequest) {
       imageUrl: firstImage,
       clientRequestId: trimmedClientRequestId,
       capturedAt: parsedCapturedAt,
+      language: typeof language === 'string' && language.trim() ? language.trim().toLowerCase().slice(0, 2) : undefined,
     });
 
     return NextResponse.json(newComplaint, { status: 201 });

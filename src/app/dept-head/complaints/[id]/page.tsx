@@ -27,6 +27,8 @@ import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { getStaffComplaintText } from '@/lib/complaint-language';
+import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   SUBMITTED: ['AI_PROCESSING', 'PENDING_DEPT_REVIEW', 'ASSIGNED', 'REJECTED', 'DUPLICATE'],
@@ -52,6 +54,9 @@ interface ComplaintDetail {
   ticketId: string;
   title: string;
   description: string;
+  language?: string | null;
+  titleEn?: string | null;
+  descriptionEn?: string | null;
   status: string;
   priority?: string;
   createdAt: string;
@@ -270,8 +275,9 @@ export default function StaffComplaintDetailPage() {
               <Badge variant="outline">{complaint.status}</Badge>
               {complaint.priority && <Badge variant="secondary">{complaint.priority}</Badge>}
             </div>
-            <h1 className="text-xl font-bold text-foreground line-clamp-1">
-              {complaint.title}
+            <h1 className="text-xl font-bold text-foreground line-clamp-1 flex items-center gap-2">
+              <span>{getStaffComplaintText(complaint).displayTitle}</span>
+              {getStaffComplaintText(complaint).isTitleFallback && <OriginalLanguageBadge />}
             </h1>
           </div>
         </div>
@@ -287,7 +293,8 @@ export default function StaffComplaintDetailPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-foreground whitespace-pre-line leading-relaxed">
-                {complaint.description}
+                {getStaffComplaintText(complaint).displayDescription}
+                {getStaffComplaintText(complaint).isDescFallback && <span className="block mt-2"><OriginalLanguageBadge /></span>}
               </p>
 
               {/* Location */}

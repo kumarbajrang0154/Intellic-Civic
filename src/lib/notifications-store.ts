@@ -12,6 +12,8 @@ export interface NotificationItem {
   complaint?: {
     ticketId: string;
     title: string;
+    titleEn?: string | null;
+    language?: string | null;
     status: string;
     priority: string | null;
   };
@@ -30,6 +32,8 @@ function formatNotification(n: any): NotificationItem {
       ? {
           ticketId: n.complaint.ticketId,
           title: n.complaint.title,
+          titleEn: n.complaint.titleEn ?? null,
+          language: n.complaint.language ?? null,
           status: n.complaint.status,
           priority: n.complaint.priority ?? null,
         }
@@ -55,6 +59,8 @@ export async function listUserNotifications(
           select: {
             ticketId: true,
             title: true,
+            titleEn: true,
+            language: true,
             status: true,
             priority: true,
           },
@@ -113,6 +119,8 @@ export async function createNotification(data: {
         select: {
           ticketId: true,
           title: true,
+          titleEn: true,
+          language: true,
           status: true,
           priority: true,
         },

@@ -26,12 +26,17 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { getStaffComplaintText } from '@/lib/complaint-language';
+import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface AssignedComplaint {
   id: string;
   ticketId: string;
   title: string;
   description: string;
+  language?: string | null;
+  titleEn?: string | null;
+  descriptionEn?: string | null;
   status: string;
   priority: string;
   createdAt: string;
@@ -116,6 +121,7 @@ export default function OfficerComplaintsPage() {
       return (
         c.ticketId.toLowerCase().includes(q) ||
         c.title.toLowerCase().includes(q) ||
+        Boolean(c.titleEn && c.titleEn.toLowerCase().includes(q)) ||
         (c.category?.name || '').toLowerCase().includes(q) ||
         (c.location?.address || '').toLowerCase().includes(q)
       );
@@ -296,9 +302,13 @@ export default function OfficerComplaintsPage() {
                       </Badge>
                     </div>
 
-                    <h3 className="font-semibold text-base text-foreground">{item.title}</h3>
+                    <h3 className="font-semibold text-base text-foreground flex items-center gap-2">
+                      <span>{getStaffComplaintText(item).displayTitle}</span>
+                      {getStaffComplaintText(item).isTitleFallback && <OriginalLanguageBadge />}
+                    </h3>
                     <p className="text-xs text-muted-foreground line-clamp-2">
-                      {item.description}
+                      {getStaffComplaintText(item).displayDescription}
+                      {getStaffComplaintText(item).isDescFallback && <OriginalLanguageBadge className="ml-1" />}
                     </p>
 
                     <div className="flex items-center gap-4 text-[11px] text-muted-foreground flex-wrap pt-1">

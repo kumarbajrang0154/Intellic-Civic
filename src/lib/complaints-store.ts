@@ -61,6 +61,9 @@ export interface Complaint {
   ticketId: string;
   title: string;
   description: string;
+  language?: string | null;
+  titleEn?: string | null;
+  descriptionEn?: string | null;
   status: 'SUBMITTED' | 'AI_PROCESSING' | 'PENDING_DEPT_REVIEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED' | 'REJECTED' | 'DUPLICATE';
   priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   categoryId?: string;
@@ -93,6 +96,8 @@ export interface Complaint {
   updatedAt: string;
   resolvedAt?: string;
   closedAt?: string;
+  clientRequestId?: string | null;
+  capturedAt?: string | null;
   aiPrediction?: {
     rawResponse?: {
       recommendation?: string;
@@ -221,6 +226,9 @@ function formatComplaint(raw: any): Complaint {
     ticketId: raw.ticketId,
     title: raw.title,
     description: raw.description,
+    language: raw.language ?? null,
+    titleEn: raw.titleEn ?? null,
+    descriptionEn: raw.descriptionEn ?? null,
     status: raw.status,
     priority: raw.priority || 'MEDIUM',
     categoryId: raw.categoryId || undefined,
@@ -273,6 +281,8 @@ function formatComplaint(raw: any): Complaint {
     updatedAt: raw.updatedAt instanceof Date ? raw.updatedAt.toISOString() : new Date(raw.updatedAt).toISOString(),
     resolvedAt: raw.resolvedAt ? (raw.resolvedAt instanceof Date ? raw.resolvedAt.toISOString() : new Date(raw.resolvedAt).toISOString()) : undefined,
     closedAt: raw.closedAt ? (raw.closedAt instanceof Date ? raw.closedAt.toISOString() : new Date(raw.closedAt).toISOString()) : undefined,
+    clientRequestId: raw.clientRequestId ?? null,
+    capturedAt: raw.capturedAt ? (raw.capturedAt instanceof Date ? raw.capturedAt.toISOString() : new Date(raw.capturedAt).toISOString()) : null,
     aiPrediction: raw.aiPrediction
       ? {
           rawResponse: raw.aiPrediction.rawResponse as any,
@@ -407,6 +417,7 @@ export async function createComplaint(data: {
   municipalityId?: string;
   clientRequestId?: string;
   capturedAt?: Date | string;
+  language?: string;
 }): Promise<Complaint> {
   const ticketId = generateTicketId();
   const mun = await getDefaultMunicipality();
@@ -418,8 +429,8 @@ export async function createComplaint(data: {
     ? dbCategories.map((c) => ({ id: c.id, name: c.name, description: c.description }))
     : DEFAULT_CATEGORIES.map((c) => ({ id: c.id, name: c.name, description: c.description }));
 
-  // AI Complaint Routing Classification (using Gemini with fallback)
-  const routingResult = await classifyComplaintRouting(data.description, data.title, availableCategories);
+  // AI Complaint Routing Classification (using Gemini with fallback and language detection/translation)
+  const routingResult = await classifyComplaintRouting(data.description, data.title, availableCategories, data.language);
 
   // Resolve Category
   let targetCategoryId = data.categoryId;
@@ -471,6 +482,9 @@ export async function createComplaint(data: {
       ticketId,
       title: data.title,
       description: data.description,
+      language: routingResult.language ?? (data.language || null),
+      titleEn: routingResult.titleEn ?? null,
+      descriptionEn: routingResult.descriptionEn ?? null,
       status: ComplaintStatus.SUBMITTED,
       priority,
       citizenId: citizen.id,

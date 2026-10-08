@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { getStaffComplaintText } from '@/lib/complaint-language';
+import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface Department {
   id: string;
@@ -24,6 +26,9 @@ interface Complaint {
   ticketId: string;
   title: string;
   description: string;
+  language?: string | null;
+  titleEn?: string | null;
+  descriptionEn?: string | null;
   status: string;
   priority: string | null;
   createdAt: string;
@@ -100,6 +105,7 @@ export default function AdminAllComplaintsPage() {
     return (
       c.ticketId.toLowerCase().includes(q) ||
       c.title.toLowerCase().includes(q) ||
+      (c.titleEn && c.titleEn.toLowerCase().includes(q)) ||
       (c.citizen?.name && c.citizen.name.toLowerCase().includes(q))
     );
   });
@@ -211,12 +217,17 @@ export default function AdminAllComplaintsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {filteredComplaints.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50">
-                      <td className="p-4">
-                        <div className="font-mono text-xs font-bold text-slate-500">{c.ticketId}</div>
-                        <div className="font-semibold text-slate-900 line-clamp-1">{c.title}</div>
-                      </td>
+                  {filteredComplaints.map((c) => {
+                    const { displayTitle, isTitleFallback } = getStaffComplaintText(c);
+                    return (
+                      <tr key={c.id} className="hover:bg-slate-50">
+                        <td className="p-4">
+                          <div className="font-mono text-xs font-bold text-slate-500">{c.ticketId}</div>
+                          <div className="font-semibold text-slate-900 line-clamp-1 flex items-center gap-1.5">
+                            <span>{displayTitle}</span>
+                            {isTitleFallback && <OriginalLanguageBadge />}
+                          </div>
+                        </td>
                       <td className="p-4 text-slate-700">
                         {c.department?.name || <span className="text-amber-600 font-medium">Needs Triage</span>}
                       </td>
@@ -242,7 +253,8 @@ export default function AdminAllComplaintsPage() {
                         </Link>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

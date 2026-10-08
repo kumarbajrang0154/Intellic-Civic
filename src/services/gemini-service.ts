@@ -1,4 +1,6 @@
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import fs from 'node:fs';
+import path from 'node:path';
 
 export interface PhotoVerificationResult {
   verified: boolean;
@@ -10,6 +12,9 @@ export interface ComplaintRoutingResult {
   category: string;
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   reasoning: string;
+  language?: string | null;
+  titleEn?: string | null;
+  descriptionEn?: string | null;
   fallbackTriggered?: boolean;
 }
 
@@ -19,7 +24,7 @@ export interface CategoryInfo {
   description?: string;
 }
 
-const DEFAULT_CATEGORIES: CategoryInfo[] = [
+export const DEFAULT_CATEGORIES: CategoryInfo[] = [
   { id: 'cat-sanitation', name: 'Sanitation & Solid Waste', description: 'Garbage collection, street cleaning, dumpsters, waste disposal' },
   { id: 'cat-roads', name: 'Roads & Infrastructure', description: 'Potholes, broken footpaths, damaged bridges, manhole covers' },
   { id: 'cat-water', name: 'Water Supply & Sanitation', description: 'Pipeline leaks, contaminated water supply, low pressure, drainage blockage' },
@@ -27,10 +32,34 @@ const DEFAULT_CATEGORIES: CategoryInfo[] = [
 ];
 
 /**
+ * Heuristic script/language detector for complaints.
+ * Detects Indian regional languages (Tamil, Hindi, Telugu, etc.) or falls back to 'en'.
+ */
+export function detectTextLanguage(text: string, defaultLang?: string): string {
+  if (defaultLang && defaultLang.toLowerCase().trim() && defaultLang.toLowerCase().trim() !== 'en') {
+    return defaultLang.toLowerCase().trim().slice(0, 2);
+  }
+  if (/[\u0B80-\u0BFF]/.test(text)) return 'ta'; // Tamil
+  if (/[\u0900-\u097F]/.test(text)) return 'hi'; // Hindi / Devanagari
+  if (/[\u0C00-\u0C7F]/.test(text)) return 'te'; // Telugu
+  if (/[\u0C80-\u0CFF]/.test(text)) return 'kn'; // Kannada
+  if (/[\u0D00-\u0D7F]/.test(text)) return 'ml'; // Malayalam
+  if (/[\u0980-\u09FF]/.test(text)) return 'bn'; // Bengali
+  if (/[\u0A80-\u0AFF]/.test(text)) return 'gu'; // Gujarati
+  if (/[\u0A00-\u0A7F]/.test(text)) return 'pa'; // Punjabi
+  if (/[\u0B00-\u0B7F]/.test(text)) return 'or'; // Odia
+  return 'en';
+}
+
+/**
  * Heuristic keyword-based fallback function for complaint routing.
  * Used when Gemini API is unconfigured, times out, or throws an error.
  */
-export function fallbackKeywordRouting(title: string, description: string): ComplaintRoutingResult {
+export function fallbackKeywordRouting(
+  title: string,
+  description: string,
+  hintLang?: string,
+): ComplaintRoutingResult {
   const text = (title + ' ' + description).toLowerCase();
 
   let category = 'cat-sanitation';
@@ -54,10 +83,15 @@ export function fallbackKeywordRouting(title: string, description: string): Comp
     priority = 'HIGH';
   }
 
+  const detected = detectTextLanguage(title + ' ' + description, hintLang);
+
   return {
     category,
     priority,
     reasoning: 'Fallback keyword heuristic routing used (AI service unavailable or unconfigured).',
+    language: detected !== 'en' ? detected : (hintLang && hintLang !== 'en' ? hintLang : 'en'),
+    titleEn: null,
+    descriptionEn: null,
     fallbackTriggered: true,
   };
 }
@@ -259,14 +293,57 @@ Return structured JSON output with:
 
 /**
  * Classifies complaint category and priority using Gemini LLM.
- * Returns category ID/name, priority enum, and reasoning in structured JSON format.
+ * Additionally detects complaint language and translates non-English complaints into English (titleEn, descriptionEn).
+ * Returns category ID/name, priority enum, language, English translations, and reasoning in structured JSON format.
  */
 export async function classifyComplaintRouting(
   complaintDescription: string,
   complaintTitle = '',
   availableCategories: CategoryInfo[] = DEFAULT_CATEGORIES,
+  hintLang?: string,
 ): Promise<ComplaintRoutingResult> {
-  const fallback = fallbackKeywordRouting(complaintTitle, complaintDescription);
+  const fallback = fallbackKeywordRouting(complaintTitle, complaintDescription, hintLang);
+
+  // In test environments or when a local mock config exists, handle mocked Gemini
+  const mockFilePath = path.join(process.cwd(), '.gemini-mock.json');
+  if (fs.existsSync(mockFilePath)) {
+    try {
+      const rawMock = fs.readFileSync(mockFilePath, 'utf8');
+        const mockData = JSON.parse(rawMock);
+        if (mockData.mode === 'fail') {
+          throw new Error('Mocked Gemini API failure for test verification');
+        }
+        if (mockData.mode === 'success') {
+          const detectedLang = mockData.language || 'en';
+          return {
+            category: mockData.category || 'cat-sanitation',
+            priority: mockData.priority || 'MEDIUM',
+            reasoning: mockData.reasoning || 'Mocked Gemini AI classification.',
+            language: detectedLang,
+            titleEn: detectedLang !== 'en' ? (mockData.titleEn ?? null) : null,
+            descriptionEn: detectedLang !== 'en' ? (mockData.descriptionEn ?? null) : null,
+            fallbackTriggered: false,
+          };
+        }
+    } catch (mockErr: any) {
+      if (mockErr.message && mockErr.message.includes('Mocked Gemini API failure')) {
+        const currentModel = getGeminiModel();
+        const { status, message } = sanitizeAiErrorMessage(mockErr);
+        console.error('[Gemini AI] ROUTING_CLASSIFICATION_FAILED', {
+          type: 'GEMINI_CLASSIFICATION_FAILED',
+          model: currentModel,
+          status,
+          errorMessage: message,
+          timestamp: new Date().toISOString(),
+        });
+        return {
+          ...fallback,
+          reasoning: `[Fallback Heuristic Used — Gemini Error: ${message}] ${fallback.reasoning}`,
+          fallbackTriggered: true,
+        };
+      }
+    }
+  }
 
   const genAI = getGeminiClient();
   if (!genAI) {
@@ -299,14 +376,26 @@ export async function classifyComplaintRouting(
               type: SchemaType.STRING,
               description: 'Short 1-2 sentence reasoning for the chosen category and priority level.',
             },
+            language: {
+              type: SchemaType.STRING,
+              description: 'Detected language 2-letter ISO 639-1 code (e.g. en, ta, hi, te, kn, mr, etc.).',
+            },
+            titleEn: {
+              type: SchemaType.STRING,
+              description: 'English translation of complaint title if language is not "en", otherwise empty string.',
+            },
+            descriptionEn: {
+              type: SchemaType.STRING,
+              description: 'English translation of complaint description if language is not "en", otherwise empty string.',
+            },
           },
-          required: ['category', 'priority', 'reasoning'],
+          required: ['category', 'priority', 'reasoning', 'language'],
         },
       },
     });
 
-    const prompt = `You are an AI Civic Complaint Triage Engine for a Smart City Platform.
-Analyze the complaint title and description, then classify it into the most appropriate Category ID and Priority Level.
+    const prompt = `You are an AI Civic Complaint Triage and Translation Engine for a Smart City Platform.
+Analyze the complaint title and description, detect its language, classify category and priority, and translate to English if the language is not English.
 
 Complaint Title: ${complaintTitle}
 Complaint Description: ${complaintDescription}
@@ -320,12 +409,12 @@ Allowed Priority Levels:
 - HIGH: Significant disruption or safety concern requiring urgent attention
 - CRITICAL: Immediate danger, hazard, fire, severe structural breakdown or public safety emergency
 
-Return JSON matching:
-{
-  "category": "<one of the valid Category IDs>",
-  "priority": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
-  "reasoning": "<concise explanation>"
-}`;
+Language & Translation Requirements:
+- "language": Detect 2-letter ISO code (e.g. "en" for English, "ta" for Tamil, "hi" for Hindi, etc.).
+- If language is NOT "en", accurately translate title to English in "titleEn" and description to English in "descriptionEn".
+- If language IS "en", set "titleEn" and "descriptionEn" to empty string or null.
+
+Return JSON matching the schema.`;
 
     const apiCall = model.generateContent(prompt);
     const response = await withTimeout(apiCall, 10000, 'Gemini complaint routing classification timed out after 10s');
@@ -347,10 +436,26 @@ Return JSON matching:
       selectedPriority = fallback.priority;
     }
 
+    let detectedLang = parsed.language ? String(parsed.language).trim().toLowerCase().slice(0, 2) : '';
+    if (!detectedLang) {
+      detectedLang = detectTextLanguage(complaintTitle + ' ' + complaintDescription, hintLang);
+    }
+
+    const isNonEnglish = detectedLang !== 'en';
+    const titleEn = isNonEnglish && parsed.titleEn && String(parsed.titleEn).trim()
+      ? String(parsed.titleEn).trim()
+      : null;
+    const descriptionEn = isNonEnglish && parsed.descriptionEn && String(parsed.descriptionEn).trim()
+      ? String(parsed.descriptionEn).trim()
+      : null;
+
     return {
       category: selectedCategory,
       priority: selectedPriority,
       reasoning: parsed.reasoning || 'AI triage classification complete.',
+      language: detectedLang,
+      titleEn,
+      descriptionEn,
       fallbackTriggered: false,
     };
   } catch (error: any) {

@@ -7,6 +7,8 @@ import { AppShell } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
+import { getStaffComplaintText } from '@/lib/complaint-language';
+import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface Department {
   id: string;
@@ -18,6 +20,9 @@ interface Complaint {
   ticketId: string;
   title: string;
   description: string;
+  language?: string | null;
+  titleEn?: string | null;
+  descriptionEn?: string | null;
   status: string;
   createdAt: string;
   category?: { name: string };
@@ -126,6 +131,7 @@ export default function AdminTriagePage() {
           <div className="grid grid-cols-1 gap-4">
             {complaints.map((c) => {
               const selectedDept = selectedDepts[c.id] || '';
+              const { displayTitle, displayDescription, isTitleFallback, isDescFallback } = getStaffComplaintText(c);
               return (
                 <Card key={c.id} className="border shadow-sm bg-white">
                   <CardHeader className="pb-3">
@@ -145,8 +151,9 @@ export default function AdminTriagePage() {
                           )}
                         </div>
                         <Link href={`/admin/complaints/${c.id}`}>
-                          <CardTitle className="text-lg font-bold text-slate-900 mt-1 hover:text-blue-600">
-                            {c.title}
+                          <CardTitle className="text-lg font-bold text-slate-900 mt-1 hover:text-blue-600 flex items-center gap-2">
+                            <span>{displayTitle}</span>
+                            {isTitleFallback && <OriginalLanguageBadge />}
                           </CardTitle>
                         </Link>
                       </div>
@@ -156,7 +163,10 @@ export default function AdminTriagePage() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <p className="text-sm text-slate-600 line-clamp-2">{c.description}</p>
+                    <p className="text-sm text-slate-600 line-clamp-2">
+                      {displayDescription}
+                      {isDescFallback && <OriginalLanguageBadge className="ml-1.5" />}
+                    </p>
 
                     {/* AI Prediction Context */}
                     {c.aiPrediction && (

@@ -22,6 +22,8 @@ import { StatusBadge } from '@/components/admin/status-badge';
 import { PriorityBadge } from '@/components/admin/priority-badge';
 import { PageHeader } from '@/components/admin/page-header';
 import { Button } from '@/components/ui/button';
+import { getStaffComplaintText } from '@/lib/complaint-language';
+import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface SystemStats {
   totalComplaints: number;
@@ -36,6 +38,9 @@ interface RecentComplaint {
   id: string;
   ticketId: string;
   title: string;
+  language?: string | null;
+  titleEn?: string | null;
+  descriptionEn?: string | null;
   status: string;
   priority: string | null;
   createdAt: string;
@@ -404,7 +409,9 @@ export default function AdminDashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {recentComplaints.map((c) => (
+                    {recentComplaints.map((c) => {
+                      const { displayTitle, isTitleFallback } = getStaffComplaintText(c);
+                      return (
                       <tr
                         key={c.id}
                         className="hover:bg-slate-50 transition-colors cursor-pointer"
@@ -417,8 +424,9 @@ export default function AdminDashboardPage() {
                             <span className="font-mono text-xs text-ic-action font-semibold">
                               #{c.ticketId}
                             </span>
-                            <span className="text-slate-600 text-xs truncate max-w-[140px] mt-0.5">
-                              {c.title}
+                            <span className="text-slate-600 text-xs truncate max-w-[140px] mt-0.5 flex items-center gap-1">
+                              <span>{displayTitle}</span>
+                              {isTitleFallback && <OriginalLanguageBadge />}
                             </span>
                           </Link>
                         </td>
@@ -442,7 +450,8 @@ export default function AdminDashboardPage() {
                           </span>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

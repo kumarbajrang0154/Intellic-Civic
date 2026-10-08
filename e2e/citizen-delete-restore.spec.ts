@@ -56,8 +56,8 @@ test.describe.serial('Citizen Delete & Restore Flow Suite', () => {
       data: {
         name: 'Road Infrastructure',
         description: 'Roads, potholes, and pavements',
-        slaHours: 48,
-      },
+        departmentId: 'dept_roads_infra',
+      } as any,
     });
 
     // 1. Create a citizen with complete profile and one complaint

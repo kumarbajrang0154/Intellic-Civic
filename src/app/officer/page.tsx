@@ -19,11 +19,17 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getStaffComplaintText } from '@/lib/complaint-language';
+import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface AssignedComplaint {
   id: string;
   ticketId: string;
   title: string;
+  description?: string;
+  language?: string | null;
+  titleEn?: string | null;
+  descriptionEn?: string | null;
   status: string;
   priority: string;
   createdAt: string;
@@ -269,7 +275,10 @@ export default function OfficerDashboardPage() {
                           {item.category?.name || 'General Issue'}
                         </span>
                       </div>
-                      <h3 className="font-semibold text-sm text-slate-900">{item.title}</h3>
+                      <h3 className="font-semibold text-sm text-slate-900 flex items-center gap-1.5">
+                        <span>{getStaffComplaintText(item).displayTitle}</span>
+                        {getStaffComplaintText(item).isTitleFallback && <OriginalLanguageBadge />}
+                      </h3>
                       <p className="text-xs text-slate-500">
                         {item.location?.address || 'Location provided'} &bull; Submitted {new Date(item.createdAt).toLocaleDateString()}
                       </p>

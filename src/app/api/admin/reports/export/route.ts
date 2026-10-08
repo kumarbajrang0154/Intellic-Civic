@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
 
     const rows = complaints.map((c) => [
       `"${c.ticketId || ''}"`,
-      `"${(c.title || '').replace(/"/g, '""')}"`,
+      `"${((c.titleEn ?? c.title) || '').replace(/"/g, '""')}"`,
       `"${c.status || ''}"`,
       `"${c.priority || 'MEDIUM'}"`,
       `"${(c.category?.name || 'Uncategorized').replace(/"/g, '""')}"`,

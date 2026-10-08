@@ -21,12 +21,17 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getStaffComplaintText } from '@/lib/complaint-language';
+import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface FieldWorkerComplaint {
   id: string;
   ticketId: string;
   title: string;
   description: string;
+  language?: string | null;
+  titleEn?: string | null;
+  descriptionEn?: string | null;
   status: string;
   priority?: string;
   createdAt: string;
@@ -282,14 +287,16 @@ export default function FieldWorkerDashboardPage() {
                       </span>
                       {getStatusBadge(complaint)}
                     </div>
-                    <CardTitle className="text-base font-bold text-slate-900 line-clamp-1">
-                      {complaint.title}
+                    <CardTitle className="text-base font-bold text-slate-900 line-clamp-1 flex items-center gap-1.5">
+                      <span>{getStaffComplaintText(complaint).displayTitle}</span>
+                      {getStaffComplaintText(complaint).isTitleFallback && <OriginalLanguageBadge />}
                     </CardTitle>
                   </CardHeader>
 
                   <CardContent className="p-4 pt-2 space-y-3 flex-1 flex flex-col justify-between">
                     <p className="text-xs text-slate-600 line-clamp-2">
-                      {complaint.description}
+                      {getStaffComplaintText(complaint).displayDescription}
+                      {getStaffComplaintText(complaint).isDescFallback && <OriginalLanguageBadge className="ml-1" />}
                     </p>
 
                     {complaint.location?.address && (

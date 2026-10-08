@@ -32,11 +32,17 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getStaffComplaintText } from '@/lib/complaint-language';
+import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface ComplaintItem {
   id: string;
   ticketId: string;
   title: string;
+  description?: string;
+  language?: string | null;
+  titleEn?: string | null;
+  descriptionEn?: string | null;
   status: string;
   priority?: string;
   createdAt: string;
@@ -114,7 +120,7 @@ export default function DepartmentQueuePage() {
       // Search
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchesTitle = item.title.toLowerCase().includes(q);
+        const matchesTitle = item.title.toLowerCase().includes(q) || Boolean(item.titleEn && item.titleEn.toLowerCase().includes(q));
         const matchesTicket = item.ticketId.toLowerCase().includes(q);
         if (!matchesTitle && !matchesTicket) return false;
       }
@@ -317,7 +323,10 @@ export default function DepartmentQueuePage() {
                         {item.ticketId}
                       </TableCell>
                       <TableCell className="font-medium text-foreground max-w-xs truncate">
-                        {item.title}
+                        <span className="flex items-center gap-1.5">
+                          <span>{getStaffComplaintText(item).displayTitle}</span>
+                          {getStaffComplaintText(item).isTitleFallback && <OriginalLanguageBadge />}
+                        </span>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {item.category?.name || 'General'}

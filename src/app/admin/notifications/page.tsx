@@ -9,11 +9,16 @@ import { EmptyState } from '@/components/admin/empty-state';
 import { Button } from '@/components/ui/button';
 import { Bell, BellOff, CheckCheck, ExternalLink, Zap } from 'lucide-react';
 import Link from 'next/link';
+import { getStaffComplaintText } from '@/lib/complaint-language';
+import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface NotificationItem {
   id: string;
   ticketId: string;
   title: string;
+  language?: string | null;
+  titleEn?: string | null;
+  descriptionEn?: string | null;
   status: string;
   priority: string | null;
   createdAt: string;
@@ -186,8 +191,9 @@ export default function NotificationsPage() {
                         <span className="w-2 h-2 rounded-full bg-ic-action shrink-0" />
                       )}
                     </div>
-                    <div className="text-sm font-semibold text-slate-800 mt-0.5 truncate">
-                      {item.title}
+                    <div className="text-sm font-semibold text-slate-800 mt-0.5 truncate flex items-center gap-1.5">
+                      <span>{getStaffComplaintText(item).displayTitle}</span>
+                      {getStaffComplaintText(item).isTitleFallback && <OriginalLanguageBadge />}
                     </div>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       <PriorityBadge priority={item.priority} />

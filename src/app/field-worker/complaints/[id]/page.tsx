@@ -25,6 +25,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import { PhotoUpload } from '@/components/ui/photo-upload';
 import { toast } from 'sonner';
+import { getStaffComplaintText } from '@/lib/complaint-language';
+import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface EvidenceItem {
   id: string;
@@ -38,6 +40,9 @@ interface ComplaintDetail {
   ticketId: string;
   title: string;
   description: string;
+  language?: string | null;
+  titleEn?: string | null;
+  descriptionEn?: string | null;
   status: string;
   priority?: string;
   readyForReview?: boolean;
@@ -290,7 +295,10 @@ export default function FieldWorkerComplaintDetailPage() {
                 </Badge>
               )}
             </div>
-            <h1 className="text-xl font-bold text-foreground line-clamp-1">{complaint.title}</h1>
+            <h1 className="text-xl font-bold text-foreground line-clamp-1 flex items-center gap-2">
+              <span>{getStaffComplaintText(complaint).displayTitle}</span>
+              {getStaffComplaintText(complaint).isTitleFallback && <OriginalLanguageBadge />}
+            </h1>
           </div>
         </div>
 
@@ -351,7 +359,8 @@ export default function FieldWorkerComplaintDetailPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
-                  {complaint.description}
+                  {getStaffComplaintText(complaint).displayDescription}
+                  {getStaffComplaintText(complaint).isDescFallback && <span className="block mt-2"><OriginalLanguageBadge /></span>}
                 </p>
 
                 {complaint.location?.address && (

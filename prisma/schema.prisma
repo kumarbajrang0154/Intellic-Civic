@@ -200,6 +200,9 @@ model Complaint {
   municipalityId             String?
   isVoiceInput               Boolean         @default(false)
   voiceTranscript            String?         @db.Text
+  language                   String?
+  titleEn                    String?
+  descriptionEn              String?         @db.Text
   reopenCount                Int             @default(0)
   reopenedAt                 DateTime?
   reopenReason               String?         @db.Text

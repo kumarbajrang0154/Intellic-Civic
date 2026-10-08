@@ -81,7 +81,9 @@ export async function GET(
       complaints: citizen.complaints.map((c) => ({
         id: c.id,
         ticketId: c.ticketId,
-        title: c.title,
+        title: c.titleEn ?? c.title,
+        titleEn: c.titleEn,
+        language: c.language,
         status: c.status,
         priority: c.priority,
         categoryName: c.category?.name || 'General',

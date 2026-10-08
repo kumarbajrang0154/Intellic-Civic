@@ -4,8 +4,8 @@ import * as React from 'react';
 import { Sparkles, Brain } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface AICardProps extends React.HTMLAttributes<HTMLDivElement> {
-  title?: string;
+interface AICardProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {
+  title?: React.ReactNode;
   subtitle?: string;
   badgeText?: string;
   children: React.ReactNode;

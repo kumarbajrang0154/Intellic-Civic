@@ -19,11 +19,17 @@ import {
   Map as MapIcon,
 } from 'lucide-react';
 import { ComplaintsMap } from '@/components/complaints-map';
+import { getStaffComplaintText } from '@/lib/complaint-language';
+import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface Complaint {
   id: string;
   ticketId: string;
   title: string;
+  description?: string;
+  language?: string | null;
+  titleEn?: string | null;
+  descriptionEn?: string | null;
   status: string;
   priority: string | null;
   createdAt: string;
@@ -96,6 +102,7 @@ export function FilteredComplaintsPage({
         (c) =>
           c.ticketId.toLowerCase().includes(q) ||
           c.title.toLowerCase().includes(q) ||
+          (c.titleEn && c.titleEn.toLowerCase().includes(q)) ||
           c.citizen?.name.toLowerCase().includes(q) ||
           c.category?.name.toLowerCase().includes(q) ||
           c.department?.name.toLowerCase().includes(q),
@@ -216,15 +223,18 @@ export function FilteredComplaintsPage({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filtered.map((c) => (
+                  {filtered.map((c) => {
+                    const { displayTitle, isTitleFallback } = getStaffComplaintText(c);
+                    return (
                     <tr key={c.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex flex-col">
                           <span className="font-mono text-xs text-ic-action font-semibold">
                             #{c.ticketId}
                           </span>
-                          <span className="text-slate-700 text-xs mt-0.5 truncate max-w-[180px]">
-                            {c.title}
+                          <span className="text-slate-700 text-xs mt-0.5 truncate max-w-[180px] flex items-center gap-1">
+                            <span>{displayTitle}</span>
+                            {isTitleFallback && <OriginalLanguageBadge />}
                           </span>
                           {c.citizen?.name && (
                             <span className="text-[11px] text-slate-400 mt-0.5">
@@ -272,7 +282,8 @@ export function FilteredComplaintsPage({
                         </Link>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

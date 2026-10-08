@@ -6,11 +6,17 @@ import L from 'leaflet';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapPinOff, ExternalLink, ShieldAlert, Tag, Calendar, MapPin } from 'lucide-react';
+import { getStaffComplaintText } from '@/lib/complaint-language';
+import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 export interface ComplaintMapItem {
   id: string;
   ticketId: string;
   title: string;
+  description?: string;
+  language?: string | null;
+  titleEn?: string | null;
+  descriptionEn?: string | null;
   category?: { name: string } | null;
   priority?: string | null;
   status: string;
@@ -197,8 +203,9 @@ export default function ComplaintsMapInner({
                     </span>
                   </div>
 
-                  <h5 className="font-semibold text-slate-900 text-sm leading-snug mb-2 line-clamp-2">
-                    {complaint.title}
+                  <h5 className="font-semibold text-slate-900 text-sm leading-snug mb-2 line-clamp-2 flex items-center gap-1.5">
+                    <span>{getStaffComplaintText(complaint).displayTitle}</span>
+                    {getStaffComplaintText(complaint).isTitleFallback && <OriginalLanguageBadge />}
                   </h5>
 
                   <div className="space-y-1.5 text-xs text-slate-600 mb-3">

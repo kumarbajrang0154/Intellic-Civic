@@ -22,12 +22,17 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AICard } from '@/components/ui/ai-card';
+import { getStaffComplaintText } from '@/lib/complaint-language';
+import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface AiSuggestedComplaint {
   id: string;
   ticketId: string;
   title: string;
   description: string;
+  language?: string | null;
+  titleEn?: string | null;
+  descriptionEn?: string | null;
   createdAt: string;
   aiSuggestion?: {
     suggestedCategoryId?: string;
@@ -211,17 +216,25 @@ export default function AiSuggestionsPage() {
                 ? Math.round(item.aiSuggestion.confidenceScore * 100)
                 : 75;
 
+              const { displayTitle, displayDescription, isTitleFallback, isDescFallback } = getStaffComplaintText(item);
+
               return (
                 <AICard
                   key={item.id}
-                  title={item.title}
+                  title={
+                    <span className="flex items-center gap-2">
+                      <span>{displayTitle}</span>
+                      {isTitleFallback && <OriginalLanguageBadge />}
+                    </span>
+                  }
                   subtitle={`Ticket #${item.ticketId} • ${item.category?.name || 'General Issue'}`}
                   badgeText={`${confidence}% Confidence`}
                   variant="subtle"
                 >
                   <div className="space-y-3 text-xs">
                     <p className="text-slate-700 leading-relaxed bg-white p-3 rounded-lg border border-slate-100">
-                      {item.description}
+                      {displayDescription}
+                      {isDescFallback && <span className="block mt-2"><OriginalLanguageBadge /></span>}
                     </p>
 
                     {item.aiSuggestion?.reasoning && (

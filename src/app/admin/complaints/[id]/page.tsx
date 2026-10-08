@@ -26,6 +26,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { AICard } from '@/components/ui/ai-card';
 import { EvidenceTimeline, EvidenceItem } from '@/components/ui/evidence-timeline';
+import { getStaffComplaintText } from '@/lib/complaint-language';
+import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface Department {
   id: string;
@@ -37,6 +39,9 @@ interface ComplaintDetail {
   ticketId: string;
   title: string;
   description: string;
+  language?: string | null;
+  titleEn?: string | null;
+  descriptionEn?: string | null;
   status: string;
   priority: string | null;
   createdAt: string;
@@ -193,6 +198,7 @@ export default function AdminComplaintDetailPage() {
   };
 
   const priorityBadge = complaint.priority ? PRIORITY_BADGES[complaint.priority] : null;
+  const { displayTitle, displayDescription, isTitleFallback, isDescFallback } = getStaffComplaintText(complaint);
 
   return (
     <AppShell user={{ name: 'Super Admin', role: 'ADMIN' }}>
@@ -220,8 +226,9 @@ export default function AdminComplaintDetailPage() {
                   </span>
                 )}
               </div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900 mt-1">
-                {complaint.title}
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 mt-1 flex items-center gap-2 flex-wrap">
+                <span>{displayTitle}</span>
+                {isTitleFallback && <OriginalLanguageBadge />}
               </h1>
             </div>
           </div>
@@ -242,7 +249,8 @@ export default function AdminComplaintDetailPage() {
                 <div>
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Description</h4>
                   <p className="text-slate-700 leading-relaxed whitespace-pre-wrap bg-slate-50 p-4 rounded-lg border border-slate-100 text-sm">
-                    {complaint.description}
+                    {displayDescription}
+                    {isDescFallback && <span className="block mt-2"><OriginalLanguageBadge /></span>}
                   </p>
                 </div>
 
