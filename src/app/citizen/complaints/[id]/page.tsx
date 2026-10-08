@@ -78,6 +78,30 @@ interface ComplaintDetail {
   };
 }
 
+export function getStatusLabel(status?: string): string {
+  switch (status) {
+    case 'SUBMITTED':
+      return 'Submitted';
+    case 'AI_PROCESSING':
+      return 'Submitted';
+    case 'PENDING_DEPT_REVIEW':
+      return 'Under Review';
+    case 'ASSIGNED':
+      return 'Assigned';
+    case 'IN_PROGRESS':
+      return 'In Progress';
+    case 'RESOLVED':
+    case 'CLOSED':
+      return 'Resolved';
+    case 'REJECTED':
+      return 'Rejected';
+    case 'DUPLICATE':
+      return 'Duplicate';
+    default:
+      return status ? status.replace(/_/g, ' ') : '';
+  }
+}
+
 export default function CitizenComplaintDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -352,6 +376,23 @@ export default function CitizenComplaintDetailPage() {
               <span className="font-mono text-sm font-bold text-primary">
                 {complaint.ticketId}
               </span>
+              <Badge
+                variant={
+                  complaint.status === 'RESOLVED' || complaint.status === 'CLOSED'
+                    ? 'default'
+                    : complaint.status === 'REJECTED'
+                    ? 'destructive'
+                    : 'outline'
+                }
+                className={
+                  complaint.status === 'RESOLVED' || complaint.status === 'CLOSED'
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs'
+                    : 'text-xs'
+                }
+                data-testid="citizen-status-badge"
+              >
+                {getStatusLabel(complaint.status)}
+              </Badge>
               {complaint.category && (
                 <Badge variant="outline" className="text-xs">
                   {complaint.category.name}
@@ -425,25 +466,29 @@ export default function CitizenComplaintDetailPage() {
             </div>
           )}
 
-          {/* Batch A: Post-Resolution Decision Bar (Shown when RESOLVED) */}
-          {complaint.status === 'RESOLVED' && (
-            <div className="p-4 bg-emerald-500/10 border-2 border-emerald-500/30 rounded-xl space-y-3 min-w-0">
+          {/* Batch A: Post-Resolution Decision Bar (Shown when RESOLVED or CLOSED) */}
+          {(complaint.status === 'RESOLVED' || complaint.status === 'CLOSED') && (
+            <div className="p-4 bg-emerald-500/10 border-2 border-emerald-500/30 rounded-xl space-y-3 min-w-0" data-testid="resolution-decision-bar">
               <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
                 <span className="break-words">Department Marked This Complaint as Resolved!</span>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed break-words">
-                Please verify the work done. If satisfied, mark it satisfactory to close the ticket. If the issue persists, you may reopen this ticket.
+                {complaint.status === 'CLOSED'
+                  ? 'This complaint has been resolved and closed by municipal authorities. If the issue recurs, you may reopen this ticket.'
+                  : 'Please verify the work done. If satisfied, mark it satisfactory to close the ticket. If the issue persists, you may reopen this ticket.'}
               </p>
               <div className="flex flex-col sm:flex-row items-center gap-3 pt-1">
-                <Button
-                  onClick={handleMarkSatisfactory}
-                  disabled={actionLoading}
-                  className="w-full sm:w-auto h-11 md:h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5"
-                >
-                  <ThumbsUp className="h-4 w-4" />
-                  {actionLoading ? 'Closing Ticket...' : 'Mark as Satisfactory & Close'}
-                </Button>
+                {complaint.status === 'RESOLVED' && (
+                  <Button
+                    onClick={handleMarkSatisfactory}
+                    disabled={actionLoading}
+                    className="w-full sm:w-auto h-11 md:h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5"
+                  >
+                    <ThumbsUp className="h-4 w-4" />
+                    {actionLoading ? 'Closing Ticket...' : 'Mark as Satisfactory & Close'}
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   onClick={() => setReopenModalOpen(true)}
@@ -633,7 +678,7 @@ export default function CitizenComplaintDetailPage() {
                       <div className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-background" />
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-semibold text-foreground">
-                          Status updated to {item.toStatus.replace(/_/g, ' ')}
+                          Status updated to {getStatusLabel(item.toStatus)}
                         </span>
                         <span className="text-muted-foreground">
                           {new Date(item.changedAt).toLocaleString(undefined, {

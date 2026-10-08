@@ -14,11 +14,23 @@ export async function POST(
     }
 
     const { id } = params;
-    const body = await request.json();
-    const { fieldWorkerId, assignedToId, officerId, assignedOfficerId, notes } = body;
+    const { fieldWorkerId, assignedToId, officerId, assignedOfficerId, departmentId, notes } = body;
 
     const targetOfficerId = officerId || assignedOfficerId;
     const targetWorkerId = fieldWorkerId || assignedToId;
+
+    if (departmentId && !targetOfficerId && !targetWorkerId) {
+      const result = await reassignComplaintDepartment({
+        complaintId: id,
+        departmentId,
+        reassignedByUserId: auth.user.id,
+        notes,
+      });
+      if (!result.ok) {
+        return NextResponse.json({ statusCode: result.status, message: result.message }, { status: result.status });
+      }
+      return NextResponse.json({ success: true, complaint: result.complaint });
+    }
 
     if (targetOfficerId) {
       const result = await assignOfficerToComplaint(id, targetOfficerId, auth.user.id, notes);

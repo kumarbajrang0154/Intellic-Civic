@@ -174,7 +174,7 @@ test.describe('Module 7: Department Head Portal E2E Tests', () => {
       });
     });
 
-    await page.route('**/api/complaints/ai-suggest-99/*', async (route) => {
+    await page.route(/\/api\/complaints\/.*\/verify-triage/, async (route) => {
       assignCalled = true;
       await route.fulfill({
         status: 200,
@@ -297,5 +297,138 @@ test.describe('Module 7: Department Head Portal E2E Tests', () => {
 
     await page.goto('/department-head');
     await expect(page).toHaveURL('http://localhost:3000/officer');
+  });
+
+  test('8. Municipality-scoped Department Head (departmentId=null) assigns complaint to department / officer with 2xx + UI state changed', async ({
+    context,
+    page,
+  }) => {
+    // 1. Municipality-scoped Department Head JWT (departmentId = null)
+    const muniHeadToken = await new SignJWT({
+      sub: 'dept-head-muni-1',
+      role: 'DEPARTMENT_HEAD',
+      departmentId: null,
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setExpirationTime('2h')
+      .sign(JWT_SECRET);
+
+    await context.addCookies([
+      {
+        name: 'ic_access_token',
+        value: muniHeadToken,
+        domain: 'localhost',
+        path: '/',
+      },
+    ]);
+
+    await page.route('**/api/auth/me', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          user: {
+            id: 'dept-head-muni-1',
+            name: 'Municipal Head',
+            role: 'DEPARTMENT_HEAD',
+            departmentId: null,
+          },
+        }),
+      });
+    });
+
+    let verifyTriageResponseStatus = 0;
+    await page.route('**/api/complaints?pendingAiConfirmation=true&limit=50', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: [
+            {
+              id: 'ai-suggest-muni-1',
+              ticketId: 'CMP-SUGGEST-MUNI',
+              title: 'Major Pothole on Bypass Road',
+              description: 'Deep road crater causing traffic delays.',
+              createdAt: '2026-08-26T12:00:00Z',
+              aiSuggestion: {
+                suggestedDepartmentId: 'dept_roads_infra',
+                reasoning: 'Road crater matches Roads & Infrastructure scope.',
+              },
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.route(/\/api\/complaints\/.*\/verify-triage/, async (route) => {
+      verifyTriageResponseStatus = 200;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          complaint: { id: 'ai-suggest-muni-1', status: 'ASSIGNED', departmentId: 'dept_roads_infra' },
+        }),
+      });
+    });
+
+    await page.goto('/department-head/ai-suggestions');
+    await expect(page.getByText('CMP-SUGGEST-MUNI')).toBeVisible();
+
+    await page.click('button:has-text("Confirm & Assign to My Dept")');
+
+    // Assert 2xx response status and UI state changed (card removed, empty state displayed)
+    expect(verifyTriageResponseStatus).toBe(200);
+    await expect(page.getByText('No Pending AI Suggestions')).toBeVisible();
+
+    // 2. Assigning officer on complaint detail page as municipality-scoped Dept Head
+    let assignOfficerResponseStatus = 0;
+    await page.route('**/api/complaints/c-muni-detail-1', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'c-muni-detail-1',
+          ticketId: 'CMP-MUNI-999',
+          title: 'Damaged Guardrail',
+          description: 'Broken barrier on bridge.',
+          status: 'PENDING_DEPT_REVIEW',
+          department: null,
+          createdAt: '2026-08-27T09:00:00Z',
+        }),
+      });
+    });
+
+    await page.route('**/api/departments/*/staff', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          officers: [
+            { id: 'officer-roads-1', name: 'Roads Officer Rajesh', role: 'DEPARTMENT_OFFICER' },
+          ],
+          fieldWorkers: [],
+        }),
+      });
+    });
+
+    await page.route('**/api/complaints/c-muni-detail-1/assign', async (route) => {
+      assignOfficerResponseStatus = 200;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          complaint: { id: 'c-muni-detail-1', status: 'ASSIGNED', departmentId: 'dept_roads_infra' },
+        }),
+      });
+    });
+
+    await page.goto('/department-head/complaints/c-muni-detail-1');
+    await page.selectOption('select:has-text("Select officer")', 'officer-roads-1');
+    await page.click('button:has-text("Assign Officer")');
+
+    expect(assignOfficerResponseStatus).toBe(200);
+    await expect(page.getByText('Officer successfully assigned to complaint.')).toBeVisible();
   });
 });

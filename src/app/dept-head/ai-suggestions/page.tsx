@@ -100,12 +100,18 @@ export default function AiSuggestionsPage() {
     setActionSuccess(null);
     setError(null);
 
+    const currentSuggestion = suggestions.find((s) => s.id === complaintId);
+    const targetDeptId =
+      currentSuggestion?.aiSuggestion?.suggestedDepartmentId ||
+      (currentSuggestion as any)?.aiPrediction?.suggestedDepartmentId ||
+      user.departmentId;
+
     try {
       const res = await fetch(`/api/complaints/${complaintId}/verify-triage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          departmentId: user.departmentId,
+          departmentId: targetDeptId,
           notes: 'Confirmed AI suggestion tier routing by Department Head.',
         }),
       });

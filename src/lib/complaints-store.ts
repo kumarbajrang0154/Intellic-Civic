@@ -1250,6 +1250,7 @@ export async function assignOfficerToComplaint(
     where: { id: complaint.id },
     data: {
       status: nextStatus,
+      departmentId: complaint.departmentId || officer.departmentId || undefined,
       statusHistory: {
         create: {
           fromStatus: prevStatus as ComplaintStatus,

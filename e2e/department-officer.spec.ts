@@ -232,4 +232,190 @@ test.describe('Module 8: Department Officer Portal E2E Tests', () => {
     await expect(page.getByText('No Assigned Complaints Found')).toBeVisible();
     expect(queriedWithAssignedToMe).toBe(true);
   });
+
+  test('7. Officer closes complaint -> citizen tracking page shows Resolved and citizen receives notification', async ({
+    context,
+    page,
+  }) => {
+    // 1. Officer closes the complaint
+    let statusUpdated = false;
+    await page.route('**/api/complaints/c-officer-close-1', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'c-officer-close-1',
+          ticketId: 'TCK-CLOSE-001',
+          title: 'Damaged Road Pothole',
+          description: 'Deep pothole repaired by field team.',
+          status: 'IN_PROGRESS',
+          priority: 'MEDIUM',
+          createdAt: '2026-08-27T09:00:00Z',
+          evidence: [],
+          statusHistory: [
+            {
+              id: 'sh-1',
+              fromStatus: 'ASSIGNED',
+              toStatus: 'IN_PROGRESS',
+              changedAt: '2026-08-27T10:00:00Z',
+              notes: 'Work started on site',
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.route('**/api/departments/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ officers: [], fieldWorkers: [] }),
+      });
+    });
+
+    await page.route('**/api/complaints/c-officer-close-1/status', async (route) => {
+      const body = route.request().postDataJSON();
+      if (body.status === 'CLOSED' || body.status === 'RESOLVED') {
+        statusUpdated = true;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          complaint: {
+            id: 'c-officer-close-1',
+            status: 'CLOSED',
+            resolvedAt: new Date().toISOString(),
+            closedAt: new Date().toISOString(),
+          },
+        }),
+      });
+    });
+
+    await page.goto('/officer/complaints/c-officer-close-1');
+    await expect(page.getByText('TCK-CLOSE-001')).toBeVisible();
+
+    await page.selectOption('select#next-status-select', 'CLOSED');
+    await page.locator('textarea').first().fill('Work verified on site, closing ticket.');
+    await page.click('button:has-text("Confirm Transition to CLOSED")');
+
+    await expect(page.getByText('Status successfully updated to CLOSED')).toBeVisible();
+    expect(statusUpdated).toBe(true);
+
+    // 2. Switch to Citizen: visit tracking page for the complaint
+    const citizenToken = await new SignJWT({
+      sub: 'citizen-user-1',
+      role: 'CITIZEN',
+      isAuthorized: true,
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setExpirationTime('2h')
+      .sign(JWT_SECRET);
+
+    await context.addCookies([
+      {
+        name: 'ic_access_token',
+        value: citizenToken,
+        domain: 'localhost',
+        path: '/',
+      },
+    ]);
+
+    await page.route('**/api/auth/me', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          user: {
+            id: 'citizen-user-1',
+            name: 'Priya Sharma',
+            role: 'CITIZEN',
+          },
+        }),
+      });
+    });
+
+    await page.route('**/api/complaints/c-officer-close-1', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'c-officer-close-1',
+          ticketId: 'TCK-CLOSE-001',
+          title: 'Damaged Road Pothole',
+          description: 'Deep pothole repaired by field team.',
+          status: 'CLOSED',
+          priority: 'MEDIUM',
+          resolvedAt: new Date().toISOString(),
+          closedAt: new Date().toISOString(),
+          createdAt: '2026-08-27T09:00:00Z',
+          updatedAt: '2026-08-27T12:00:00Z',
+          statusHistory: [
+            {
+              id: 'sh-1',
+              fromStatus: 'ASSIGNED',
+              toStatus: 'IN_PROGRESS',
+              changedAt: '2026-08-27T10:00:00Z',
+            },
+            {
+              id: 'sh-2',
+              fromStatus: 'IN_PROGRESS',
+              toStatus: 'CLOSED',
+              changedAt: '2026-08-27T12:00:00Z',
+              notes: 'Work verified on site, closing ticket.',
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.goto('/citizen/complaints/c-officer-close-1');
+
+    // Assert citizen tracking page shows Resolved status badge in header
+    const statusBadge = page.locator('[data-testid="citizen-status-badge"]');
+    await expect(statusBadge).toBeVisible();
+    await expect(statusBadge).toHaveText('Resolved');
+
+    // Assert Stepper displays resolved stage
+    await expect(page.getByText('Resolved').first()).toBeVisible();
+
+    // Assert Decision Bar displays resolved banner
+    await expect(page.getByTestId('resolution-decision-bar')).toBeVisible();
+    await expect(page.getByText('Department Marked This Complaint as Resolved!')).toBeVisible();
+
+    // Assert timeline shows mapped "Status updated to Resolved"
+    await expect(page.getByText('Status updated to Resolved')).toBeVisible();
+
+    // 3. Check notification to citizen
+    await page.route('**/api/notifications', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          items: [
+            {
+              id: 'notif-1',
+              complaintId: 'c-officer-close-1',
+              recipientUserId: 'citizen-user-1',
+              type: 'CLOSED',
+              message: 'Your complaint #TCK-CLOSE-001 status was updated to Resolved. Notes: Work verified on site, closing ticket.',
+              isRead: false,
+              createdAt: new Date().toISOString(),
+              complaint: {
+                ticketId: 'TCK-CLOSE-001',
+                title: 'Damaged Road Pothole',
+                status: 'CLOSED',
+              },
+            },
+          ],
+          unreadCount: 1,
+        }),
+      });
+    });
+
+    await page.goto('/citizen/notifications');
+    await expect(page.getByText('#TCK-CLOSE-001', { exact: true })).toBeVisible();
+    await expect(page.getByText('status was updated to Resolved')).toBeVisible();
+  });
 });

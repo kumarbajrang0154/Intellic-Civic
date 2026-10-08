@@ -16,16 +16,29 @@ export async function POST(
     const body = await request.json().catch(() => ({}));
     const { departmentId, categoryId, priority, notes } = body;
 
-    const existingComplaint = await (await import('@/lib/prisma')).default.complaint.findUnique({ where: { id } });
+    const existingComplaint = await (await import('@/lib/prisma')).default.complaint.findUnique({
+      where: { id },
+      include: { aiPrediction: true },
+    });
     if (!existingComplaint) {
       return NextResponse.json({ statusCode: 404, message: 'Complaint ticket not found' }, { status: 404 });
     }
 
-    const targetDeptId =
+    let targetDeptId =
       departmentId ||
-      auth.user.departmentId ||
+      existingComplaint.aiPrediction?.suggestedDepartmentId ||
       existingComplaint.aiRecommendedDepartmentId ||
-      existingComplaint.departmentId;
+      existingComplaint.departmentId ||
+      auth.user.departmentId;
+
+    if (!targetDeptId && (categoryId || existingComplaint.categoryId)) {
+      const cat = await (await import('@/lib/prisma')).default.category.findUnique({
+        where: { id: categoryId || existingComplaint.categoryId || undefined },
+      });
+      if (cat?.departmentId) {
+        targetDeptId = cat.departmentId;
+      }
+    }
 
     if (!targetDeptId) {
       return NextResponse.json(

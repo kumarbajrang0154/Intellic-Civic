@@ -18,7 +18,8 @@ export async function PATCH(
 
     const { id } = params;
     const body = await request.json();
-    const { status, notes } = body;
+    const { status } = body;
+    const notes = body.notes || body.remarks;
 
     if (!status || !Object.values(ComplaintStatus).includes(status as ComplaintStatus)) {
       return NextResponse.json({ statusCode: 400, message: 'Invalid complaint status' }, { status: 400 });
@@ -39,28 +40,47 @@ export async function PATCH(
       }
     }
 
-    const updated = await prisma.complaint.update({
-      where: { id },
-      data: {
-        status: status as ComplaintStatus,
-        statusHistory: {
-          create: {
-            fromStatus: currentComplaint.status,
-            toStatus: status as ComplaintStatus,
-            changedByUserId: auth.user.id,
-            notes: notes || `Status changed to ${status} by ${auth.user.name} (${auth.user.role})`,
-          },
+    const now = new Date();
+    const updateData: any = {
+      status: status as ComplaintStatus,
+      statusHistory: {
+        create: {
+          fromStatus: currentComplaint.status,
+          toStatus: status as ComplaintStatus,
+          changedByUserId: auth.user.id,
+          notes: notes || `Status changed to ${status} by ${auth.user.name} (${auth.user.role})`,
         },
       },
+    };
+
+    if (status === 'RESOLVED') {
+      updateData.resolvedAt = now;
+      if (notes) {
+        updateData.resolutionNotes = notes;
+      }
+    } else if (status === 'CLOSED') {
+      updateData.closedAt = now;
+      if (!currentComplaint.resolvedAt) {
+        updateData.resolvedAt = now;
+      }
+      if (notes) {
+        updateData.resolutionNotes = notes;
+      }
+    }
+
+    const updated = await prisma.complaint.update({
+      where: { id },
+      data: updateData,
     });
 
     // B4: Trigger real-time notification to citizen
     const notificationType = status === 'RESOLVED' ? 'RESOLVED' : status === 'CLOSED' ? 'CLOSED' : 'STATUS_CHANGED';
+    const statusLabel = status === 'CLOSED' || status === 'RESOLVED' ? 'Resolved' : status.replace(/_/g, ' ');
     await createNotification({
       complaintId: id,
       recipientUserId: currentComplaint.citizenId,
       type: notificationType,
-      message: `Your complaint #${currentComplaint.ticketId} status was updated to ${status}. ${notes ? `Notes: ${notes}` : ''}`.trim(),
+      message: `Your complaint #${currentComplaint.ticketId} status was updated to ${statusLabel}. ${notes ? `Notes: ${notes}` : ''}`.trim(),
     }).catch(() => {});
 
     return NextResponse.json({ success: true, complaint: updated });
