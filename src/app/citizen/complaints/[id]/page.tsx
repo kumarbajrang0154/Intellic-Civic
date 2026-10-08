@@ -399,7 +399,7 @@ export default function CitizenComplaintDetailPage() {
                 </Badge>
               )}
             </div>
-            <h1 className="hidden md:block text-xl font-bold text-foreground line-clamp-1 break-words">
+            <h1 className="text-base md:text-xl font-bold text-foreground break-words mt-1">
               {complaint.title}
             </h1>
           </div>
@@ -612,7 +612,7 @@ export default function CitizenComplaintDetailPage() {
               <CardTitle className="text-base font-semibold">Complaint Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
+              <p className="text-sm text-foreground leading-relaxed whitespace-pre-line break-words [overflow-wrap:anywhere]">
                 {complaint.description}
               </p>
 
@@ -694,12 +694,12 @@ export default function CitizenComplaintDetailPage() {
                         </span>
                       </div>
                       {item.changedByUser && (
-                        <p className="text-[11px] text-muted-foreground">
+                        <p className="text-[11px] text-muted-foreground break-words">
                           Updated by {item.changedByUser.name}
                         </p>
                       )}
                       {item.notes && (
-                        <p className="text-xs text-slate-600 bg-muted/50 p-2 rounded border mt-1 font-mono">
+                        <p className="text-xs text-slate-600 bg-muted/50 p-2 rounded border mt-1 font-mono break-words [overflow-wrap:anywhere]">
                           {item.notes}
                         </p>
                       )}

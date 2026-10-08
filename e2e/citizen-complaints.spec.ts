@@ -320,7 +320,7 @@ test.describe('Module 6: Citizen Complaint Creation, List & Tracking E2E Tests',
 
     await page.goto('/citizen/complaints/c-unauthorized-99');
 
-    await expect(page.getByRole('heading', { name: 'Complaint Not Found' })).toBeVisible();
+    await expect(page.getByText('Complaint Not Found')).toBeVisible();
     await expect(page.getByText('Return to Dashboard')).toBeVisible();
   });
 });

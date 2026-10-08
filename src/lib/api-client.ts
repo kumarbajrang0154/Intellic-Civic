@@ -107,6 +107,51 @@ export function getStatusHint(status: number): string {
 }
 
 /**
+ * Determines whether a failed HTTP response should suppress the global error popup.
+ * Suppressed cases:
+ * 1. Explicit skip header: 'x-skip-global-error' === 'true' or 'x-handled-inline' === 'true'
+ * 2. Unauthenticated session checks: 401 on /api/auth/me, /api/auth/refresh, or /api/auth/session
+ * 3. Polling / background sync: 'x-is-polling' === 'true', query param polling=true / background=true, or background notifications polling (<500)
+ * 4. Inline-handled resource lookups: 404 on single-resource routes where the page renders its own 404 UI (e.g. /api/complaints/[id])
+ */
+export function isErrorSuppressed(urlStr: string, status: number, headers?: Headers | null): boolean {
+  if (headers?.get('x-skip-global-error') === 'true' || headers?.get('x-handled-inline') === 'true') {
+    return true;
+  }
+
+  // Session-check calls returning 401 (e.g. unauthenticated visitors browsing public pages)
+  if (status === 401) {
+    if (
+      urlStr.includes('/api/auth/me') ||
+      urlStr.includes('/api/auth/refresh') ||
+      urlStr.includes('/api/auth/session')
+    ) {
+      return true;
+    }
+  }
+
+  // Polling failures & background syncing
+  if (
+    headers?.get('x-is-polling') === 'true' ||
+    urlStr.includes('polling=true') ||
+    urlStr.includes('background=true') ||
+    (status < 500 && urlStr.includes('/api/notifications'))
+  ) {
+    return true;
+  }
+
+  // Resource 404s that calling pages handle inline with dedicated full-page not-found UI
+  if (status === 404) {
+    // /api/complaints/[id] where [id] is a specific ticket/UUID
+    if (/\/api\/complaints\/[^/?#]+$/.test(urlStr)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Initializes client-side global fetch interception and unhandled error handling.
  */
 export function initGlobalErrorInterceptor() {
@@ -120,14 +165,12 @@ export function initGlobalErrorInterceptor() {
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     // Check if caller explicitly requested skipping the global error popup
     const headers = new Headers(init?.headers);
-    const skipPopup = headers.get('x-skip-global-error') === 'true';
+    const urlStr = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
 
     try {
       const response = await originalFetch(input, init);
 
-      if (!response.ok && !skipPopup) {
-        const urlStr = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
-        
+      if (!response.ok && !isErrorSuppressed(urlStr, response.status, headers)) {
         // Clone response to parse error message without consuming body for the caller
         const clone = response.clone();
         let errorMsg = '';
@@ -155,7 +198,8 @@ export function initGlobalErrorInterceptor() {
 
       return response;
     } catch (err: any) {
-      if (!skipPopup) {
+      const skipPopup = headers.get('x-skip-global-error') === 'true';
+      if (!skipPopup && err?.name !== 'AbortError' && !urlStr.includes('polling=true')) {
         showGlobalError({
           title: 'Network Error',
           message: err?.message || 'Unable to connect to the server.',
@@ -168,13 +212,22 @@ export function initGlobalErrorInterceptor() {
 
   // Listen for unhandled client-side runtime errors
   window.addEventListener('error', (event) => {
-    // Ignore benign resize observer / script load noise
-    if (event.message?.includes('ResizeObserver') || event.message?.includes('Script error')) {
+    // Ignore benign resize observer, script load noise, and React hydration recovery
+    const msg = event.message || '';
+    if (
+      msg.includes('ResizeObserver') ||
+      msg.includes('Script error') ||
+      msg.includes('Minified React error #418') ||
+      msg.includes('Minified React error #423') ||
+      msg.includes('Minified React error #425') ||
+      msg.includes('Hydration') ||
+      msg.includes('hydrating')
+    ) {
       return;
     }
     showGlobalError({
       title: 'Application Error',
-      message: event.message || 'An unexpected client error occurred.',
+      message: msg || 'An unexpected client error occurred.',
       hint: 'Client Error • Please refresh the page if issues persist.',
     });
   });
@@ -182,8 +235,18 @@ export function initGlobalErrorInterceptor() {
   // Listen for unhandled promise rejections
   window.addEventListener('unhandledrejection', (event) => {
     const reason = event.reason;
+    if (reason?.name === 'AbortError' || reason?.message?.includes('aborted')) return;
     const msg = typeof reason === 'string' ? reason : reason?.message || 'Unhandled asynchronous error';
-    if (msg.includes('ResizeObserver')) return;
+    if (
+      msg.includes('ResizeObserver') ||
+      msg.includes('Minified React error #418') ||
+      msg.includes('Minified React error #423') ||
+      msg.includes('Minified React error #425') ||
+      msg.includes('Hydration') ||
+      msg.includes('hydrating')
+    ) {
+      return;
+    }
     showGlobalError({
       title: 'Application Error',
       message: msg,

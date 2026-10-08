@@ -238,4 +238,65 @@ test.describe('Global Error Popup (All Portals) & Gemini Visibility Suite', () =
       console.error = origError;
     }
   });
+
+  test('PART 1: Logged-out visit to a public page with 401 /api/auth/me suppresses popup', async ({ page }) => {
+    // Force 401 on session check
+    await page.route('**/api/auth/me', async (r) => {
+      await r.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({ user: null }),
+      });
+    });
+
+    await page.goto('/login/citizen');
+    await page.waitForTimeout(500);
+
+    // Assert that the global error popup is NOT displayed
+    const popup = page.locator('[data-testid="global-error-popup"]');
+    await expect(popup).not.toBeVisible();
+  });
+
+  test('PART 1: Handled 404 on complaint detail suppresses popup and shows inline not-found UI', async ({ context, page }) => {
+    const token = await createCitizenJwt();
+    await context.addCookies([
+      {
+        name: 'ic_access_token',
+        value: token,
+        domain: 'localhost',
+        path: '/',
+      },
+    ]);
+
+    await page.route('**/api/auth/me', async (r) => {
+      await r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          user: { id: 'citizen_9876543210', name: 'Citizen', role: 'CITIZEN' },
+        }),
+      });
+    });
+
+    // Mock 404 on complaint detail route
+    await page.route('**/api/complaints/c-handled-404-test', async (r) => {
+      await r.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ statusCode: 404, message: 'Complaint not found' }),
+      });
+    });
+
+    await page.goto('/citizen/complaints/c-handled-404-test');
+    await page.waitForTimeout(500);
+
+    // Global error popup must NOT appear
+    const popup = page.locator('[data-testid="global-error-popup"]');
+    await expect(popup).not.toBeVisible();
+
+    // Page inline empty state MUST be visible
+    await expect(page.getByText('Complaint Not Found')).toBeVisible();
+    await expect(page.getByText('Return to Dashboard')).toBeVisible();
+  });
 });
+

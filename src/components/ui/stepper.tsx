@@ -62,8 +62,8 @@ export function Stepper({ status, className }: StepperProps) {
   }
 
   return (
-    <div className={cn('w-full py-4 overflow-x-auto min-w-0', className)}>
-      <div className="flex items-center justify-between relative min-w-[320px] px-2">
+    <div className={cn('w-full py-4 min-w-0', className)}>
+      <div className="flex items-center justify-between relative w-full min-w-0 px-1">
         {/* Connecting Line Track */}
         <div className="absolute top-4 left-6 right-6 h-0.5 bg-muted -z-0 overflow-hidden">
           {/* Progress Fill Line */}
