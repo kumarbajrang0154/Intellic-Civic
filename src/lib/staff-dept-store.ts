@@ -355,6 +355,9 @@ export async function suspendUser(id: string, isSuspended: boolean): Promise<Use
   if (target && isSuperAdminTarget(target) && isSuspended) {
     return null; // Protected
   }
+  if (isSuspended) {
+    await prisma.refreshToken.deleteMany({ where: { userId: id } });
+  }
   return updateUser(id, { isSuspended });
 }
 
@@ -362,7 +365,14 @@ export type DeleteUserResult =
   | { success: true }
   | {
       success: false;
-      reason: 'NOT_FOUND' | 'SUPER_ADMIN_PROTECTED' | 'CITIZEN_HAS_COMPLAINTS' | 'CITIZEN_HAS_FEEDBACK' | 'INTERNAL_ERROR';
+      reason:
+        | 'NOT_FOUND'
+        | 'SUPER_ADMIN_PROTECTED'
+        | 'CITIZEN_HAS_COMPLAINTS'
+        | 'CITIZEN_HAS_FEEDBACK'
+        | 'STAFF_HAS_FIELD_WORKERS'
+        | 'STAFF_HAS_OPEN_COMPLAINTS'
+        | 'INTERNAL_ERROR';
       message: string;
     };
 
@@ -399,6 +409,34 @@ export async function deleteUser(id: string): Promise<DeleteUserResult> {
       };
     }
 
+    // Refuse delete if staff has assigned field workers
+    const assignedWorkersCount = await prisma.user.count({ where: { assignedOfficerId: id } });
+    if (assignedWorkersCount > 0) {
+      return {
+        success: false,
+        reason: 'STAFF_HAS_FIELD_WORKERS',
+        message: `Cannot delete staff member because they have ${assignedWorkersCount} assigned field worker(s). Reassign them first.`,
+      };
+    }
+
+    // Refuse delete if staff has open complaints (assigned as field worker or officer)
+    const openComplaintsCount = await prisma.complaint.count({
+      where: {
+        status: { notIn: ['RESOLVED', 'CLOSED', 'REJECTED', 'DUPLICATE'] },
+        OR: [
+          { assignedFieldWorkerId: id },
+          { assignment: { departmentOfficerId: id } },
+        ],
+      },
+    });
+    if (openComplaintsCount > 0) {
+      return {
+        success: false,
+        reason: 'STAFF_HAS_OPEN_COMPLAINTS',
+        message: `Cannot delete staff member because they have ${openComplaintsCount} open complaint(s). Resolve or reassign them first.`,
+      };
+    }
+
     // Execute all cleanup operations + metadata snapshot + user deletion in a single atomic transaction
     await prisma.$transaction(async (tx) => {
       // 1. Delete refresh tokens & notifications
@@ -415,13 +453,22 @@ export async function deleteUser(id: string): Promise<DeleteUserResult> {
         data: { assignedOfficerId: null },
       });
 
-      // 3. Delete assignments & evidence
+      // 3. Delete assignments
       await tx.assignment.deleteMany({
         where: { OR: [{ departmentOfficerId: id }, { assignedByUserId: id }] },
       });
-      await tx.evidence.deleteMany({ where: { uploadedByUserId: id } });
 
-      // 4. Disassociate status histories
+      // 4. Evidence Option A: Snapshot staff name into uploadedByName and null FK
+      const staffNameSnapshot = user.name || 'Staff Member';
+      await tx.evidence.updateMany({
+        where: { uploadedByUserId: id },
+        data: {
+          uploadedByName: staffNameSnapshot,
+          uploadedByUserId: null,
+        },
+      });
+
+      // 5. Disassociate status histories
       await tx.statusHistory.updateMany({
         where: { changedByUserId: id },
         data: { changedByUserId: null },

@@ -28,6 +28,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { showGlobalError } from '@/lib/api-client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -150,6 +151,13 @@ export default function AdminStaffPage() {
   const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Bulk actions state
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [showBulkReassignModal, setShowBulkReassignModal] = useState(false);
+  const [bulkReassignDeptId, setBulkReassignDeptId] = useState('');
+
   // Current user info
   const [currentUser, setCurrentUser] = useState({ name: 'Admin', role: 'ADMIN' as 'ADMIN' | 'SUPER_ADMIN' });
 
@@ -222,6 +230,69 @@ export default function AdminStaffPage() {
 
   // Reset to page 1 when filters change
   useEffect(() => { setPage(1); }, [search, roleFilter, deptFilter, statusFilter]);
+
+  // ── Bulk Actions Helpers ─────────────────────────────────────────────────────
+  const allSelected = (data?.items?.length ?? 0) > 0 && selectedIds.length === data!.items.length;
+
+  function toggleSelectAll() {
+    if (!data?.items) return;
+    if (allSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(data.items.map((i) => i.id));
+    }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  }
+
+  async function handleBulkAction(action: string, extra: Record<string, any> = {}) {
+    if (selectedIds.length === 0) return;
+    setBulkSubmitting(true);
+    try {
+      const res = await fetch('/api/admin/staff/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          ids: selectedIds,
+          ...extra,
+        }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        showGlobalError({
+          title: 'Bulk Action Failed',
+          message: result.message || 'Bulk operation failed',
+          statusCode: res.status,
+        });
+        return;
+      }
+      const perIdReasons = result.results
+        ?.filter((r: any) => !r.ok)
+        ?.map((r: any) => `• ID ${r.id.slice(0, 8)}: ${r.error}`)
+        ?.join('\n');
+
+      showGlobalError({
+        title: 'Bulk Action Results',
+        message: `${result.succeeded} succeeded, ${result.failed} failed`,
+        hint: perIdReasons || (result.failed === 0 ? 'All selected items processed successfully.' : undefined),
+      });
+
+      setSelectedIds([]);
+      fetchStaff();
+    } catch (err: any) {
+      showGlobalError({
+        title: 'Bulk Action Error',
+        message: err.message || 'Network error occurred',
+      });
+    } finally {
+      setBulkSubmitting(false);
+    }
+  }
 
   // ── Create Staff ─────────────────────────────────────────────────────────────
 
@@ -400,6 +471,15 @@ export default function AdminStaffPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b">
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all staff"
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                    />
+                  </th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-700 text-xs uppercase tracking-wider">Name / Email</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-700 text-xs uppercase tracking-wider">Role</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-700 text-xs uppercase tracking-wider hidden md:table-cell">Department</th>
@@ -411,14 +491,14 @@ export default function AdminStaffPage() {
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-12 text-slate-400">
+                    <td colSpan={7} className="text-center py-12 text-slate-400">
                       <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2" />
                       Loading staff...
                     </td>
                   </tr>
                 ) : !data || data.items.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-12 text-slate-400">
+                    <td colSpan={7} className="text-center py-12 text-slate-400">
                       <Users className="w-8 h-8 mx-auto mb-2 opacity-40" />
                       No staff members found
                     </td>
@@ -426,6 +506,15 @@ export default function AdminStaffPage() {
                 ) : (
                   data.items.map((staff) => (
                     <tr key={staff.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${staff.name}`}
+                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                          checked={selectedIds.includes(staff.id)}
+                          onChange={() => toggleSelect(staff.id)}
+                        />
+                      </td>
                       <td className="px-4 py-3 min-w-0 max-w-[140px] sm:max-w-none">
                         <div className="font-semibold text-slate-900 text-sm truncate">{staff.name}</div>
                         <div className="text-xs text-slate-500 mt-0.5 truncate">{staff.email}</div>
@@ -680,6 +769,127 @@ export default function AdminStaffPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* ── Bulk Delete Confirm Dialog ──────────────────────────────────── */}
+        <Dialog open={showBulkDeleteConfirm} onOpenChange={setShowBulkDeleteConfirm}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirm Bulk Deletion</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to permanently delete <strong className="text-slate-900">{selectedIds.length}</strong> staff member(s)? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowBulkDeleteConfirm(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={bulkSubmitting}
+                onClick={() => {
+                  setShowBulkDeleteConfirm(false);
+                  handleBulkAction('DELETE');
+                }}
+              >
+                {bulkSubmitting ? 'Deleting...' : `Delete ${selectedIds.length} Staff`}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Bulk Reassign Department Dialog ─────────────────────────────── */}
+        <Dialog open={showBulkReassignModal} onOpenChange={setShowBulkReassignModal}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Reassign Department</DialogTitle>
+              <DialogDescription>
+                Select target department for <strong className="text-slate-900">{selectedIds.length}</strong> selected staff member(s). Field workers will be skipped (require officer in target dept).
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-3">
+              <label className="text-xs font-semibold text-slate-700 block mb-1">Target Department</label>
+              <select
+                value={bulkReassignDeptId}
+                onChange={(e) => setBulkReassignDeptId(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1769AA]/20 focus:border-[#1769AA]"
+              >
+                <option value="">— Select Department —</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowBulkReassignModal(false)}>Cancel</Button>
+              <Button
+                disabled={!bulkReassignDeptId || bulkSubmitting}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => {
+                  setShowBulkReassignModal(false);
+                  handleBulkAction('REASSIGN_DEPT', { departmentId: bulkReassignDeptId });
+                }}
+              >
+                Confirm Reassign
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Sticky Bulk Action Bar ───────────────────────────────────────── */}
+        {selectedIds.length > 0 && (
+          <div
+            data-testid="bulk-action-bar"
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-800"
+          >
+            <span className="text-sm font-semibold whitespace-nowrap">
+              {selectedIds.length} selected
+            </span>
+            <div className="h-4 w-px bg-slate-700" />
+            <Button
+              size="sm"
+              variant="outline"
+              className="bg-slate-800 hover:bg-slate-700 text-white border-slate-700 text-xs"
+              disabled={bulkSubmitting}
+              onClick={() => handleBulkAction('DEACTIVATE')}
+            >
+              Deactivate
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="bg-slate-800 hover:bg-slate-700 text-white border-slate-700 text-xs"
+              disabled={bulkSubmitting}
+              onClick={() => handleBulkAction('REACTIVATE')}
+            >
+              Reactivate
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="bg-slate-800 hover:bg-slate-700 text-white border-slate-700 text-xs"
+              disabled={bulkSubmitting}
+              onClick={() => setShowBulkReassignModal(true)}
+            >
+              Reassign Dept
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              className="text-xs"
+              disabled={bulkSubmitting}
+              onClick={() => setShowBulkDeleteConfirm(true)}
+            >
+              Delete
+            </Button>
+            <button
+              type="button"
+              className="text-xs text-slate-400 hover:text-white underline ml-2"
+              onClick={() => setSelectedIds([])}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
 
       </div>
     </AppShell>

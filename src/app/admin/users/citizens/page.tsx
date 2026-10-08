@@ -26,6 +26,7 @@ import { PageHeader } from '@/components/admin/page-header';
 import { EmptyState } from '@/components/admin/empty-state';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { showGlobalError } from '@/lib/api-client';
 
 interface Citizen {
   id: string;
@@ -70,6 +71,72 @@ export default function CitizensListPage() {
   const [activeModal, setActiveModal] = useState<'suspend' | 'activate' | 'delete' | 'restore' | null>(null);
   const [suspendReason, setSuspendReason] = useState('');
   const [submittingAction, setSubmittingAction] = useState(false);
+
+  // Bulk State
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+
+  const allSelected = citizens.length > 0 && selectedIds.length === citizens.length;
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(citizens.map((c) => c.id));
+    }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  }
+
+  async function handleBulkAction(action: 'SUSPEND' | 'ACTIVATE' | 'DELETE', extra: Record<string, any> = {}) {
+    if (selectedIds.length === 0) return;
+    setBulkSubmitting(true);
+    try {
+      const res = await fetch('/api/admin/citizens/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          ids: selectedIds,
+          ...extra,
+        }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        showGlobalError({
+          title: 'Bulk Action Failed',
+          message: result.message || 'Bulk operation failed',
+          statusCode: res.status,
+        });
+        return;
+      }
+      const perIdReasons = result.results
+        ?.filter((r: any) => !r.ok)
+        ?.map((r: any) => `• ID ${r.id.slice(0, 8)}: ${r.error}`)
+        ?.join('\n');
+
+      showGlobalError({
+        title: 'Bulk Citizen Action Results',
+        message: `${result.succeeded} succeeded, ${result.failed} failed`,
+        hint: perIdReasons || (result.failed === 0 ? 'All selected items processed successfully.' : undefined),
+      });
+
+      setSelectedIds([]);
+      fetchCitizens(pagination.page);
+    } catch (err: any) {
+      showGlobalError({
+        title: 'Bulk Action Error',
+        message: err.message || 'Network error occurred',
+      });
+    } finally {
+      setBulkSubmitting(false);
+    }
+  }
 
   useEffect(() => {
     async function loadUser() {
@@ -348,6 +415,15 @@ export default function CitizensListPage() {
               <table className="w-full text-sm text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    <th className="px-5 py-3.5 w-10">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all citizens"
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                        checked={allSelected}
+                        onChange={toggleSelectAll}
+                      />
+                    </th>
                     <th className="px-5 py-3.5">Citizen Profile</th>
                     <th className="px-5 py-3.5">Contact Details</th>
                     <th className="px-5 py-3.5">Account Status</th>
@@ -364,6 +440,15 @@ export default function CitizensListPage() {
 
                     return (
                       <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="px-5 py-4 w-10">
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${c.name}`}
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                            checked={selectedIds.includes(c.id)}
+                            onChange={() => toggleSelect(c.id)}
+                          />
+                        </td>
                         {/* Avatar & Name */}
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-3">
@@ -748,6 +833,97 @@ export default function CitizensListPage() {
               </Button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* BULK DELETE CONFIRMATION MODAL */}
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center gap-3 text-red-600">
+              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Confirm Bulk Delete</h3>
+                <p className="text-xs text-slate-500">{selectedIds.length} Citizen(s) Selected</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Are you sure you want to permanently delete <strong className="text-slate-900">{selectedIds.length}</strong> citizen account(s)? This action cannot be undone.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-slate-200 text-xs"
+                disabled={bulkSubmitting}
+                onClick={() => setShowBulkDeleteConfirm(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold"
+                disabled={bulkSubmitting}
+                onClick={() => {
+                  setShowBulkDeleteConfirm(false);
+                  handleBulkAction('DELETE');
+                }}
+              >
+                {bulkSubmitting ? 'Deleting...' : `Delete ${selectedIds.length} Citizens`}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STICKY BULK ACTION BAR */}
+      {selectedIds.length > 0 && (
+        <div
+          data-testid="bulk-action-bar"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-800"
+        >
+          <span className="text-sm font-semibold whitespace-nowrap">
+            {selectedIds.length} selected
+          </span>
+          <div className="h-4 w-px bg-slate-700" />
+          <Button
+            size="sm"
+            variant="outline"
+            className="bg-slate-800 hover:bg-slate-700 text-white border-slate-700 text-xs"
+            disabled={bulkSubmitting}
+            onClick={() => handleBulkAction('SUSPEND')}
+          >
+            Suspend
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="bg-slate-800 hover:bg-slate-700 text-white border-slate-700 text-xs"
+            disabled={bulkSubmitting}
+            onClick={() => handleBulkAction('ACTIVATE')}
+          >
+            Activate
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            className="text-xs"
+            disabled={bulkSubmitting}
+            onClick={() => setShowBulkDeleteConfirm(true)}
+          >
+            Delete
+          </Button>
+          <button
+            type="button"
+            className="text-xs text-slate-400 hover:text-white underline ml-2"
+            onClick={() => setSelectedIds([])}
+          >
+            Cancel
+          </button>
         </div>
       )}
     </AppShell>

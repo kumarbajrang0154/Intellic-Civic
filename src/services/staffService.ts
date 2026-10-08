@@ -422,7 +422,10 @@ export async function removeStaff(
     const status =
       deleteRes.reason === 'SUPER_ADMIN_PROTECTED'
         ? 403
-        : deleteRes.reason === 'CITIZEN_HAS_COMPLAINTS' || deleteRes.reason === 'CITIZEN_HAS_FEEDBACK'
+        : deleteRes.reason === 'CITIZEN_HAS_COMPLAINTS' ||
+          deleteRes.reason === 'CITIZEN_HAS_FEEDBACK' ||
+          deleteRes.reason === 'STAFF_HAS_FIELD_WORKERS' ||
+          deleteRes.reason === 'STAFF_HAS_OPEN_COMPLAINTS'
         ? 409
         : deleteRes.reason === 'NOT_FOUND'
         ? 404

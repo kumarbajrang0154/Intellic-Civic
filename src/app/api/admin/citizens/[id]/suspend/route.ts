@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
-import { addAuditLog } from '@/lib/audit-store';
-import prisma from '@/lib/prisma';
-import { UserRole } from '@prisma/client';
+import { suspendCitizen } from '@/services/citizenAdminService';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,58 +21,18 @@ export async function PATCH(
       // Body optional
     }
 
-    const citizen = await prisma.user.findFirst({
-      where: {
-        id: citizenId,
-        role: UserRole.CITIZEN,
-      },
-    });
-
-    if (!citizen) {
-      return NextResponse.json(
-        { success: false, message: 'Citizen profile not found' },
-        { status: 404 },
-      );
+    const result = await suspendCitizen(citizenId, reason, auth.admin);
+    if (!result.ok) {
+      return NextResponse.json({ success: false, message: result.message }, { status: result.status });
     }
-
-    if (citizen.isSuspended) {
-      return NextResponse.json(
-        { success: false, message: 'Citizen account is already suspended' },
-        { status: 400 },
-      );
-    }
-
-    const now = new Date();
-
-    const updated = await prisma.user.update({
-      where: { id: citizenId },
-      data: {
-        isSuspended: true,
-        suspendedAt: now,
-      },
-    });
-
-    // Record Audit Log
-    await addAuditLog({
-      actorId: auth.admin.id,
-      actorName: auth.admin.name,
-      action: 'CITIZEN_SUSPEND',
-      entityType: 'CITIZEN',
-      targetId: citizen.id,
-      targetName: citizen.name || citizen.mobileNumber || citizen.email || citizen.id,
-      metadata: {
-        suspendedAt: now.toISOString(),
-        reason,
-      },
-    });
 
     return NextResponse.json({
       success: true,
-      message: 'Citizen account suspended successfully',
+      message: result.message,
       citizen: {
-        id: updated.id,
-        isSuspended: updated.isSuspended,
-        suspendedAt: updated.suspendedAt?.toISOString(),
+        id: result.citizen.id,
+        isSuspended: result.citizen.isSuspended,
+        suspendedAt: result.citizen.suspendedAt?.toISOString(),
       },
     });
   } catch (error: any) {
