@@ -62,6 +62,40 @@ export function fallbackKeywordRouting(title: string, description: string): Comp
   };
 }
 
+export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
+
+/**
+ * Returns the configured Gemini model name from GEMINI_MODEL env var or default fallback.
+ */
+export function getGeminiModel(): string {
+  return process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
+}
+
+/**
+ * Sanitizes error messages by scrubbing any potential API keys and extracts HTTP status.
+ */
+export function sanitizeAiErrorMessage(error: any): { status: number; message: string } {
+  let status = error?.status || error?.statusCode;
+  let message = error?.message || String(error || 'Unknown AI error');
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (apiKey && apiKey.length > 5) {
+    message = message.split(apiKey).join('[REDACTED_API_KEY]');
+  }
+  message = message.replace(/key=[a-zA-Z0-9_\-]+/g, 'key=[REDACTED_API_KEY]');
+
+  if (typeof status !== 'number') {
+    if (message.includes('403') || message.includes('Forbidden')) status = 403;
+    else if (message.includes('404') || message.includes('not found')) status = 404;
+    else if (message.includes('429') || message.includes('quota') || message.includes('RESOURCE_EXHAUSTED')) status = 429;
+    else if (message.includes('400') || message.includes('Bad Request')) status = 400;
+    else if (message.includes('timed out') || message.includes('timeout')) status = 408;
+    else status = 500;
+  }
+
+  return { status, message };
+}
+
 /**
  * Returns a initialized GoogleGenerativeAI client if a valid GEMINI_API_KEY is configured in .env.
  * Returns null if key is missing or is the default placeholder.
@@ -73,6 +107,7 @@ function getGeminiClient(): GoogleGenerativeAI | null {
   }
   return new GoogleGenerativeAI(apiKey);
 }
+
 
 /**
  * Helper to fetch image data as a inlineData object for Gemini multimodal API.
@@ -159,15 +194,16 @@ export async function verifyComplaintPhoto(
 
   const genAI = getGeminiClient();
   if (!genAI) {
-    console.warn('[Gemini AI] GEMINI_API_KEY is missing or placeholder. Falling back to unverified status for photo.');
+    console.error('[Gemini AI] CONFIG_ERROR: GEMINI_API_KEY is missing or unconfigured. Status: 400. Message: API key missing or placeholder. Photo verification fallback active.');
     return fallbackResult;
   }
 
   try {
     const imagePart = await prepareImagePart(imageUrlOrBase64);
+    const currentModel = getGeminiModel();
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3.5-flash',
+      model: currentModel,
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: {
@@ -215,7 +251,8 @@ Return structured JSON output with:
       reasoning: parsed.reasoning || 'Photo verification completed.',
     };
   } catch (error: any) {
-    console.warn('[Gemini AI] Error or timeout during photo verification:', error.message || error);
+    const { status, message } = sanitizeAiErrorMessage(error);
+    console.error(`[Gemini AI] PHOTO_VERIFICATION_FAILED: Model: ${getGeminiModel()}. Status: ${status}. Message: ${message}`);
     return fallbackResult;
   }
 }
@@ -233,7 +270,7 @@ export async function classifyComplaintRouting(
 
   const genAI = getGeminiClient();
   if (!genAI) {
-    console.warn('[Gemini AI] GEMINI_API_KEY is missing or placeholder. Triggering keyword-heuristic routing fallback.');
+    console.error('[Gemini AI] CONFIG_ERROR: GEMINI_API_KEY is missing or unconfigured. Status: 400. Message: API key missing or placeholder. Heuristic routing fallback active.');
     return fallback;
   }
 
@@ -242,8 +279,9 @@ export async function classifyComplaintRouting(
       .map((c) => `- ID: "${c.id}", Name: "${c.name}" (${c.description || ''})`)
       .join('\n');
 
+    const currentModel = getGeminiModel();
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3.5-flash',
+      model: currentModel,
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: {
@@ -316,17 +354,84 @@ Return JSON matching:
       fallbackTriggered: false,
     };
   } catch (error: any) {
-    console.error('[Gemini AI ERROR METRIC]', {
+    const currentModel = getGeminiModel();
+    const { status, message } = sanitizeAiErrorMessage(error);
+    console.error('[Gemini AI] ROUTING_CLASSIFICATION_FAILED', {
       type: 'GEMINI_CLASSIFICATION_FAILED',
-      model: 'gemini-3.5-flash',
-      status: error?.status || error?.statusCode || 500,
-      errorMessage: error?.message || String(error),
+      model: currentModel,
+      status,
+      errorMessage: message,
       timestamp: new Date().toISOString(),
     });
     return {
       ...fallback,
-      reasoning: `[Fallback Heuristic Used — Gemini Error: ${error?.message || 'API call failed'}] ${fallback.reasoning}`,
+      reasoning: `[Fallback Heuristic Used — Gemini Error: ${message}] ${fallback.reasoning}`,
       fallbackTriggered: true,
     };
   }
 }
+
+export interface AiHealthResult {
+  ok: boolean;
+  model: string;
+  status: number;
+  latencyMs: number;
+  error?: string;
+}
+
+/**
+ * Diagnostic health check performing a lightweight real call against Gemini.
+ * Never throws and scrubs any API key from error output.
+ */
+export async function checkAiHealth(): Promise<AiHealthResult> {
+  const model = getGeminiModel();
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey || apiKey === 'your_gemini_api_key_here' || apiKey.trim() === '') {
+    return {
+      ok: false,
+      model,
+      status: 400,
+      latencyMs: 0,
+      error: 'GEMINI_API_KEY is not configured or using placeholder value.',
+    };
+  }
+
+  const start = Date.now();
+  try {
+    const genAI = getGeminiClient();
+    if (!genAI) {
+      return {
+        ok: false,
+        model,
+        status: 400,
+        latencyMs: 0,
+        error: 'Failed to initialize Gemini client.',
+      };
+    }
+
+    const generativeModel = genAI.getGenerativeModel({ model });
+    const apiCall = generativeModel.generateContent('ping');
+    await withTimeout(apiCall, 8000, 'AI health check timed out after 8s');
+    const latencyMs = Date.now() - start;
+
+    return {
+      ok: true,
+      model,
+      status: 200,
+      latencyMs,
+    };
+  } catch (err: any) {
+    const latencyMs = Date.now() - start;
+    const { status, message } = sanitizeAiErrorMessage(err);
+
+    return {
+      ok: false,
+      model,
+      status,
+      latencyMs,
+      error: message,
+    };
+  }
+}
+

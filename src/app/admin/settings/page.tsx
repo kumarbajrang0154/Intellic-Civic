@@ -138,6 +138,35 @@ export default function PlatformSettingsPage() {
   const [saving, setSaving] = React.useState(false);
   const [unauthorized, setUnauthorized] = React.useState(false);
   const [currentUserRole, setCurrentUserRole] = React.useState<string>('SUPER_ADMIN');
+  const [aiHealth, setAiHealth] = React.useState<{
+    loading: boolean;
+    ok?: boolean;
+    model?: string;
+    status?: number;
+    latencyMs?: number;
+    error?: string;
+  }>({ loading: true });
+
+  React.useEffect(() => {
+    let active = true;
+    async function loadAiHealth() {
+      try {
+        const res = await fetch('/api/admin/ai-health');
+        if (!res.ok) {
+          if (active) setAiHealth({ loading: false, ok: false, error: `HTTP ${res.status}` });
+          return;
+        }
+        const data = await res.json();
+        if (active) setAiHealth({ loading: false, ...data });
+      } catch (err: any) {
+        if (active) setAiHealth({ loading: false, ok: false, error: err.message || 'Connection error' });
+      }
+    }
+    loadAiHealth();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Fetch current platform settings
   const fetchSettings = React.useCallback(async () => {
@@ -311,11 +340,35 @@ export default function PlatformSettingsPage() {
         {/* Page Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Platform & Organization Settings</h1>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
                 SUPER_ADMIN ONLY
               </span>
+              {aiHealth.loading ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground border">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Checking AI...
+                </span>
+              ) : aiHealth.ok ? (
+                <span
+                  data-testid="ai-health-badge"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                  title={`AI Model: ${aiHealth.model} (${aiHealth.latencyMs}ms)`}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  AI connected
+                </span>
+              ) : (
+                <span
+                  data-testid="ai-health-badge"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 max-w-sm truncate"
+                  title={aiHealth.error ? `Reason: ${aiHealth.error}` : 'Fallback heuristic mode active'}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                  Fallback mode: {aiHealth.status ? `${aiHealth.status} ${aiHealth.error?.toLowerCase().includes('denied') ? 'Project Denied' : aiHealth.error ? aiHealth.error.slice(0, 20) + '...' : 'Unavailable'}` : (aiHealth.error ? aiHealth.error.slice(0, 25) : 'Unavailable')}
+                </span>
+              )}
             </div>
             <p className="text-sm text-muted-foreground mt-1">
               Configure global municipal branding, contact numbers, address, footer content, legal terms, and SEO.
