@@ -435,3 +435,84 @@ export async function checkAiHealth(): Promise<AiHealthResult> {
   }
 }
 
+export interface VoiceParseResult {
+  title: string;
+  description: string;
+  category?: string;
+}
+
+/**
+ * Parses raw voice transcript into structured title and description in the spoken language.
+ */
+export async function parseVoiceComplaint(
+  transcript: string,
+  language = 'en-IN',
+): Promise<VoiceParseResult> {
+  const genAI = getGeminiClient();
+  if (!genAI) {
+    throw new Error('Gemini AI is unconfigured or unavailable.');
+  }
+
+  const model = genAI.getGenerativeModel({
+    model: getGeminiModel(),
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: SchemaType.OBJECT,
+        properties: {
+          title: {
+            type: SchemaType.STRING,
+            description: 'Concise civic issue title of at most 80 characters in the same language as the transcript.',
+          },
+          description: {
+            type: SchemaType.STRING,
+            description: 'Full detailed description in the same language as the transcript.',
+          },
+          category: {
+            type: SchemaType.STRING,
+            description: 'Optional category ID.',
+          },
+        },
+        required: ['title', 'description'],
+      },
+    },
+  });
+
+  const prompt = `You are an AI Civic Complaint Voice Parser for a Smart City Platform.
+The citizen dictated their complaint via voice in the language: "${language}".
+Citizen's raw transcript: "${transcript}"
+
+Instructions:
+1. Extract a concise, meaningful title of MAXIMUM 80 characters.
+2. Formulate a clean description retaining all details mentioned by the citizen.
+3. Suggest the most likely category ID if applicable.
+CRITICAL REQUIREMENT: Keep the title and description in the EXACT SAME language as the citizen's transcript. DO NOT translate into English if spoken in Hindi, Tamil, Telugu, Malayalam, Kannada, etc.
+
+Return strictly JSON matching:
+{
+  "title": "<title <= 80 chars in spoken language>",
+  "description": "<detailed description in spoken language>",
+  "category": "<optional category id>"
+}`;
+
+  const apiCall = model.generateContent(prompt);
+  const response = await withTimeout(apiCall, 10000, 'Voice parsing timed out after 10s');
+  const parsed = JSON.parse(response.response.text());
+
+  let parsedTitle = String(parsed.title || '').trim();
+  if (parsedTitle.length > 80) {
+    parsedTitle = parsedTitle.slice(0, 80);
+    const lastSpace = parsedTitle.lastIndexOf(' ');
+    if (lastSpace > 20) {
+      parsedTitle = parsedTitle.slice(0, lastSpace).trim();
+    }
+  }
+
+  return {
+    title: parsedTitle || transcript.slice(0, 80).trim(),
+    description: String(parsed.description || transcript).trim(),
+    category: parsed.category || undefined,
+  };
+}
+
+

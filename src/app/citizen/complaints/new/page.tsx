@@ -19,6 +19,7 @@ import {
   ShieldAlert,
   ArrowRight,
   WifiOff,
+  Globe,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,6 +48,15 @@ interface PotentialDuplicate {
   similarityScore: number;
   createdAt: string;
 }
+
+const SUPPORTED_VOICE_LANGS = [
+  { code: 'en-IN', shortLabel: 'EN', label: 'English (en-IN)' },
+  { code: 'ta-IN', shortLabel: 'TA', label: 'Tamil (ta-IN)' },
+  { code: 'hi-IN', shortLabel: 'HI', label: 'Hindi (hi-IN)' },
+  { code: 'ml-IN', shortLabel: 'ML', label: 'Malayalam (ml-IN)' },
+  { code: 'te-IN', shortLabel: 'TE', label: 'Telugu (te-IN)' },
+  { code: 'kn-IN', shortLabel: 'KN', label: 'Kannada (kn-IN)' },
+];
 
 export default function NewComplaintPage() {
   const router = useRouter();
@@ -78,7 +88,15 @@ export default function NewComplaintPage() {
   const [listeningTarget, setListeningTarget] = React.useState<'title' | 'description' | 'address' | 'full' | null>(null);
   const [transcriptPreview, setTranscriptPreview] = React.useState('');
   const [usedVoiceInput, setUsedVoiceInput] = React.useState(false);
+  const [voiceLang, setVoiceLang] = React.useState('en-IN');
+  const [isOnline, setIsOnline] = React.useState(true);
+  const [parsingVoice, setParsingVoice] = React.useState(false);
+  const [voiceFallbackActive, setVoiceFallbackActive] = React.useState(false);
+
   const recognitionRef = React.useRef<any>(null);
+  const activeTargetRef = React.useRef<'title' | 'description' | 'address' | 'full' | null>(null);
+  const sessionIdRef = React.useRef<number>(0);
+  const fullTranscriptRef = React.useRef<string>('');
 
   // Duplicate Check State
   const [duplicateWarning, setDuplicateWarning] = React.useState<PotentialDuplicate[] | null>(null);
@@ -135,9 +153,23 @@ export default function NewComplaintPage() {
     if (typeof window !== 'undefined') {
       const SpeechRecognition =
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        setSpeechSupported(true);
+      setSpeechSupported(Boolean(SpeechRecognition));
+
+      const savedLang = localStorage.getItem('ic_voice_lang');
+      if (savedLang) {
+        setVoiceLang(savedLang);
       }
+
+      setIsOnline(navigator.onLine);
+      const handleOnline = () => setIsOnline(true);
+      const handleOffline = () => setIsOnline(false);
+      window.addEventListener('online', handleOnline);
+      window.addEventListener('offline', handleOffline);
+
+      return () => {
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+      };
     }
   }, []);
 
@@ -219,10 +251,81 @@ export default function NewComplaintPage() {
   };
 
   // Voice Assistant & Speech-to-Text Dictation
+  const handleFullVoiceTranscript = async (transcript: string) => {
+    setParsingVoice(true);
+    setVoiceFallbackActive(false);
+
+    const applyFallback = () => {
+      let sentence = transcript.split(/[.\n।!?]/)[0]?.trim() || transcript.trim();
+      let fallbackTitle = sentence;
+      if (fallbackTitle.length > 80) {
+        fallbackTitle = fallbackTitle.slice(0, 80);
+        const lastSpace = fallbackTitle.lastIndexOf(' ');
+        if (lastSpace > 20) {
+          fallbackTitle = fallbackTitle.slice(0, lastSpace).trim();
+        }
+      }
+      if (!fallbackTitle) {
+        fallbackTitle = transcript.slice(0, 80).trim() || 'Civic Complaint';
+      }
+
+      setTitle(fallbackTitle);
+      setDescription(transcript);
+      setVoiceFallbackActive(true);
+    };
+
+    try {
+      const res = await fetch('/api/citizen/voice-parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript, language: voiceLang }),
+      });
+
+      if (!res.ok) {
+        applyFallback();
+        return;
+      }
+
+      const data = await res.json();
+      if (data && typeof data.title === 'string' && typeof data.description === 'string' && data.title.trim()) {
+        let cleanTitle = data.title.trim();
+        if (cleanTitle.length > 80) {
+          cleanTitle = cleanTitle.slice(0, 80);
+          const lastSpace = cleanTitle.lastIndexOf(' ');
+          if (lastSpace > 20) cleanTitle = cleanTitle.slice(0, lastSpace).trim();
+        }
+        setTitle(cleanTitle);
+        setDescription(data.description.trim());
+        if (data.category && !categoryId) {
+          setCategoryId(data.category);
+        }
+        toast.success('AI structured your complaint!');
+      } else {
+        applyFallback();
+      }
+    } catch (err) {
+      applyFallback();
+    } finally {
+      setParsingVoice(false);
+    }
+  };
+
   const startListening = (target: 'title' | 'description' | 'address' | 'full') => {
+    if (!isOnline) {
+      toast.error('Voice dictation requires an active internet connection.');
+      return;
+    }
+
     if (listeningTarget === target) {
       stopListening();
       return;
+    }
+
+    // Stop/abort any prior active recognition session immediately
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort(); } catch (e) {}
+      try { recognitionRef.current.stop(); } catch (e) {}
+      recognitionRef.current = null;
     }
 
     const SpeechRecognition =
@@ -233,53 +336,58 @@ export default function NewComplaintPage() {
       return;
     }
 
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch (e) {}
-    }
+    const currentSessionId = ++sessionIdRef.current;
+    activeTargetRef.current = target;
+    fullTranscriptRef.current = '';
 
     const recognition = new SpeechRecognition();
     recognition.continuous = target === 'full' || target === 'description';
     recognition.interimResults = true;
-    recognition.lang = 'en-US';
+    recognition.lang = voiceLang;
 
     recognition.onstart = () => {
+      if (sessionIdRef.current !== currentSessionId) return;
       setListeningTarget(target);
       setUsedVoiceInput(true);
       setTranscriptPreview('');
+      setVoiceFallbackActive(false);
       toast.info(
         target === 'full'
-          ? '🎙️ Smart Voice Assistant listening... Describe your issue naturally.'
-          : `🎙️ Voice dictation active... Speak into microphone.`,
+          ? '🎙️ Smart Voice Assistant listening... Describe your entire issue naturally.'
+          : '🎙️ Voice dictation active... Speak into microphone.',
       );
     };
 
     recognition.onresult = (event: any) => {
-      let currentTranscript = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        currentTranscript += event.results[i][0].transcript;
-      }
-      setTranscriptPreview(currentTranscript);
+      if (sessionIdRef.current !== currentSessionId) return;
 
-      if (target === 'title') {
-        setTitle(currentTranscript);
-      } else if (target === 'description') {
-        setDescription(currentTranscript);
-      } else if (target === 'address') {
-        setAddress(currentTranscript);
-      } else if (target === 'full') {
-        if (!title || title.length < 5) {
-          const firstSentence = currentTranscript.split('.')[0] || currentTranscript;
-          setTitle(firstSentence.slice(0, 100));
-        }
-        setDescription(currentTranscript);
+      let fullTranscript = '';
+      for (let i = 0; i < event.results.length; i++) {
+        fullTranscript += event.results[i][0].transcript;
+      }
+      fullTranscriptRef.current = fullTranscript;
+      setTranscriptPreview(fullTranscript);
+
+      const currentTarget = activeTargetRef.current;
+      if (currentTarget === 'title') {
+        setTitle(fullTranscript);
+      } else if (currentTarget === 'description') {
+        setDescription(fullTranscript);
+      } else if (currentTarget === 'address') {
+        setAddress(fullTranscript);
       }
     };
 
     recognition.onerror = (event: any) => {
+      if (sessionIdRef.current !== currentSessionId) return;
       console.error('Speech recognition error', event.error);
       let errorMsg = `Voice dictation error (${event.error}).`;
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         errorMsg = 'Microphone permission denied. Please allow microphone access in your browser settings to use AI voice dictation.';
+      } else if (event.error === 'language-not-supported') {
+        errorMsg = `The selected language (${voiceLang}) is not supported by your browser's speech recognition engine. Try English (en-IN) or Google Chrome.`;
+      } else if (event.error === 'network') {
+        errorMsg = 'Voice recognition network error. Please check your internet connection.';
       } else if (event.error === 'no-speech') {
         errorMsg = 'No speech detected. Please speak clearly into your microphone.';
       } else if (event.error === 'audio-capture') {
@@ -290,8 +398,16 @@ export default function NewComplaintPage() {
       stopListening();
     };
 
-    recognition.onend = () => {
+    recognition.onend = async () => {
+      if (sessionIdRef.current !== currentSessionId) return;
       setListeningTarget(null);
+
+      if (activeTargetRef.current === 'full') {
+        const transcript = fullTranscriptRef.current.trim();
+        if (transcript) {
+          await handleFullVoiceTranscript(transcript);
+        }
+      }
     };
 
     recognitionRef.current = recognition;
@@ -300,11 +416,11 @@ export default function NewComplaintPage() {
 
   const stopListening = () => {
     if (recognitionRef.current) {
+      try { recognitionRef.current.abort(); } catch (e) {}
       try { recognitionRef.current.stop(); } catch (e) {}
       recognitionRef.current = null;
     }
     setListeningTarget(null);
-    toast.success('Voice dictation stopped.');
   };
 
   // Form Validation & Submission
@@ -714,38 +830,90 @@ export default function NewComplaintPage() {
                   Smart AI Voice Assistant
                 </div>
               </div>
-              <div className="mt-2 flex items-center gap-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span className="text-[10px] px-2 py-0.5 bg-indigo-100 text-indigo-950 border border-indigo-300 font-bold rounded-full uppercase whitespace-nowrap shrink-0">
                   Voice Dictation
                 </span>
+                {!isOnline && (
+                  <span className="text-[11px] text-amber-600 font-medium flex items-center gap-1">
+                    <WifiOff className="h-3 w-3" /> Voice needs internet
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500 mt-1">
                 Click the mic to dictate your whole complaint by speaking naturally. Our AI fills out title and description automatically.
               </p>
             </div>
 
-            <Button
-              type="button"
-              variant={listeningTarget === 'full' ? 'destructive' : 'ai'}
-              size="sm"
-              onClick={() => startListening('full')}
-              className="shrink-0 gap-2 font-semibold shadow-xs w-full sm:w-auto text-xs"
-            >
-              {listeningTarget === 'full' ? (
-                <>
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
-                  </span>
-                  Listening... Stop
-                </>
-              ) : (
-                <>
-                  <Mic className="h-4 w-4" />
-                  Speak Full Complaint
-                </>
-              )}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              {/* Language Chooser */}
+              <div className="flex items-center gap-1.5 h-11 px-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-xs shrink-0">
+                <Globe className="h-4 w-4 text-indigo-600 shrink-0" />
+                <select
+                  id="voice-lang-select"
+                  value={voiceLang}
+                  onChange={(e) => {
+                    const newLang = e.target.value;
+                    setVoiceLang(newLang);
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('ic_voice_lang', newLang);
+                    }
+                  }}
+                  className="bg-transparent font-semibold text-xs text-slate-800 focus:outline-none cursor-pointer pr-1 h-11 min-h-[44px]"
+                  aria-label="Speech recognition language"
+                >
+                  {SUPPORTED_VOICE_LANGS.map((l) => (
+                    <option key={l.code} value={l.code}>
+                      {l.shortLabel} - {l.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <Button
+                type="button"
+                variant={listeningTarget === 'full' ? 'destructive' : 'ai'}
+                size="sm"
+                onClick={() => startListening('full')}
+                disabled={!isOnline || parsingVoice}
+                title={!isOnline ? 'Voice needs internet' : undefined}
+                className="shrink-0 gap-2 font-semibold shadow-xs flex-1 sm:flex-initial h-11 px-4 text-xs"
+              >
+                {parsingVoice ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    AI Structuring...
+                  </>
+                ) : listeningTarget === 'full' ? (
+                  <>
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+                    </span>
+                    Listening... Stop
+                  </>
+                ) : (
+                  <>
+                    <Mic className="h-4 w-4" />
+                    Speak Full Complaint
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Voice AI Fallback Notice */}
+        {voiceFallbackActive && (
+          <div
+            data-testid="voice-fallback-notice"
+            className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2.5"
+          >
+            <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-semibold block">Please check the generated title:</span>
+              AI auto-formatting was unavailable, so your spoken text was used directly. You can edit the title or description before submitting.
+            </div>
           </div>
         )}
 
@@ -785,9 +953,10 @@ export default function NewComplaintPage() {
                       variant={listeningTarget === 'title' ? 'destructive' : 'ghost'}
                       size="sm"
                       onClick={() => startListening('title')}
+                      disabled={!isOnline}
                       className="h-11 px-2.5 gap-1.5 text-ai-indigo hover:text-indigo-700 shrink-0"
                       aria-label={listeningTarget === 'title' ? 'Stop listening' : 'Dictate Title'}
-                      title={listeningTarget === 'title' ? 'Stop listening' : 'Dictate Title'}
+                      title={!isOnline ? 'Voice needs internet' : listeningTarget === 'title' ? 'Stop listening' : 'Dictate Title'}
                     >
                       {listeningTarget === 'title' ? (
                         <>
@@ -853,9 +1022,10 @@ export default function NewComplaintPage() {
                       variant={listeningTarget === 'description' ? 'destructive' : 'ghost'}
                       size="sm"
                       onClick={() => startListening('description')}
+                      disabled={!isOnline}
                       className="h-11 px-2.5 gap-1.5 text-ai-indigo hover:text-indigo-700 shrink-0"
                       aria-label={listeningTarget === 'description' ? 'Stop listening' : 'Dictate Description'}
-                      title={listeningTarget === 'description' ? 'Stop listening' : 'Dictate Description'}
+                      title={!isOnline ? 'Voice needs internet' : listeningTarget === 'description' ? 'Stop listening' : 'Dictate Description'}
                     >
                       {listeningTarget === 'description' ? (
                         <>
@@ -902,9 +1072,10 @@ export default function NewComplaintPage() {
                         variant={listeningTarget === 'address' ? 'destructive' : 'outline'}
                         size="sm"
                         onClick={() => startListening('address')}
+                        disabled={!isOnline}
                         className="gap-1.5 h-11 px-3 border-slate-200"
-                        aria-label="Dictate Landmark"
-                        title="Dictate Landmark"
+                        aria-label={listeningTarget === 'address' ? 'Stop listening' : 'Dictate Landmark'}
+                        title={!isOnline ? 'Voice needs internet' : listeningTarget === 'address' ? 'Stop listening' : 'Dictate Landmark'}
                       >
                         <Mic className="h-4 w-4 shrink-0" />
                         <span className="hidden md:inline">Dictate Landmark</span>
@@ -940,6 +1111,7 @@ export default function NewComplaintPage() {
                 </div>
 
                 <Input
+                  id="address"
                   placeholder="Street or landmark"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
