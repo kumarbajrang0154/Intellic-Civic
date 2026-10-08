@@ -14,6 +14,7 @@ export async function POST(
     }
 
     const { id } = params;
+    const body = await request.json().catch(() => ({}));
     const { fieldWorkerId, assignedToId, officerId, assignedOfficerId, departmentId, notes } = body;
 
     const targetOfficerId = officerId || assignedOfficerId;

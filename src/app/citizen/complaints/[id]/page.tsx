@@ -78,7 +78,7 @@ interface ComplaintDetail {
   };
 }
 
-export function getStatusLabel(status?: string): string {
+function getStatusLabel(status?: string): string {
   switch (status) {
     case 'SUBMITTED':
       return 'Submitted';

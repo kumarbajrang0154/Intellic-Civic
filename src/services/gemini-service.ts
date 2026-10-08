@@ -117,7 +117,7 @@ export function sanitizeAiErrorMessage(error: any): { status: number; message: s
     message = message.split(apiKey).join('[REDACTED_API_KEY]');
   }
   // Strip any API key parameters and URLs containing API keys
-  message = message.replace(/https?:\/\/[^\s"'<>]*(?:key=[a-zA-Z0-9_\-]+)[^\s"'<>]*/g, (url) => {
+  message = message.replace(/https?:\/\/[^\s"'<>]*(?:key=[a-zA-Z0-9_\-]+)[^\s"'<>]*/g, (url: string) => {
     return url.replace(/key=[a-zA-Z0-9_\-]+/g, 'key=[REDACTED_API_KEY]');
   });
   message = message.replace(/key=[a-zA-Z0-9_\-]+/g, 'key=[REDACTED_API_KEY]');
