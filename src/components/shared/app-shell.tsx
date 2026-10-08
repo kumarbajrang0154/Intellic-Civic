@@ -617,7 +617,9 @@ export function AppShell({ children, user }: AppShellProps) {
   React.useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        const res = await fetch('/api/notifications');
+        const res = await fetch('/api/notifications', {
+          headers: { 'x-skip-global-error': 'true' },
+        });
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data)) {

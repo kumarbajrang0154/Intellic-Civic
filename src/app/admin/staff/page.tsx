@@ -271,9 +271,7 @@ export default function AdminStaffPage() {
     try {
       const res = await fetch(`/api/admin/staff/${deactivateTarget.id}/deactivate`, { method: 'PATCH' });
       if (res.ok) { setDeactivateTarget(null); fetchStaff(); }
-      else { const d = await res.json(); alert(d.message || 'Failed to deactivate.'); }
-    } catch { alert('Network error.'); }
-    finally { setDeactivating(false); }
+    } finally { setDeactivating(false); }
   }
 
   async function handleDelete() {
@@ -282,17 +280,12 @@ export default function AdminStaffPage() {
     try {
       const res = await fetch(`/api/admin/staff/${deleteTarget.id}`, { method: 'DELETE' });
       if (res.ok) { setDeleteTarget(null); fetchStaff(); }
-      else { const d = await res.json(); alert(d.message || 'Failed to delete staff.'); }
-    } catch { alert('Network error.'); }
-    finally { setDeleting(false); }
+    } finally { setDeleting(false); }
   }
 
   async function handleReactivate(staff: StaffMember) {
-    try {
-      const res = await fetch(`/api/admin/staff/${staff.id}/reactivate`, { method: 'PATCH' });
-      if (res.ok) fetchStaff();
-      else { const d = await res.json(); alert(d.message || 'Failed to reactivate.'); }
-    } catch { alert('Network error.'); }
+    const res = await fetch(`/api/admin/staff/${staff.id}/reactivate`, { method: 'PATCH' });
+    if (res.ok) fetchStaff();
   }
 
   // ── Reassign ─────────────────────────────────────────────────────────────────

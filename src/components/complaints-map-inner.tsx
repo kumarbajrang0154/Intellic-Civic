@@ -161,12 +161,12 @@ export default function ComplaintsMapInner({
   const initialCenter = markerCoords[0] || defaultCenter;
 
   return (
-    <div className={`${className} relative z-0`}>
+    <div className={`${className} relative z-0 overflow-hidden rounded-xl min-w-0`}>
       <MapContainer
         center={initialCenter}
         zoom={defaultZoom}
         scrollWheelZoom={true}
-        className="h-full w-full"
+        className="h-full w-full overflow-hidden rounded-xl"
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

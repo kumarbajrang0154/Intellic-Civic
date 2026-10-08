@@ -548,26 +548,30 @@ export default function CitizenComplaintDetailPage() {
                     )}
                     <div className="space-y-1">
                       <label className="font-semibold block">Rate overall resolution quality:</label>
-                      <div className="flex items-center gap-2 py-1">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <button
-                            key={star}
-                            type="button"
-                            onClick={() => setFeedbackRating(star)}
-                            className="p-2.5 hover:scale-110 transition-transform focus:outline-none min-h-[44px] min-w-[44px] inline-flex items-center justify-center"
-                          >
-                            <Star
-                              className={`h-6 w-6 ${
-                                star <= feedbackRating
-                                  ? 'fill-amber-500 text-amber-500'
-                                  : 'text-slate-300'
-                              }`}
-                            />
-                          </button>
-                        ))}
-                        <span className="font-bold text-sm text-amber-600 ml-2">
-                          {feedbackRating} / 5 Stars
-                        </span>
+                      <div className="flex flex-wrap items-center gap-1.5 py-1 min-w-0">
+                        <div className="flex items-center gap-1 shrink-0">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => setFeedbackRating(star)}
+                              className="p-1 sm:p-2 hover:scale-110 transition-transform focus:outline-none min-h-[44px] min-w-[38px] sm:min-w-[44px] inline-flex items-center justify-center shrink-0"
+                            >
+                              <Star
+                                className={`h-5 w-5 sm:h-6 sm:w-6 shrink-0 ${
+                                  star <= feedbackRating
+                                    ? 'fill-amber-500 text-amber-500'
+                                    : 'text-slate-300'
+                                }`}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                        {feedbackRating > 0 && (
+                          <span className="font-bold text-xs sm:text-sm text-amber-600 shrink-0">
+                            {feedbackRating} / 5 Stars
+                          </span>
+                        )}
                       </div>
                     </div>
 

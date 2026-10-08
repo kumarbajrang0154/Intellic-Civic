@@ -116,6 +116,10 @@ export function sanitizeAiErrorMessage(error: any): { status: number; message: s
   if (apiKey && apiKey.length > 5) {
     message = message.split(apiKey).join('[REDACTED_API_KEY]');
   }
+  // Strip any API key parameters and URLs containing API keys
+  message = message.replace(/https?:\/\/[^\s"'<>]*(?:key=[a-zA-Z0-9_\-]+)[^\s"'<>]*/g, (url) => {
+    return url.replace(/key=[a-zA-Z0-9_\-]+/g, 'key=[REDACTED_API_KEY]');
+  });
   message = message.replace(/key=[a-zA-Z0-9_\-]+/g, 'key=[REDACTED_API_KEY]');
 
   if (typeof status !== 'number') {
@@ -529,6 +533,7 @@ export async function checkAiHealth(): Promise<AiHealthResult> {
   } catch (err: any) {
     const latencyMs = Date.now() - start;
     const { status, message } = sanitizeAiErrorMessage(err);
+    console.error(`[Gemini AI] GENERATE_CONTENT_FAILED: Status ${status} - ${message}`);
 
     return {
       ok: false,
@@ -600,24 +605,30 @@ Return strictly JSON matching:
   "category": "<optional category id>"
 }`;
 
-  const apiCall = model.generateContent(prompt);
-  const response = await withTimeout(apiCall, 10000, 'Voice parsing timed out after 10s');
-  const parsed = JSON.parse(response.response.text());
+  try {
+    const apiCall = model.generateContent(prompt);
+    const response = await withTimeout(apiCall, 10000, 'Voice parsing timed out after 10s');
+    const parsed = JSON.parse(response.response.text());
 
-  let parsedTitle = String(parsed.title || '').trim();
-  if (parsedTitle.length > 80) {
-    parsedTitle = parsedTitle.slice(0, 80);
-    const lastSpace = parsedTitle.lastIndexOf(' ');
-    if (lastSpace > 20) {
-      parsedTitle = parsedTitle.slice(0, lastSpace).trim();
+    let parsedTitle = String(parsed.title || '').trim();
+    if (parsedTitle.length > 80) {
+      parsedTitle = parsedTitle.slice(0, 80);
+      const lastSpace = parsedTitle.lastIndexOf(' ');
+      if (lastSpace > 20) {
+        parsedTitle = parsedTitle.slice(0, lastSpace).trim();
+      }
     }
-  }
 
-  return {
-    title: parsedTitle || transcript.slice(0, 80).trim(),
-    description: String(parsed.description || transcript).trim(),
-    category: parsed.category || undefined,
-  };
+    return {
+      title: parsedTitle || transcript.slice(0, 80).trim(),
+      description: String(parsed.description || transcript).trim(),
+      category: parsed.category || undefined,
+    };
+  } catch (error: any) {
+    const { status, message } = sanitizeAiErrorMessage(error);
+    console.error(`[Gemini AI] GENERATE_CONTENT_FAILED: Status ${status} - ${message}`);
+    throw error;
+  }
 }
 
 

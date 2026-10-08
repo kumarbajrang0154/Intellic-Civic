@@ -64,16 +64,16 @@ export function Stepper({ status, className }: StepperProps) {
   return (
     <div className={cn('w-full py-4 overflow-x-auto min-w-0', className)}>
       <div className="flex items-center justify-between relative min-w-[320px] px-2">
-        {/* Connecting Line Background */}
-        <div className="absolute top-4 left-6 right-6 h-0.5 bg-muted -z-0" />
-
-        {/* Progress Fill Line */}
-        <div
-          className="absolute top-4 left-6 h-0.5 bg-primary transition-all duration-300 -z-0"
-          style={{
-            width: `${(activeIndex / (STEPPER_STAGES.length - 1)) * 100}%`,
-          }}
-        />
+        {/* Connecting Line Track */}
+        <div className="absolute top-4 left-6 right-6 h-0.5 bg-muted -z-0 overflow-hidden">
+          {/* Progress Fill Line */}
+          <div
+            className="h-full bg-primary transition-all duration-300"
+            style={{
+              width: `${(activeIndex / (STEPPER_STAGES.length - 1)) * 100}%`,
+            }}
+          />
+        </div>
 
         {/* Step Nodes */}
         {STEPPER_STAGES.map((stage, idx) => {

@@ -362,11 +362,11 @@ export default function PlatformSettingsPage() {
               ) : (
                 <span
                   data-testid="ai-health-badge"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 max-w-sm truncate"
-                  title={aiHealth.error ? `Reason: ${aiHealth.error}` : 'Fallback heuristic mode active'}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 max-w-md truncate"
+                  title={aiHealth.error ? `AI Failure Reason: [${aiHealth.status || 'N/A'}] ${aiHealth.error}` : 'Fallback heuristic mode active'}
                 >
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                  Fallback mode: {aiHealth.status ? `${aiHealth.status} ${aiHealth.error?.toLowerCase().includes('denied') ? 'Project Denied' : aiHealth.error ? aiHealth.error.slice(0, 20) + '...' : 'Unavailable'}` : (aiHealth.error ? aiHealth.error.slice(0, 25) : 'Unavailable')}
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
+                  Fallback mode{aiHealth.status ? ` (${aiHealth.status})` : ''}: {aiHealth.error || 'AI unavailable'}
                 </span>
               )}
             </div>

@@ -4,6 +4,7 @@ import { Poppins } from 'next/font/google';
 import './globals.css';
 import { Toaster } from 'sonner';
 import { PwaRegister } from '@/components/pwa/PwaRegister';
+import { GlobalErrorPopup } from '@/components/shared/global-error-popup';
 
 const poppins = Poppins({
   subsets: ['latin'],
@@ -44,6 +45,7 @@ export default function RootLayout({
       <body className={`${poppins.className} bg-[#F2EFE6] text-[#131E20] antialiased`}>
         {children}
         <PwaRegister />
+        <GlobalErrorPopup />
         <Toaster position="top-right" richColors />
       </body>
     </html>

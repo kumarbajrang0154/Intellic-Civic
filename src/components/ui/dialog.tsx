@@ -7,9 +7,10 @@ interface DialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
+  'data-testid'?: string;
 }
 
-export function Dialog({ open, onOpenChange, children }: DialogProps) {
+export function Dialog({ open, onOpenChange, children, 'data-testid': testId }: DialogProps) {
   const [mounted, setMounted] = React.useState(false);
 
   // Only mount the portal after hydration to avoid SSR mismatch
@@ -44,6 +45,7 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
       <div
         role="dialog"
         aria-modal="true"
+        data-testid={testId}
         className={cn(
           'relative z-10 w-[calc(100vw-2rem)] max-w-lg',
           'bg-white border border-slate-200 shadow-md rounded-xl',
@@ -71,32 +73,33 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
 }
 
 
-export function DialogContent({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn('space-y-4', className)}>{children}</div>;
+export function DialogContent({ children, className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn('space-y-4', className)} {...props}>{children}</div>;
 }
 
-export function DialogHeader({ children, className }: { children: React.ReactNode; className?: string }) {
+export function DialogHeader({ children, className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   // pr-6 gives breathing room next to the absolute-positioned X close button
-  return <div className={cn('space-y-1.5 text-left pr-6', className)}>{children}</div>;
+  return <div className={cn('space-y-1.5 text-left pr-6', className)} {...props}>{children}</div>;
 }
 
-export function DialogTitle({ children, className }: { children: React.ReactNode; className?: string }) {
+export function DialogTitle({ children, className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
   // text-slate-900 on white = 18.1:1 contrast (far exceeds AA/AAA)
-  return <h2 className={cn('text-lg font-semibold tracking-tight text-slate-900', className)}>{children}</h2>;
+  return <h2 className={cn('text-lg font-semibold tracking-tight text-slate-900', className)} {...props}>{children}</h2>;
 }
 
-export function DialogDescription({ children, className }: { children: React.ReactNode; className?: string }) {
+export function DialogDescription({ children, className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
   // text-slate-600 on white = 6.9:1 (✓ AA) — upgraded from slate-500 (4.6:1, too close to limit)
-  return <p className={cn('text-sm text-slate-600 leading-relaxed', className)}>{children}</p>;
+  return <p className={cn('text-sm text-slate-600 leading-relaxed', className)} {...props}>{children}</p>;
 }
 
-export function DialogFooter({ children, className }: { children: React.ReactNode; className?: string }) {
+export function DialogFooter({ children, className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
         'flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-4 mt-4 border-t border-slate-200',
         className,
       )}
+      {...props}
     >
       {children}
     </div>

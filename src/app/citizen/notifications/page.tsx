@@ -211,7 +211,7 @@ export default function CitizenNotificationsPage() {
                         </span>
                       </div>
 
-                      <p className="text-xs sm:text-sm text-slate-800 font-medium leading-relaxed">
+                      <p className="text-xs sm:text-sm text-slate-800 font-medium leading-relaxed break-words">
                         {n.message}
                       </p>
 

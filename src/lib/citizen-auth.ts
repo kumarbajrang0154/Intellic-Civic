@@ -72,10 +72,13 @@ export async function requireCitizen(): Promise<RequireCitizenResult> {
   }
 
   if (dbUser.isSuspended || dbUser.deletedAt) {
+    const msg = dbUser.isSuspended
+      ? 'Your account has been suspended by administration.'
+      : 'Your account has been deactivated by administration.';
     return {
       authorized: false,
       response: NextResponse.json(
-        { statusCode: 403, message: 'Your account has been deactivated by administration.' },
+        { statusCode: 403, message: msg },
         { status: 403 },
       ),
     };

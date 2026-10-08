@@ -249,15 +249,15 @@ function CitizenProfileForm() {
                     )}
                   </div>
 
-                  <div className="space-y-2 text-center sm:text-left flex-1 min-w-0">
+                  <div className="space-y-2 text-center sm:text-left flex-1 min-w-0 w-full">
                     <div className="font-semibold text-sm">Profile Picture</div>
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full min-w-0">
                       <Input
                         type="url"
                         placeholder="Image URL or upload"
                         value={avatarUrl}
                         onChange={(e) => setAvatarUrl(e.target.value)}
-                        className="font-mono w-full sm:flex-1"
+                        className="font-mono w-full sm:flex-1 min-w-0 text-base md:text-sm"
                       />
                       <input
                         type="file"
@@ -290,8 +290,8 @@ function CitizenProfileForm() {
                     </p>
 
                     {/* Quick Preset Avatars */}
-                    <div className="flex items-center gap-2 pt-1">
-                      <span className="text-[11px] font-medium text-muted-foreground">Preset:</span>
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-1 min-w-0">
+                      <span className="text-[11px] font-medium text-muted-foreground shrink-0">Preset:</span>
                       {[
                         'https://api.dicebear.com/7.x/avataaars/svg?seed=Citizen1',
                         'https://api.dicebear.com/7.x/avataaars/svg?seed=Citizen2',

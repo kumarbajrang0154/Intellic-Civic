@@ -150,12 +150,12 @@ export default function LocationPickerInner({
   }
 
   return (
-    <div className={`${className} relative z-0`}>
+    <div className={`${className} relative z-0 overflow-hidden rounded-xl min-w-0`}>
       <MapContainer
         center={currentCenter}
         zoom={defaultZoom}
         scrollWheelZoom={false}
-        className="h-full w-full cursor-crosshair"
+        className="h-full w-full cursor-crosshair overflow-hidden rounded-xl"
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
