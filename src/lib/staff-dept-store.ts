@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma';
 import { UserRole, AuthProvider, Prisma } from '@prisma/client';
+import { addAuditLog } from '@/lib/audit-store';
 
 export interface DepartmentItem {
   id: string;
@@ -736,6 +737,20 @@ export async function archiveUser(
     });
   });
 
+  await addAuditLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    action: 'USER_ARCHIVED',
+    entityType: 'User',
+    targetId,
+    targetName: user.name,
+    metadata: {
+      originalEmail,
+      tombstoneEmail,
+      originalRole: user.role,
+    },
+  });
+
   return {
     ok: true,
     status: 200,
@@ -814,6 +829,21 @@ export async function reassignUserComplaints(
       data: { assignedOfficerId: targetStaffId },
     });
     count += workerRes.count;
+  });
+
+  await addAuditLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    action: 'COMPLAINTS_REASSIGNED',
+    entityType: 'User',
+    targetId: sourceUserId,
+    targetName: sourceUser.name,
+    metadata: {
+      sourceUserId,
+      targetStaffId,
+      targetStaffName: targetStaff.name,
+      reassignedCount: count,
+    },
   });
 
   return {

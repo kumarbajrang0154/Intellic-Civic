@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
 import { checkAiHealth, getGeminiModel } from '@/services/gemini-service';
 
+export const maxDuration = 30;
+
 export async function GET(req: NextRequest) {
   try {
     const auth = await requireAdmin();

@@ -48,6 +48,7 @@ interface ComplaintDetail {
   resolvedAt?: string;
   closedAt?: string;
   category?: { id: string; name: string } | null;
+  needsTriage?: boolean;
   originalCategory?: { id: string; name: string } | null;
   department?: { id: string; name: string } | null;
   location?: { address?: string; latitude?: number; longitude?: number } | null;
@@ -462,6 +463,16 @@ export default function CitizenComplaintDetailPage() {
                 <strong>Category Reclassified:</strong> Originally filed under{' '}
                 <span className="underline">{complaint.originalCategory?.name}</span>, reclassified by AI/Staff to{' '}
                 <span className="font-bold text-primary">{complaint.category?.name}</span> for faster resolution.
+              </span>
+            </div>
+          )}
+
+          {/* Under Review / Manual Triage Notice */}
+          {(complaint.needsTriage || !complaint.category) && (
+            <div data-testid="citizen-triage-notice" className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs flex items-center gap-2 text-amber-900 min-w-0">
+              <Clock className="h-4 w-4 text-amber-600 shrink-0" />
+              <span className="break-words">
+                <strong>Under Review:</strong> {complaint.aiPrediction?.rawResponse?.statusMessage || 'Complaint will be reviewed by staff'}
               </span>
             </div>
           )}

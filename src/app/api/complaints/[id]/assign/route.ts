@@ -24,6 +24,7 @@ export async function POST(
       const result = await reassignComplaintDepartment({
         complaintId: id,
         departmentId,
+        categoryId: body.categoryId,
         reassignedByUserId: auth.user.id,
         notes,
       });
@@ -90,6 +91,7 @@ export async function PATCH(
     const result = await reassignComplaintDepartment({
       complaintId: id,
       departmentId,
+      categoryId: body.categoryId,
       reassignedByUserId: auth.user.id,
       notes,
     });

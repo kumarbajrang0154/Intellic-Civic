@@ -330,5 +330,84 @@ test.describe('Citizen Voice Assistant & Dictation E2E Suite', () => {
     const descInput = page.locator('#description');
     await expect(descInput).toHaveValue('Broken streetlight near the park gate');
   });
+
+  test('Case 9: Android Chrome cumulative interim results ("he", "hel", "hello") then final -> no repeated words, preview uses last interim only', async ({ page }) => {
+    await page.goto('/citizen/complaints/new');
+    await page.waitForLoadState('domcontentloaded');
+
+    const descMic = page.getByRole('button', { name: /Dictate Description/i });
+    await expect(descMic).toBeVisible();
+    await descMic.click();
+
+    await page.waitForTimeout(50);
+    // Android Chrome emits cumulative interim entries in event.results
+    await page.evaluate(() => {
+      const rec = (window as any).__activeSpeechRecognition || (window as any).__lastSpeechRecognition;
+      // 1. Interim 1: single entry "he"
+      rec.onresult({
+        resultIndex: 0,
+        results: [
+          Object.assign([{ transcript: 'he' }], { isFinal: false, 0: { transcript: 'he' } }),
+        ],
+      });
+    });
+
+    const preview = page.locator('[data-testid="voice-interim-preview"]');
+    await expect(preview).toBeVisible();
+    await expect(preview).toHaveText('he');
+
+    // 2. Interim 2: cumulative entries "he" and "hel"
+    await page.evaluate(() => {
+      const rec = (window as any).__activeSpeechRecognition || (window as any).__lastSpeechRecognition;
+      rec.onresult({
+        resultIndex: 0,
+        results: [
+          Object.assign([{ transcript: 'he' }], { isFinal: false, 0: { transcript: 'he' } }),
+          Object.assign([{ transcript: 'hel' }], { isFinal: false, 0: { transcript: 'hel' } }),
+        ],
+      });
+    });
+
+    // Preview must display ONLY the LAST interim result, never concatenate ("hel", NOT "hehel")
+    await expect(preview).toHaveText('hel');
+
+    // 3. Interim 3: cumulative entries "he", "hel", and "hello"
+    await page.evaluate(() => {
+      const rec = (window as any).__activeSpeechRecognition || (window as any).__lastSpeechRecognition;
+      rec.onresult({
+        resultIndex: 0,
+        results: [
+          Object.assign([{ transcript: 'he' }], { isFinal: false, 0: { transcript: 'he' } }),
+          Object.assign([{ transcript: 'hel' }], { isFinal: false, 0: { transcript: 'hel' } }),
+          Object.assign([{ transcript: 'hello' }], { isFinal: false, 0: { transcript: 'hello' } }),
+        ],
+      });
+    });
+
+    // Preview must display ONLY the LAST interim result ("hello", NOT "hehelhello")
+    await expect(preview).toHaveText('hello');
+
+    // Textarea must NOT contain any interim garbage before finalization
+    const descInput = page.locator('#description');
+    expect(await descInput.inputValue()).toBe('');
+
+    // 4. Final event: speech recognized is finalized as "hello"
+    await page.evaluate(() => {
+      const rec = (window as any).__activeSpeechRecognition || (window as any).__lastSpeechRecognition;
+      rec.onresult({
+        resultIndex: 0,
+        results: [
+          Object.assign([{ transcript: 'hello' }], { isFinal: true, 0: { transcript: 'hello' } }),
+        ],
+      });
+      if (rec.stop) rec.stop();
+    });
+
+    // Assert final textarea value: exactly "hello", with no repeated words
+    await expect(descInput).toHaveValue('hello');
+    const finalDesc = await descInput.inputValue();
+    expect(finalDesc).not.toContain('hehel');
+    expect(finalDesc).toBe('hello');
+  });
 });
 

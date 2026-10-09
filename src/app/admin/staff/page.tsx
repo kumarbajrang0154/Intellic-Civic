@@ -1077,7 +1077,13 @@ export default function AdminStaffPage() {
                   <div className="text-[11px] font-bold text-slate-700">Available Actions:</div>
                   <div className="flex flex-col gap-2">
                     {/* 1. Open User */}
-                    {conflictInfo.status === 'citizen' ? (
+                    {conflictInfo.status === 'pending' ? (
+                      <Link href={`/admin/users/pending?search=${encodeURIComponent(conflictInfo.email)}`} className="w-full">
+                        <Button variant="outline" size="sm" className="w-full text-xs justify-start border-amber-300 text-amber-900 hover:bg-amber-50">
+                          <UserCheck className="w-3.5 h-3.5 mr-2 text-amber-600" /> Approve in Pending Users
+                        </Button>
+                      </Link>
+                    ) : conflictInfo.status === 'citizen' ? (
                       <Link href={`/admin/users/citizens/${conflictInfo.id}`} className="w-full">
                         <Button variant="outline" size="sm" className="w-full text-xs justify-start border-slate-300">
                           <Users className="w-3.5 h-3.5 mr-2 text-blue-600" /> Open Citizen Profile
@@ -1116,7 +1122,7 @@ export default function AdminStaffPage() {
                     )}
 
                     {/* 3. Convert citizen -> staff */}
-                    {(conflictInfo.status === 'citizen' || conflictInfo.status === 'pending') && (
+                    {conflictInfo.status === 'citizen' && (
                       <Button
                         variant="outline"
                         size="sm"

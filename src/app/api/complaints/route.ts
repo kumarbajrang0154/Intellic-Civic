@@ -5,6 +5,8 @@ import { requireCitizen } from '@/lib/citizen-auth';
 import { createComplaint, listComplaints } from '@/lib/complaints-store';
 import prisma from '@/lib/prisma';
 
+export const maxDuration = 60;
+
 export async function GET(request: NextRequest) {
   try {
     const cookieStore = cookies();
@@ -192,6 +194,7 @@ export async function POST(request: NextRequest) {
     }
 
     const firstImage = allImages[0];
+    const mockAiProvider = request.headers.get('x-mock-ai-provider') || body.mockAiProvider || undefined;
 
     const newComplaint = await createComplaint({
       title: title.trim(),
@@ -207,6 +210,7 @@ export async function POST(request: NextRequest) {
       clientRequestId: trimmedClientRequestId,
       capturedAt: parsedCapturedAt,
       language: typeof language === 'string' && language.trim() ? language.trim().toLowerCase().slice(0, 2) : undefined,
+      mockAiProvider,
     });
 
     return NextResponse.json(newComplaint, { status: 201 });

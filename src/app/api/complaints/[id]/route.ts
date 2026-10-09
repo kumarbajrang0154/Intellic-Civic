@@ -4,6 +4,8 @@ import { decodeJwtToken } from '@/lib/auth-jwt';
 import { getComplaintById } from '@/lib/complaints-store';
 import prisma from '@/lib/prisma';
 
+export const maxDuration = 60;
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } },

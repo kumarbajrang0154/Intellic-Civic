@@ -232,6 +232,7 @@ function formatComplaint(raw: any): Complaint {
     descriptionEn: raw.descriptionEn ?? null,
     status: raw.status,
     priority: raw.priority || 'MEDIUM',
+    needsTriage: Boolean(!raw.categoryId || !raw.departmentId || (raw.aiPrediction?.rawResponse as any)?.needsManualTriage),
     categoryId: raw.categoryId || undefined,
     category: raw.category
       ? {
@@ -419,6 +420,7 @@ export async function createComplaint(data: {
   clientRequestId?: string;
   capturedAt?: Date | string;
   language?: string;
+  mockAiProvider?: string;
 }): Promise<Complaint> {
   const ticketId = generateTicketId();
   const mun = await getDefaultMunicipality();
@@ -445,13 +447,25 @@ export async function createComplaint(data: {
       }));
 
   // AI Complaint Routing Classification (using Gemini with fallback, vision and language detection/translation)
-  const routingResult = await classifyComplaintRouting(
-    data.description,
-    data.title,
-    availableCategories,
-    data.language,
-    data.imageUrl,
-  );
+  const routingResult = data.mockAiProvider === 'fallback'
+    ? {
+        category: null,
+        confidence: 0,
+        priority: 'MEDIUM' as const,
+        departmentId: null,
+        language: 'en',
+        needsManualTriage: true,
+        statusMessage: 'Complaint will be reviewed by staff',
+        provider: 'fallback' as const,
+        fallbackTriggered: true,
+      }
+    : await classifyComplaintRouting(
+        data.description,
+        data.title,
+        availableCategories,
+        data.language,
+        data.imageUrl,
+      );
 
   // Fallback honesty & low confidence check
   const isFallbackOrLowConfidence =
@@ -774,6 +788,7 @@ export async function verifyAiTriage(params: {
 export async function reassignComplaintDepartment(params: {
   complaintId: string;
   departmentId: string;
+  categoryId?: string;
   reassignedByUserId: string;
   notes?: string;
 }): Promise<{ ok: boolean; status: number; message: string; complaint?: Complaint }> {
@@ -793,13 +808,14 @@ export async function reassignComplaintDepartment(params: {
     where: { id: complaint.id },
     data: {
       departmentId: params.departmentId,
+      ...(params.categoryId ? { categoryId: params.categoryId } : {}),
       status: nextStatus,
       statusHistory: {
         create: {
           fromStatus: complaint.status as ComplaintStatus,
           toStatus: nextStatus,
           changedByUserId: params.reassignedByUserId,
-          notes: params.notes || `Reassigned department to ${targetDept.name}.`,
+          notes: params.notes || `Assigned to department: ${targetDept.name}.`,
         },
       },
     },

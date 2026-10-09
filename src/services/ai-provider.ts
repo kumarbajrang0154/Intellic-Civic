@@ -339,8 +339,12 @@ Category: ${category}
 Description: ${complaintDescription}
 Evaluate whether the photo plausibly shows the described civic issue or matches the category. Return JSON with verified (bool), confidence (0-1), reasoning (str).`;
 
-  const apiCall = model.generateContent([prompt, imagePart]);
-  const response = await withTimeout(apiCall, 10000, 'Gemini photo verification timed out after 10s');
+  const response = await callWithRetry(
+    () => withTimeout(model.generateContent([prompt, imagePart]), 20000, 'Gemini photo verification timed out after 20s'),
+    1,
+    [1000],
+    'Gemini Photo Verification',
+  );
   const parsed = JSON.parse(response.response.text());
 
   return {
@@ -402,8 +406,7 @@ ${categoryOptionsStr}
 
 Allowed Priority Levels: LOW, MEDIUM, HIGH, CRITICAL.
 
-Instructions:
-1. "category": Must be strictly one of the Category IDs from the list above. Do NOT invent new IDs.
+1. "category": Must be strictly one of the Category IDs from the list above. Do NOT invent new IDs. Note: Drainage, storm drains, clogged culverts, sewer grates, and pipeline leaks belong to Water Supply & Sanitation. Potholes, broken tarmac, pavements, and road craters belong to Roads & Infrastructure.
 2. "confidence": A number from 0.0 to 1.0 indicating your confidence in the category choice.
 3. "priority": One of LOW, MEDIUM, HIGH, CRITICAL.
 4. "reasoning": 1-2 sentence explanation connecting the evidence/text to the chosen category.
@@ -424,7 +427,7 @@ Return strictly JSON matching schema.`;
   }
 
   const response = await callWithRetry(
-    () => withTimeout(model.generateContent(contentParts), 60000, 'Gemini complaint routing classification timed out after 60s'),
+    () => withTimeout(model.generateContent(contentParts), 20000, 'Gemini complaint routing classification timed out after 20s'),
     2,
     [1000, 2000],
     'Gemini Classification',
@@ -459,9 +462,16 @@ Return strictly JSON matching schema.`;
     detectedLang = detectTextLanguage(complaintTitle + ' ' + complaintDescription, hintLang);
   }
 
+  const cleanTranslation = (val: any): string | null => {
+    if (!val) return null;
+    const s = String(val).trim();
+    if (!s || s.toLowerCase() === 'null' || s.toLowerCase() === 'none' || s.toLowerCase() === 'undefined') return null;
+    return s;
+  };
+
   const isNonEnglish = detectedLang !== 'en';
-  const titleEn = isNonEnglish && parsed.titleEn && String(parsed.titleEn).trim() ? String(parsed.titleEn).trim() : null;
-  const descriptionEn = isNonEnglish && parsed.descriptionEn && String(parsed.descriptionEn).trim() ? String(parsed.descriptionEn).trim() : null;
+  const titleEn = isNonEnglish ? cleanTranslation(parsed.titleEn) : null;
+  const descriptionEn = isNonEnglish ? cleanTranslation(parsed.descriptionEn) : null;
 
   const needsManualTriage = !matchedCategoryId || confidenceScore < 0.5;
 
@@ -573,7 +583,7 @@ async function checkGeminiHealthDirect(): Promise<AiHealthResult> {
 
     const generativeModel = genAI.getGenerativeModel({ model });
     const apiCall = generativeModel.generateContent('ping');
-    await withTimeout(apiCall, 8000, 'AI health check timed out after 8s');
+    await withTimeout(apiCall, 15000, 'AI health check timed out after 15s');
     const latencyMs = Date.now() - start;
 
     return {
@@ -794,9 +804,16 @@ Return strictly a JSON object with:
     detectedLang = detectTextLanguage(complaintTitle + ' ' + complaintDescription, hintLang);
   }
 
+  const cleanTranslation = (val: any): string | null => {
+    if (!val) return null;
+    const s = String(val).trim();
+    if (!s || s.toLowerCase() === 'null' || s.toLowerCase() === 'none' || s.toLowerCase() === 'undefined') return null;
+    return s;
+  };
+
   const isNonEnglish = detectedLang !== 'en';
-  const titleEn = isNonEnglish && parsed.titleEn && String(parsed.titleEn).trim() ? String(parsed.titleEn).trim() : null;
-  const descriptionEn = isNonEnglish && parsed.descriptionEn && String(parsed.descriptionEn).trim() ? String(parsed.descriptionEn).trim() : null;
+  const titleEn = isNonEnglish ? cleanTranslation(parsed.titleEn) : null;
+  const descriptionEn = isNonEnglish ? cleanTranslation(parsed.descriptionEn) : null;
 
   const needsManualTriage = !matchedCategoryId || confidenceScore < 0.5;
 
@@ -901,7 +918,7 @@ async function checkGroqHealthDirect(): Promise<AiHealthResult> {
       messages: [{ role: 'user', content: 'ping' }],
       max_tokens: 5,
     };
-    await callGroqChatCompletions(payload, 8000);
+    await callGroqChatCompletions(payload, 15000);
     const latencyMs = Date.now() - start;
 
     return {

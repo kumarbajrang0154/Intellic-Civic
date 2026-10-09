@@ -403,7 +403,8 @@ export default function NewComplaintPage() {
               : trimmed;
           }
         } else {
-          interim += transcript;
+          // For interim preview use only the LAST interim result, never concatenate interims
+          interim = transcript;
         }
       }
 
@@ -1012,7 +1013,7 @@ export default function NewComplaintPage() {
             <Volume2 className="h-4 w-4 text-ai-indigo shrink-0 mt-0.5 animate-pulse" />
             <div>
               <span className="font-bold text-ai-indigo block">Live Speech Transcript:</span>
-              <span className="italic text-slate-700">{transcriptPreview}</span>
+              <span data-testid="voice-interim-preview" className="italic text-slate-700">{transcriptPreview}</span>
             </div>
           </div>
         )}

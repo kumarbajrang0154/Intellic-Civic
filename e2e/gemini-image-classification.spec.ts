@@ -42,13 +42,13 @@ test.describe('PART 2 Live AI Category & Department Identification Suite', () =>
     await new Promise((r) => setTimeout(r, 5000));
   });
 
-  test('Image 1: Pothole maps to cat-roads and Roads & Infrastructure', async () => {
+  test('Image 1: Pothole maps to cat-roads and Roads & Infrastructure (neutral text "see photo")', async () => {
     const fixturePath = path.resolve('e2e/fixtures/pothole.jpg');
     expect(fs.existsSync(fixturePath)).toBe(true);
 
     const result = await classifyComplaintRouting(
-      'Deep pothole crater on the road causing risk to vehicles and commuters',
-      'Road crater pothole',
+      'see photo',
+      'see photo',
       TEST_CATEGORIES,
       'en',
       fixturePath,
@@ -59,16 +59,18 @@ test.describe('PART 2 Live AI Category & Department Identification Suite', () =>
     expect(result.fallbackTriggered).toBe(false);
     expect(result.provider).toBe('gemini');
     expect(result.category).toBe('cat-roads');
+    const dept = TEST_CATEGORIES.find((c) => c.id === result.category)?.department;
+    expect(dept).toBe('Roads & Infrastructure');
     expect(result.confidence).toBeGreaterThanOrEqual(0.7);
   });
 
-  test('Image 2: Garbage Pile maps to cat-sanitation and Solid Waste Management', async () => {
+  test('Image 2: Garbage Pile maps to cat-sanitation and Solid Waste Management (neutral text "see photo")', async () => {
     const fixturePath = path.resolve('e2e/fixtures/garbage_pile.jpg');
     expect(fs.existsSync(fixturePath)).toBe(true);
 
     const result = await classifyComplaintRouting(
-      'Massive heap of uncollected municipal garbage rotting on roadside corner',
-      'Overflowing garbage pile',
+      'see photo',
+      'see photo',
       TEST_CATEGORIES,
       'en',
       fixturePath,
@@ -79,16 +81,18 @@ test.describe('PART 2 Live AI Category & Department Identification Suite', () =>
     expect(result.fallbackTriggered).toBe(false);
     expect(result.provider).toBe('gemini');
     expect(result.category).toBe('cat-sanitation');
+    const dept = TEST_CATEGORIES.find((c) => c.id === result.category)?.department;
+    expect(dept).toBe('Solid Waste Management');
     expect(result.confidence).toBeGreaterThanOrEqual(0.7);
   });
 
-  test('Image 3: Broken Streetlight maps to cat-electricity and Electricity & Streetlights', async () => {
+  test('Image 3: Broken Streetlight maps to cat-electricity and Electricity & Streetlights (neutral text "see photo")', async () => {
     const fixturePath = path.resolve('e2e/fixtures/broken_streetlight.jpg');
     expect(fs.existsSync(fixturePath)).toBe(true);
 
     const result = await classifyComplaintRouting(
-      'Damaged bent streetlight pole with shattered lamp fixture hanging dangerously',
-      'Broken streetlight fixture',
+      'see photo',
+      'see photo',
       TEST_CATEGORIES,
       'en',
       fixturePath,
@@ -99,16 +103,18 @@ test.describe('PART 2 Live AI Category & Department Identification Suite', () =>
     expect(result.fallbackTriggered).toBe(false);
     expect(result.provider).toBe('gemini');
     expect(result.category).toBe('cat-electricity');
+    const dept = TEST_CATEGORIES.find((c) => c.id === result.category)?.department;
+    expect(dept).toBe('Electricity & Streetlights');
     expect(result.confidence).toBeGreaterThanOrEqual(0.7);
   });
 
-  test('Image 4: Water Leakage maps to cat-water and Water Supply & Sanitation', async () => {
+  test('Image 4: Water Leakage maps to cat-water and Water Supply & Sanitation (neutral text "see photo")', async () => {
     const fixturePath = path.resolve('e2e/fixtures/water_leakage.jpg');
     expect(fs.existsSync(fixturePath)).toBe(true);
 
     const result = await classifyComplaintRouting(
-      'Broken municipal supply pipeline gushing gallons of clean potable water onto street',
-      'Ruptured water supply pipeline',
+      'see photo',
+      'see photo',
       TEST_CATEGORIES,
       'en',
       fixturePath,
@@ -119,16 +125,18 @@ test.describe('PART 2 Live AI Category & Department Identification Suite', () =>
     expect(result.fallbackTriggered).toBe(false);
     expect(result.provider).toBe('gemini');
     expect(result.category).toBe('cat-water');
+    const dept = TEST_CATEGORIES.find((c) => c.id === result.category)?.department;
+    expect(dept).toBe('Water Supply & Sanitation');
     expect(result.confidence).toBeGreaterThanOrEqual(0.7);
   });
 
-  test('Image 5: Blocked Drain maps to cat-water and Water Supply & Sanitation', async () => {
+  test('Image 5: Blocked Drain maps to cat-water and Water Supply & Sanitation (neutral text "see photo")', async () => {
     const fixturePath = path.resolve('e2e/fixtures/blocked_drain.jpg');
     expect(fs.existsSync(fixturePath)).toBe(true);
 
     const result = await classifyComplaintRouting(
-      'Clogged municipal stormwater drain overflowing with stagnant black wastewater',
-      'Blocked drainage canal',
+      'see photo',
+      'see photo',
       TEST_CATEGORIES,
       'en',
       fixturePath,
@@ -139,6 +147,8 @@ test.describe('PART 2 Live AI Category & Department Identification Suite', () =>
     expect(result.fallbackTriggered).toBe(false);
     expect(result.provider).toBe('gemini');
     expect(result.category).toBe('cat-water');
+    const dept = TEST_CATEGORIES.find((c) => c.id === result.category)?.department;
+    expect(dept).toBe('Water Supply & Sanitation');
     expect(result.confidence).toBeGreaterThanOrEqual(0.7);
   });
 

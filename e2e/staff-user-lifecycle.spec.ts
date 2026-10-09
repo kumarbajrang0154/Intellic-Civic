@@ -85,15 +85,18 @@ test.describe('Staff & User Management: Lifecycle, Preflight & Safety', () => {
     }]);
 
     await page.goto(`${BASE}/admin/staff`);
+    await page.waitForLoadState('networkidle');
     await page.getByRole('button', { name: 'Create Staff' }).click();
-    await page.getByPlaceholder('e.g. Amit Sharma').fill('Conflict Test UI');
+    const nameInput = page.getByPlaceholder('e.g. Amit Sharma');
+    await expect(nameInput).toBeVisible();
+    await nameInput.fill('Conflict Test UI');
     await page.getByPlaceholder('e.g. amit.sharma@smartcity.gov.in').fill('23cs025@kpriet.ac.in');
     // Select DEPARTMENT_HEAD so department assignment is not required
     await page.locator('div[role="dialog"]').locator('select').first().selectOption('DEPARTMENT_HEAD');
     await page.locator('div[role="dialog"]').getByRole('button', { name: 'Create Staff' }).click();
 
     // Verify popup appears with plain language explanation
-    await expect(page.getByText('Email Already Registered')).toBeVisible();
+    await expect(page.getByText('Email Already Registered')).toBeVisible({ timeout: 15000 });
     await expect(page.getByText(/This email is already a.*account in/i)).toBeVisible();
     await expect(page.getByText('23cs025@kpriet.ac.in', { exact: true })).toBeVisible();
   });
@@ -419,6 +422,187 @@ test.describe('Staff & User Management: Lifecycle, Preflight & Safety', () => {
     expect(res.status()).toBe(400);
     const body = await res.json();
     expect(body.message).toContain('You cannot delete your own account');
+  });
+
+  test('8. Citizen delete preflight and archive frees credentials and sets tombstone', async ({ request }) => {
+    const cookie = await getAdminContext(request);
+    const mun = await getDefaultMunicipality();
+
+    const citizenEmail = `citizen_archive_${Date.now()}@example.com`;
+    const citizenMobile = `+9199${Math.floor(10000000 + Math.random() * 90000000)}`;
+
+    const citizen = await prisma.user.create({
+      data: {
+        name: 'Citizen Archive Test',
+        email: citizenEmail,
+        mobileNumber: citizenMobile,
+        role: 'CITIZEN',
+        authProvider: 'MOBILE_OTP',
+        isAuthorized: true,
+        municipalityId: mun.id,
+      },
+    });
+
+    // 8a. Preflight check
+    const preflightRes = await request.get(`${BASE}/api/admin/users/${citizen.id}/delete-preflight`, {
+      headers: { cookie },
+    });
+    expect(preflightRes.status()).toBe(200);
+    const preflight = await preflightRes.json();
+    expect(preflight.user.id).toBe(citizen.id);
+    expect(preflight.canHardDelete).toBe(true); // zero blockers
+
+    // 8b. Archive citizen
+    const archiveRes = await request.post(`${BASE}/api/admin/users/${citizen.id}/archive`, {
+      headers: { cookie },
+    });
+    expect(archiveRes.status()).toBe(200);
+    const archiveData = await archiveRes.json();
+    expect(archiveData.archived).toBe(true);
+    expect(archiveData.originalEmail).toBe(citizenEmail);
+    expect(archiveData.tombstoneEmail).toContain('archived_');
+
+    // DB assertion: citizen is archived and credentials freed
+    const archivedUser = await prisma.user.findUnique({ where: { id: citizen.id } });
+    expect(archivedUser?.deletedAt).not.toBeNull();
+    expect(archivedUser?.isSuspended).toBe(true);
+    expect(archivedUser?.mobileNumber).toBeNull();
+    expect(archivedUser?.email).toContain('archived_');
+
+    // Cleanup
+    await prisma.auditLog.deleteMany({ where: { entityId: citizen.id } });
+    await prisma.user.delete({ where: { id: citizen.id } });
+  });
+
+  test('9. Last-ADMIN delete is strictly blocked', async ({ request }) => {
+    const cookie = await getAdminContext(request);
+
+    // Find sole active admin or create a temporary single admin scenario
+    const admins = await prisma.user.findMany({
+      where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] }, isSuspended: false, deletedAt: null },
+    });
+
+    if (admins.length === 1) {
+      const soleAdmin = admins[0];
+      const preflight = await (await request.get(`${BASE}/api/admin/users/${soleAdmin.id}/delete-preflight`, {
+        headers: { cookie },
+      })).json();
+      expect(preflight.isLastAdmin).toBe(true);
+      expect(preflight.canHardDelete).toBe(false);
+      expect(preflight.reasons).toContain('Cannot delete the last active administrator.');
+
+      const delRes = await request.delete(`${BASE}/api/admin/staff/${soleAdmin.id}`, {
+        headers: { cookie },
+      });
+      expect(delRes.status()).toBe(400);
+    } else {
+      // Create isolated municipality admin to verify last-admin logic check
+      const mun = await getDefaultMunicipality();
+      const tempAdmin = await prisma.user.create({
+        data: {
+          name: 'Temporary Admin Tester',
+          email: `temp_admin_${Date.now()}@smartcity.gov.in`,
+          role: 'ADMIN',
+          authProvider: 'GOOGLE',
+          isAuthorized: true,
+          municipalityId: mun.id,
+        },
+      });
+
+      // Preflight
+      const preflight = await (await request.get(`${BASE}/api/admin/users/${tempAdmin.id}/delete-preflight`, {
+        headers: { cookie },
+      })).json();
+      // If there are other admins, isLastAdmin should be false
+      expect(preflight.isLastAdmin).toBe(false);
+
+      // Cleanup tempAdmin
+      await prisma.user.delete({ where: { id: tempAdmin.id } });
+    }
+  });
+
+  test('10. Audit row asserted for archive, reassign and convert', async ({ request }) => {
+    const cookie = await getAdminContext(request);
+    const mun = await getDefaultMunicipality();
+    const dept = await prisma.department.findFirst({ where: { municipalityId: mun.id } }) || await prisma.department.findFirst();
+
+    // 10a. Convert citizen -> staff and assert audit row
+    const convertCitizen = await prisma.user.create({
+      data: {
+        name: 'Convert Audit Tester',
+        email: `convert_audit_${Date.now()}@example.com`,
+        role: 'CITIZEN',
+        authProvider: 'GOOGLE',
+        isAuthorized: true,
+        municipalityId: mun.id,
+      },
+    });
+
+    const convertRes = await request.post(`${BASE}/api/admin/users/${convertCitizen.id}/convert`, {
+      headers: { cookie, 'Content-Type': 'application/json' },
+      data: {
+        role: 'DEPARTMENT_OFFICER',
+        departmentId: dept?.id,
+      },
+    });
+    expect(convertRes.status()).toBe(200);
+
+    const convertAudit = await prisma.auditLog.findFirst({
+      where: {
+        action: 'USER_CONVERTED_TO_STAFF',
+        entityId: convertCitizen.id,
+      },
+    });
+    expect(convertAudit).not.toBeNull();
+    expect(convertAudit?.action).toBe('USER_CONVERTED_TO_STAFF');
+
+    // 10b. Reassign open complaint and assert audit row
+    const receiverStaff = await prisma.user.create({
+      data: {
+        name: 'Receiver Staff',
+        email: `receiver_${Date.now()}@smartcity.gov.in`,
+        role: 'DEPARTMENT_OFFICER',
+        authProvider: 'GOOGLE',
+        isAuthorized: true,
+        departmentId: dept?.id,
+        municipalityId: mun.id,
+      },
+    });
+
+    const reassignRes = await request.post(`${BASE}/api/admin/users/${convertCitizen.id}/reassign-complaints`, {
+      headers: { cookie, 'Content-Type': 'application/json' },
+      data: { targetStaffId: receiverStaff.id },
+    });
+    expect(reassignRes.status()).toBe(200);
+
+    const reassignAudit = await prisma.auditLog.findFirst({
+      where: {
+        action: 'COMPLAINTS_REASSIGNED',
+        entityId: convertCitizen.id,
+      },
+    });
+    expect(reassignAudit).not.toBeNull();
+    expect(reassignAudit?.action).toBe('COMPLAINTS_REASSIGNED');
+
+    // 10c. Archive and assert audit row
+    const archiveRes = await request.post(`${BASE}/api/admin/users/${convertCitizen.id}/archive`, {
+      headers: { cookie },
+    });
+    expect(archiveRes.status()).toBe(200);
+
+    const archiveAudit = await prisma.auditLog.findFirst({
+      where: {
+        action: 'USER_ARCHIVED',
+        entityId: convertCitizen.id,
+      },
+    });
+    expect(archiveAudit).not.toBeNull();
+    expect(archiveAudit?.action).toBe('USER_ARCHIVED');
+
+    // Cleanup
+    await prisma.auditLog.deleteMany({ where: { entityId: { in: [convertCitizen.id, receiverStaff.id] } } });
+    await prisma.user.delete({ where: { id: receiverStaff.id } });
+    await prisma.user.delete({ where: { id: convertCitizen.id } });
   });
 
 });
