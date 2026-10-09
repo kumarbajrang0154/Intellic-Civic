@@ -222,7 +222,7 @@ test.describe('Admin Bulk Actions Verification', () => {
       expect(data.succeeded).toBe(1);
       expect(data.failed).toBe(3);
 
-      const resultsMap = new Map(data.results.map((r: any) => [r.id, r]));
+      const resultsMap = new Map<string, any>(data.results.map((r: any) => [r.id, r]));
 
       // Valid ID succeeded
       expect(resultsMap.get(validUser.id)?.ok).toBe(true);

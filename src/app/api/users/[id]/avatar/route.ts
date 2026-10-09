@@ -24,7 +24,7 @@ export async function GET(
 
     // Handle data URIs by decoding and streaming the binary image
     if (avatarUrl.startsWith('data:')) {
-      const match = avatarUrl.match(/^data:([^;,]+)(?:;charset=[^;,]+)?(?:;(base64))?,(.*)$/s);
+      const match = avatarUrl.match(/^data:([^;,]+)(?:;charset=[^;,]+)?(?:;(base64))?,([\s\S]*)$/);
       if (match) {
         const mimeType = match[1] || 'image/jpeg';
         const isBase64 = match[2] === 'base64';

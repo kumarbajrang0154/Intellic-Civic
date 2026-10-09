@@ -12,11 +12,11 @@ function checkRateLimit(userId: string): boolean {
   const entry = rateLimitStore.get(userId);
 
   if (rateLimitStore.size > 1000) {
-    for (const [key, val] of rateLimitStore.entries()) {
+    rateLimitStore.forEach((val, key) => {
       if (val.resetAt < now) {
         rateLimitStore.delete(key);
       }
-    }
+    });
   }
 
   if (!entry || now > entry.resetAt) {
