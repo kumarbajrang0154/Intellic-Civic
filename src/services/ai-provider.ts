@@ -7,9 +7,11 @@ export interface PhotoVerificationResult {
 }
 
 export interface ComplaintRoutingResult {
-  category: string;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  category: string | null;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | null;
   reasoning: string;
+  confidence?: number;
+  needsManualTriage?: boolean;
   language?: string | null;
   titleEn?: string | null;
   descriptionEn?: string | null;
@@ -21,6 +23,8 @@ export interface CategoryInfo {
   id: string;
   name: string;
   description?: string;
+  department?: string;
+  departmentId?: string;
 }
 
 export interface VoiceParseResult {
@@ -47,7 +51,7 @@ export const DEFAULT_CATEGORIES: CategoryInfo[] = [
   { id: 'cat-electricity', name: 'Electricity & Streetlights', description: 'Non-functional streetlights, dangerous loose wiring, transformer spark' },
 ];
 
-export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
+export const DEFAULT_GEMINI_MODEL = 'gemini-3.1-flash-lite';
 export const DEFAULT_GROQ_MODEL = 'qwen/qwen3.8-27b';
 
 export function getGeminiModel(): string {
@@ -92,7 +96,7 @@ export function fallbackKeywordRouting(
 ): ComplaintRoutingResult {
   const text = (title + ' ' + description).toLowerCase();
 
-  let category = 'cat-sanitation';
+  let category: string | null = null;
   if (text.includes('garbage') || text.includes('waste') || text.includes('clean') || text.includes('trash')) {
     category = 'cat-sanitation';
   } else if (text.includes('road') || text.includes('pothole') || text.includes('path') || text.includes('bridge')) {
@@ -101,16 +105,16 @@ export function fallbackKeywordRouting(
     category = 'cat-water';
   } else if (text.includes('light') || text.includes('wire') || text.includes('electric') || text.includes('power')) {
     category = 'cat-electricity';
-  } else {
-    category = 'cat-sanitation';
   }
 
   const descLower = description.toLowerCase();
-  let priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' = 'MEDIUM';
+  let priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | null = null;
   if (descLower.includes('danger') || descLower.includes('hazard') || descLower.includes('emergency') || descLower.includes('fire')) {
     priority = 'CRITICAL';
   } else if (descLower.includes('severe') || descLower.includes('urgent') || descLower.includes('block')) {
     priority = 'HIGH';
+  } else if (category) {
+    priority = 'MEDIUM';
   }
 
   const detected = detectTextLanguage(title + ' ' + description, hintLang);
@@ -118,7 +122,9 @@ export function fallbackKeywordRouting(
   return {
     category,
     priority,
-    reasoning: 'Fallback keyword heuristic routing used (AI service unavailable or unconfigured).',
+    confidence: category ? 0.35 : 0.0,
+    needsManualTriage: true,
+    reasoning: 'AI unavailable — fallback used (AI service unavailable or unconfigured). Will be reviewed by staff.',
     language: detected !== 'en' ? detected : (hintLang && hintLang !== 'en' ? hintLang : 'en'),
     titleEn: null,
     descriptionEn: null,
@@ -159,6 +165,52 @@ export function sanitizeAiErrorMessage(error: any): { status: number; message: s
   }
 
   return { status, message };
+}
+
+/**
+ * Retries an async AI operation on HTTP 429 (rate limit) or 503 (service unavailable)
+ * with exponential backoff (e.g. 1s then 2s) before falling back.
+ */
+export async function callWithRetry<T>(
+  fn: () => Promise<T>,
+  retries = 2,
+  backoffMs = [1000, 2000],
+  context = 'AI API',
+): Promise<T> {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      const status = err?.status || err?.statusCode || 0;
+      const msg = String(err?.message || '');
+      const isRetryable =
+        status === 429 ||
+        status === 503 ||
+        status === 408 ||
+        msg.includes('429') ||
+        msg.includes('503') ||
+        msg.includes('408') ||
+        msg.includes('timed out') ||
+        msg.includes('timeout') ||
+        msg.includes('ETIMEDOUT') ||
+        msg.includes('ECONNRESET') ||
+        msg.includes('Resource has been exhausted') ||
+        msg.includes('Service Unavailable') ||
+        msg.includes('overloaded');
+
+      if (isRetryable && attempt < retries) {
+        const delay = backoffMs[attempt] || 2000;
+        console.warn(
+          `[${context}] Retryable error (HTTP ${status || '429/503/timeout'}). Retrying attempt ${attempt + 1}/${retries} in ${delay}ms...`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        attempt++;
+      } else {
+        throw err;
+      }
+    }
+  }
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs = 10000, errorMessage = 'AI API call timed out'): Promise<T> {
@@ -226,6 +278,24 @@ async function prepareGeminiImagePart(imageUrlOrBase64: string): Promise<{ inlin
     };
   }
 
+  // Check if it's a local file path
+  if (typeof window === 'undefined' && typeof imageUrlOrBase64 === 'string') {
+    try {
+      const fs = require('fs');
+      if (fs.existsSync(imageUrlOrBase64)) {
+        const buffer = fs.readFileSync(imageUrlOrBase64);
+        const lower = imageUrlOrBase64.toLowerCase();
+        const mimeType = lower.endsWith('.png') ? 'image/png' : lower.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+        return {
+          inlineData: {
+            mimeType,
+            data: buffer.toString('base64'),
+          },
+        };
+      }
+    } catch (e) {}
+  }
+
   return {
     inlineData: {
       mimeType: 'image/jpeg',
@@ -285,6 +355,7 @@ async function classifyComplaintRoutingGemini(
   complaintTitle: string,
   availableCategories: CategoryInfo[],
   hintLang?: string,
+  imageUrlOrBase64?: string | null,
 ): Promise<ComplaintRoutingResult> {
   const genAI = getGeminiClient();
   if (!genAI) {
@@ -292,7 +363,10 @@ async function classifyComplaintRoutingGemini(
   }
 
   const categoryOptionsStr = availableCategories
-    .map((c) => `- ID: "${c.id}", Name: "${c.name}" (${c.description || ''})`)
+    .map(
+      (c) =>
+        `- ID: "${c.id}" | Name: "${c.name}" | Department: "${c.department || c.departmentId || 'Unassigned'}" | Description: "${c.description || ''}"`,
+    )
     .join('\n');
 
   const currentModel = getGeminiModel();
@@ -304,47 +378,76 @@ async function classifyComplaintRoutingGemini(
         type: SchemaType.OBJECT,
         properties: {
           category: { type: SchemaType.STRING },
+          confidence: { type: SchemaType.NUMBER },
           priority: { type: SchemaType.STRING },
           reasoning: { type: SchemaType.STRING },
           language: { type: SchemaType.STRING },
           titleEn: { type: SchemaType.STRING },
           descriptionEn: { type: SchemaType.STRING },
         },
-        required: ['category', 'priority', 'reasoning', 'language'],
+        required: ['category', 'confidence', 'priority', 'reasoning', 'language'],
       },
     },
   });
 
-  const prompt = `You are an AI Civic Complaint Triage and Translation Engine for a Smart City Platform.
-Analyze the complaint title and description, detect its language, classify category and priority, and translate to English if the language is not English.
+  const prompt = `You are an AI Civic Complaint Triage Engine for a Smart City Platform.
+Analyze the complaint information (including the attached image if provided), detect its language, classify category and priority, and assess confidence.
 
-Complaint Title: ${complaintTitle}
-Complaint Description: ${complaintDescription}
+Complaint Title: ${complaintTitle || 'Not provided'}
+Complaint Description: ${complaintDescription || 'Not provided'}
+${imageUrlOrBase64 ? 'An evidence photograph is attached. Analyze both the photograph and text to identify the civic issue and department.' : 'No photograph attached. Analyze the text description.'}
 
-Available Categories:
+Available Municipal Categories (You MUST pick one exact category ID from this list):
 ${categoryOptionsStr}
 
 Allowed Priority Levels: LOW, MEDIUM, HIGH, CRITICAL.
 
-Language & Translation Requirements:
-- "language": Detect 2-letter ISO code (e.g. "en", "ta", "hi", etc.).
-- If language is NOT "en", accurately translate title to English in "titleEn" and description to English in "descriptionEn".
-- If language IS "en", set "titleEn" and "descriptionEn" to empty string or null.
+Instructions:
+1. "category": Must be strictly one of the Category IDs from the list above. Do NOT invent new IDs.
+2. "confidence": A number from 0.0 to 1.0 indicating your confidence in the category choice.
+3. "priority": One of LOW, MEDIUM, HIGH, CRITICAL.
+4. "reasoning": 1-2 sentence explanation connecting the evidence/text to the chosen category.
+5. "language": Detect 2-letter ISO code (e.g. "en", "ta", "hi", etc.).
+6. "titleEn": If language is NOT "en", accurately translate title to English, else null.
+7. "descriptionEn": If language is NOT "en", accurately translate description to English, else null.
 
-Return JSON matching schema.`;
+Return strictly JSON matching schema.`;
 
-  const apiCall = model.generateContent(prompt);
-  const response = await withTimeout(apiCall, 10000, 'Gemini complaint routing classification timed out after 10s');
+  const contentParts: any[] = [prompt];
+  if (imageUrlOrBase64 && imageUrlOrBase64.trim()) {
+    try {
+      const imagePart = await prepareGeminiImagePart(imageUrlOrBase64.trim());
+      contentParts.push(imagePart);
+    } catch (imgErr) {
+      console.warn('[Gemini AI] Failed to prepare image part for classification, falling back to text-only:', imgErr);
+    }
+  }
+
+  const response = await callWithRetry(
+    () => withTimeout(model.generateContent(contentParts), 60000, 'Gemini complaint routing classification timed out after 60s'),
+    2,
+    [1000, 2000],
+    'Gemini Classification',
+  );
   const parsed = JSON.parse(response.response.text());
 
   const validCategoryIds = new Set(availableCategories.map((c) => c.id));
-  let selectedCategory = String(parsed.category || '').trim();
-  if (!validCategoryIds.has(selectedCategory)) {
+  const rawCategoryId = String(parsed.category || '').trim();
+  let matchedCategoryId: string | null = null;
+  if (validCategoryIds.has(rawCategoryId)) {
+    matchedCategoryId = rawCategoryId;
+  } else {
     const matchedByName = availableCategories.find(
-      (c) => c.name.toLowerCase() === selectedCategory.toLowerCase(),
+      (c) => c.name.toLowerCase() === rawCategoryId.toLowerCase(),
     );
-    selectedCategory = matchedByName ? matchedByName.id : availableCategories[0].id;
+    if (matchedByName) {
+      matchedCategoryId = matchedByName.id;
+    }
   }
+
+  const confidenceScore = typeof parsed.confidence === 'number'
+    ? Math.min(Math.max(parsed.confidence, 0), 1)
+    : 0.5;
 
   let selectedPriority = String(parsed.priority || '').toUpperCase() as 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   if (!['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].includes(selectedPriority)) {
@@ -360,9 +463,28 @@ Return JSON matching schema.`;
   const titleEn = isNonEnglish && parsed.titleEn && String(parsed.titleEn).trim() ? String(parsed.titleEn).trim() : null;
   const descriptionEn = isNonEnglish && parsed.descriptionEn && String(parsed.descriptionEn).trim() ? String(parsed.descriptionEn).trim() : null;
 
+  const needsManualTriage = !matchedCategoryId || confidenceScore < 0.5;
+
+  if (needsManualTriage) {
+    return {
+      category: null,
+      priority: null,
+      confidence: confidenceScore,
+      needsManualTriage: true,
+      reasoning: `Confidence low (${confidenceScore.toFixed(2)}) or unverified category ("${rawCategoryId}"). Flagged for manual triage by staff.`,
+      language: detectedLang,
+      titleEn,
+      descriptionEn,
+      fallbackTriggered: false,
+      provider: 'gemini',
+    };
+  }
+
   return {
-    category: selectedCategory,
+    category: matchedCategoryId,
     priority: selectedPriority,
+    confidence: confidenceScore,
+    needsManualTriage: false,
     reasoning: parsed.reasoning || 'AI triage classification complete via Gemini.',
     language: detectedLang,
     titleEn,
@@ -578,17 +700,22 @@ async function classifyComplaintRoutingGroq(
   complaintTitle: string,
   availableCategories: CategoryInfo[],
   hintLang?: string,
+  imageUrlOrBase64?: string | null,
 ): Promise<ComplaintRoutingResult> {
   const model = getGroqModel();
   const categoryOptionsStr = availableCategories
-    .map((c) => `- ID: "${c.id}", Name: "${c.name}" (${c.description || ''})`)
+    .map(
+      (c) =>
+        `- ID: "${c.id}" | Name: "${c.name}" | Department: "${c.department || c.departmentId || 'Unassigned'}" | Description: "${c.description || ''}"`,
+    )
     .join('\n');
 
   const prompt = `You are an AI Civic Complaint Triage and Translation Engine for a Smart City Platform.
-Analyze the complaint title and description, detect its language, classify category and priority, and translate to English if not English.
+Analyze the complaint information (including the attached image if provided), detect its language, classify category and priority, and assess confidence.
 
 Complaint Title: ${complaintTitle}
 Complaint Description: ${complaintDescription}
+${imageUrlOrBase64 ? 'An evidence photograph is attached. Analyze both the photograph and text to identify the civic issue and department.' : 'No photograph attached. Analyze the text description.'}
 
 Available Categories:
 ${categoryOptionsStr}
@@ -598,12 +725,22 @@ Allowed Priority Levels: LOW, MEDIUM, HIGH, CRITICAL.
 Return strictly a JSON object with:
 {
   "category": "<Must be one of the Available Category IDs above>",
+  "confidence": <number between 0.0 and 1.0>,
   "priority": "<LOW | MEDIUM | HIGH | CRITICAL>",
   "reasoning": "<1-2 sentence explanation>",
   "language": "<2-letter ISO code e.g. en, ta, hi>",
   "titleEn": "<English title translation if not en, else null>",
   "descriptionEn": "<English description translation if not en, else null>"
 }`;
+
+  const userContent: any[] = [{ type: 'text', text: prompt }];
+  if (imageUrlOrBase64 && imageUrlOrBase64.trim()) {
+    let formattedUrl = imageUrlOrBase64.trim();
+    if (!formattedUrl.startsWith('data:') && !formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+      formattedUrl = `data:image/jpeg;base64,${formattedUrl}`;
+    }
+    userContent.push({ type: 'image_url', image_url: { url: formattedUrl } });
+  }
 
   const payload = {
     model,
@@ -614,24 +751,38 @@ Return strictly a JSON object with:
       },
       {
         role: 'user',
-        content: prompt,
+        content: userContent.length === 1 ? prompt : userContent,
       },
     ],
     response_format: { type: 'json_object' },
   };
 
-  const json = await callGroqChatCompletions(payload, 10000);
+  const json = await callWithRetry(
+    () => callGroqChatCompletions(payload, 20000),
+    2,
+    [1000, 2000],
+    'Groq Classification',
+  );
   const content = json?.choices?.[0]?.message?.content || '{}';
   const parsed = JSON.parse(content);
 
   const validCategoryIds = new Set(availableCategories.map((c) => c.id));
-  let selectedCategory = String(parsed.category || '').trim();
-  if (!validCategoryIds.has(selectedCategory)) {
+  const rawCategoryId = String(parsed.category || '').trim();
+  let matchedCategoryId: string | null = null;
+  if (validCategoryIds.has(rawCategoryId)) {
+    matchedCategoryId = rawCategoryId;
+  } else {
     const matchedByName = availableCategories.find(
-      (c) => c.name.toLowerCase() === selectedCategory.toLowerCase(),
+      (c) => c.name.toLowerCase() === rawCategoryId.toLowerCase(),
     );
-    selectedCategory = matchedByName ? matchedByName.id : availableCategories[0].id;
+    if (matchedByName) {
+      matchedCategoryId = matchedByName.id;
+    }
   }
+
+  const confidenceScore = typeof parsed.confidence === 'number'
+    ? Math.min(Math.max(parsed.confidence, 0), 1)
+    : 0.5;
 
   let selectedPriority = String(parsed.priority || '').toUpperCase() as 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   if (!['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].includes(selectedPriority)) {
@@ -647,9 +798,28 @@ Return strictly a JSON object with:
   const titleEn = isNonEnglish && parsed.titleEn && String(parsed.titleEn).trim() ? String(parsed.titleEn).trim() : null;
   const descriptionEn = isNonEnglish && parsed.descriptionEn && String(parsed.descriptionEn).trim() ? String(parsed.descriptionEn).trim() : null;
 
+  const needsManualTriage = !matchedCategoryId || confidenceScore < 0.5;
+
+  if (needsManualTriage) {
+    return {
+      category: null,
+      priority: null,
+      confidence: confidenceScore,
+      needsManualTriage: true,
+      reasoning: `Confidence low (${confidenceScore.toFixed(2)}) or unverified category ("${rawCategoryId}"). Flagged for manual triage by staff.`,
+      language: detectedLang,
+      titleEn,
+      descriptionEn,
+      fallbackTriggered: false,
+      provider: 'groq',
+    };
+  }
+
   return {
-    category: selectedCategory,
+    category: matchedCategoryId,
     priority: selectedPriority,
+    confidence: confidenceScore,
+    needsManualTriage: false,
     reasoning: parsed.reasoning || 'AI triage classification complete via Groq.',
     language: detectedLang,
     titleEn,
@@ -823,13 +993,14 @@ export async function classifyComplaintRouting(
   complaintTitle = '',
   availableCategories: CategoryInfo[] = DEFAULT_CATEGORIES,
   hintLang?: string,
+  imageUrlOrBase64?: string | null,
 ): Promise<ComplaintRoutingResult> {
   const fallback = fallbackKeywordRouting(complaintTitle, complaintDescription, hintLang);
   const primaryProvider = getActiveAiProvider();
 
   if (primaryProvider === 'groq') {
     try {
-      return await classifyComplaintRoutingGroq(complaintDescription, complaintTitle, availableCategories, hintLang);
+      return await classifyComplaintRoutingGroq(complaintDescription, complaintTitle, availableCategories, hintLang, imageUrlOrBase64);
     } catch (err: any) {
       const { status, message } = sanitizeAiErrorMessage(err);
       console.error(`[AI Provider: Groq] Classification failed: Status ${status} - ${message}`);
@@ -843,14 +1014,14 @@ export async function classifyComplaintRouting(
 
   // Primary: Gemini
   try {
-    return await classifyComplaintRoutingGemini(complaintDescription, complaintTitle, availableCategories, hintLang);
+    return await classifyComplaintRoutingGemini(complaintDescription, complaintTitle, availableCategories, hintLang, imageUrlOrBase64);
   } catch (errGemini: any) {
     const { status: geminiStatus, message: geminiMsg } = sanitizeAiErrorMessage(errGemini);
     console.warn(`[Gemini AI] Classification failed (HTTP ${geminiStatus}): ${geminiMsg}. Attempting failover to Groq...`);
 
     if (shouldFailover(geminiStatus) && getGroqApiKey()) {
       try {
-        return await classifyComplaintRoutingGroq(complaintDescription, complaintTitle, availableCategories, hintLang);
+        return await classifyComplaintRoutingGroq(complaintDescription, complaintTitle, availableCategories, hintLang, imageUrlOrBase64);
       } catch (errGroq: any) {
         const { status: groqStatus, message: groqMsg } = sanitizeAiErrorMessage(errGroq);
         console.error(`[Groq AI Failover] Classification also failed: Status ${groqStatus} - ${groqMsg}`);

@@ -283,4 +283,52 @@ test.describe('Citizen Voice Assistant & Dictation E2E Suite', () => {
     const usedLang = await page.evaluate(() => (window as any).__lastLang);
     expect(usedLang).toBe('hi-IN');
   });
+
+  test('Case 8: repeated interim events followed by final event -> textarea has the phrase exactly once (no duplication)', async ({ page }) => {
+    await page.goto('/citizen/complaints/new');
+    await page.waitForLoadState('domcontentloaded');
+
+    const descMic = page.getByRole('button', { name: /Dictate Description/i });
+    await expect(descMic).toBeVisible();
+    await descMic.click();
+
+    await page.waitForTimeout(50);
+    // Emit repeated interim results for partial and full phrase, then final result
+    await page.evaluate(() => {
+      const rec = (window as any).__activeSpeechRecognition || (window as any).__lastSpeechRecognition;
+      // First interim: partial
+      rec.onresult({
+        resultIndex: 0,
+        results: [
+          Object.assign([{ transcript: 'Broken streetlight' }], { isFinal: false, 0: { transcript: 'Broken streetlight' } })
+        ],
+      });
+      // Second interim: longer partial
+      rec.onresult({
+        resultIndex: 0,
+        results: [
+          Object.assign([{ transcript: 'Broken streetlight near the park gate' }], { isFinal: false, 0: { transcript: 'Broken streetlight near the park gate' } })
+        ],
+      });
+      // Third interim: repeated full text
+      rec.onresult({
+        resultIndex: 0,
+        results: [
+          Object.assign([{ transcript: 'Broken streetlight near the park gate' }], { isFinal: false, 0: { transcript: 'Broken streetlight near the park gate' } })
+        ],
+      });
+      // Final event: isFinal = true
+      rec.onresult({
+        resultIndex: 0,
+        results: [
+          Object.assign([{ transcript: 'Broken streetlight near the park gate' }], { isFinal: true, 0: { transcript: 'Broken streetlight near the park gate' } })
+        ],
+      });
+      if (rec.stop) rec.stop();
+    });
+
+    const descInput = page.locator('#description');
+    await expect(descInput).toHaveValue('Broken streetlight near the park gate');
+  });
 });
+

@@ -32,6 +32,14 @@ import { AppShell } from '@/components/shared/app-shell';
 import { LocationPicker } from '@/components/location-picker';
 import { compressPhoto, saveDraft, registerBackgroundSync } from '@/lib/offline-queue';
 import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 interface Category {
   id: string;
@@ -92,8 +100,15 @@ export default function NewComplaintPage() {
   const [isOnline, setIsOnline] = React.useState(true);
   const [parsingVoice, setParsingVoice] = React.useState(false);
   const [voiceFallbackActive, setVoiceFallbackActive] = React.useState(false);
+  const [voiceErrorModal, setVoiceErrorModal] = React.useState<{
+    open: boolean;
+    title: string;
+    message: string;
+  } | null>(null);
 
   const recognitionRef = React.useRef<any>(null);
+  const isListeningRef = React.useRef<boolean>(false);
+  const finalTextRef = React.useRef<string>('');
   const activeTargetRef = React.useRef<'title' | 'description' | 'address' | 'full' | null>(null);
   const sessionIdRef = React.useRef<number>(0);
   const fullTranscriptRef = React.useRef<string>('');
@@ -169,6 +184,11 @@ export default function NewComplaintPage() {
       return () => {
         window.removeEventListener('online', handleOnline);
         window.removeEventListener('offline', handleOffline);
+        isListeningRef.current = false;
+        if (recognitionRef.current) {
+          try { recognitionRef.current.abort(); } catch (e) {}
+          recognitionRef.current = null;
+        }
       };
     }
   }, []);
@@ -316,7 +336,8 @@ export default function NewComplaintPage() {
       return;
     }
 
-    if (listeningTarget === target) {
+    // Toggle off if already listening to the same target
+    if (isListeningRef.current && listeningTarget === target) {
       stopListening();
       return;
     }
@@ -332,16 +353,24 @@ export default function NewComplaintPage() {
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
+      setVoiceErrorModal({
+        open: true,
+        title: 'Voice Input Unsupported',
+        message: 'Speech recognition is not supported on this browser. Try Google Chrome or Microsoft Edge.',
+      });
       toast.error('Voice dictation is not supported on this browser. Try Chrome or Edge.');
       return;
     }
 
     const currentSessionId = ++sessionIdRef.current;
     activeTargetRef.current = target;
+    isListeningRef.current = true;
+    finalTextRef.current = '';
     fullTranscriptRef.current = '';
 
     const recognition = new SpeechRecognition();
-    recognition.continuous = target === 'full' || target === 'description';
+    // Prefer continuous=false with auto-restart on end per spec
+    recognition.continuous = false;
     recognition.interimResults = true;
     recognition.lang = voiceLang;
 
@@ -361,20 +390,35 @@ export default function NewComplaintPage() {
     recognition.onresult = (event: any) => {
       if (sessionIdRef.current !== currentSessionId) return;
 
-      let fullTranscript = '';
-      for (let i = 0; i < event.results.length; i++) {
-        fullTranscript += event.results[i][0].transcript;
+      let interim = '';
+      // Build text from event.results starting at event.resultIndex
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const item = event.results[i];
+        const transcript = item[0]?.transcript || '';
+        if (item.isFinal) {
+          const trimmed = transcript.trim();
+          if (trimmed) {
+            finalTextRef.current = finalTextRef.current
+              ? `${finalTextRef.current} ${trimmed}`
+              : trimmed;
+          }
+        } else {
+          interim += transcript;
+        }
       }
-      fullTranscriptRef.current = fullTranscript;
-      setTranscriptPreview(fullTranscript);
+
+      // Interim text in separate state shown only as a preview, never appended to final
+      setTranscriptPreview(interim);
+      fullTranscriptRef.current = finalTextRef.current;
 
       const currentTarget = activeTargetRef.current;
+      const finalVal = finalTextRef.current;
       if (currentTarget === 'title') {
-        setTitle(fullTranscript);
+        setTitle(finalVal);
       } else if (currentTarget === 'description') {
-        setDescription(fullTranscript);
+        setDescription(finalVal);
       } else if (currentTarget === 'address') {
-        setAddress(fullTranscript);
+        setAddress(finalVal);
       }
     };
 
@@ -384,6 +428,11 @@ export default function NewComplaintPage() {
       let errorMsg = `Voice dictation error (${event.error}).`;
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         errorMsg = 'Microphone permission denied. Please allow microphone access in your browser settings to use AI voice dictation.';
+        setVoiceErrorModal({
+          open: true,
+          title: 'Microphone Permission Denied',
+          message: 'Microphone access was denied. Please allow microphone permissions in your browser settings to use voice input.',
+        });
       } else if (event.error === 'language-not-supported') {
         errorMsg = `The selected language (${voiceLang}) is not supported by your browser's speech recognition engine. Try English (en-IN) or Google Chrome.`;
       } else if (event.error === 'network') {
@@ -400,27 +449,51 @@ export default function NewComplaintPage() {
 
     recognition.onend = async () => {
       if (sessionIdRef.current !== currentSessionId) return;
-      setListeningTarget(null);
+      setTranscriptPreview('');
 
       if (activeTargetRef.current === 'full') {
-        const transcript = fullTranscriptRef.current.trim();
+        isListeningRef.current = false;
+        setListeningTarget(null);
+        const transcript = (finalTextRef.current || fullTranscriptRef.current).trim();
         if (transcript) {
           await handleFullVoiceTranscript(transcript);
         }
+        return;
       }
+
+      // Auto-restart on end if user has not explicitly clicked stop
+      if (isListeningRef.current) {
+        try {
+          recognition.start();
+          return;
+        } catch (e) {
+          isListeningRef.current = false;
+          setListeningTarget(null);
+        }
+      }
+
+      setListeningTarget(null);
     };
 
     recognitionRef.current = recognition;
-    recognition.start();
+    try {
+      recognition.start();
+    } catch (e) {
+      console.warn('Recognition start failed', e);
+      isListeningRef.current = false;
+      setListeningTarget(null);
+    }
   };
 
   const stopListening = () => {
+    isListeningRef.current = false;
     if (recognitionRef.current) {
       try { recognitionRef.current.abort(); } catch (e) {}
       try { recognitionRef.current.stop(); } catch (e) {}
       recognitionRef.current = null;
     }
     setListeningTarget(null);
+    setTranscriptPreview('');
   };
 
   // Form Validation & Submission
@@ -495,8 +568,8 @@ export default function NewComplaintPage() {
           title: title.trim(),
           description: description.trim(),
           categoryId: categoryId || undefined,
-          isVoiceInput: usedVoiceInput || transcriptPreview !== '',
-          voiceTranscript: transcriptPreview || undefined,
+          isVoiceInput: usedVoiceInput || Boolean(fullTranscriptRef.current || finalTextRef.current),
+          voiceTranscript: fullTranscriptRef.current || finalTextRef.current || undefined,
         },
         latitude: latitude !== 0 && latitude !== null ? latitude : null,
         longitude: longitude !== 0 && longitude !== null ? longitude : null,
@@ -538,8 +611,8 @@ export default function NewComplaintPage() {
         title: title.trim(),
         description: description.trim(),
         evidence: evidenceUrls,
-        isVoiceInput: usedVoiceInput || transcriptPreview !== '',
-        voiceTranscript: transcriptPreview || undefined,
+        isVoiceInput: usedVoiceInput || Boolean(fullTranscriptRef.current || finalTextRef.current),
+        voiceTranscript: fullTranscriptRef.current || finalTextRef.current || undefined,
       };
 
       if (categoryId) {
@@ -1202,6 +1275,26 @@ export default function NewComplaintPage() {
             </form>
           </CardContent>
         </Card>
+
+        {/* Voice Dictation Error / Permission Modal */}
+        <Dialog open={!!voiceErrorModal} onOpenChange={(open) => !open && setVoiceErrorModal(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-rose-600">
+                <MicOff className="h-5 w-5 text-rose-600 shrink-0" />
+                {voiceErrorModal?.title}
+              </DialogTitle>
+              <DialogDescription className="text-slate-700 text-sm pt-2">
+                {voiceErrorModal?.message}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="default" onClick={() => setVoiceErrorModal(null)}>
+                Understood
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppShell>
   );

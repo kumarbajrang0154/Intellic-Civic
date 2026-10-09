@@ -5,6 +5,7 @@ import {
   classifyComplaintRouting,
   verifyComplaintPhoto,
   PhotoVerificationResult,
+  CategoryInfo,
 } from '@/services/gemini-service';
 
 export interface ComplaintCategory {
@@ -423,33 +424,60 @@ export async function createComplaint(data: {
   const mun = await getDefaultMunicipality();
   const targetMunicipalityId = data.municipalityId || mun.id;
 
-  // Load available categories from DB (or fallback to defaults)
-  const dbCategories = await prisma.category.findMany();
-  const availableCategories = dbCategories.length > 0
-    ? dbCategories.map((c) => ({ id: c.id, name: c.name, description: c.description }))
-    : DEFAULT_CATEGORIES.map((c) => ({ id: c.id, name: c.name, description: c.description }));
+  // Load available categories from DB (including department) or fallback to defaults
+  const dbCategories = await prisma.category.findMany({
+    include: { department: true },
+  });
+  const availableCategories: CategoryInfo[] = dbCategories.length > 0
+    ? dbCategories.map((c) => ({
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        department: c.department?.name,
+        departmentId: c.departmentId,
+      }))
+    : DEFAULT_CATEGORIES.map((c) => ({
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        department: c.departmentId,
+        departmentId: c.departmentId,
+      }));
 
-  // AI Complaint Routing Classification (using Gemini with fallback and language detection/translation)
-  const routingResult = await classifyComplaintRouting(data.description, data.title, availableCategories, data.language);
-
-  // Resolve Category
-  let targetCategoryId = data.categoryId;
-  if (!targetCategoryId) {
-    targetCategoryId = routingResult.category;
-  }
-
-  let targetCategory = dbCategories.find(
-    (c) => c.id === targetCategoryId || c.name.toLowerCase() === targetCategoryId?.toLowerCase(),
+  // AI Complaint Routing Classification (using Gemini with fallback, vision and language detection/translation)
+  const routingResult = await classifyComplaintRouting(
+    data.description,
+    data.title,
+    availableCategories,
+    data.language,
+    data.imageUrl,
   );
-  if (!targetCategory && dbCategories.length > 0) {
-    targetCategory = dbCategories[0];
+
+  // Fallback honesty & low confidence check
+  const isFallbackOrLowConfidence =
+    routingResult.provider === 'fallback' ||
+    routingResult.fallbackTriggered ||
+    routingResult.needsManualTriage ||
+    (routingResult.confidence !== undefined && routingResult.confidence < 0.5) ||
+    !routingResult.category;
+
+  // Resolve Category & Department
+  let targetCategoryId: string | null = null;
+  let targetCategory: (typeof dbCategories)[0] | null = null;
+
+  if (data.categoryId) {
+    targetCategoryId = data.categoryId;
+    targetCategory = dbCategories.find((c) => c.id === targetCategoryId) || null;
+  } else if (!isFallbackOrLowConfidence && routingResult.category) {
+    targetCategoryId = routingResult.category;
+    targetCategory = dbCategories.find((c) => c.id === targetCategoryId) || null;
   }
 
-  const finalCategoryId = targetCategory ? targetCategory.id : (data.categoryId || 'cat-sanitation');
-  const suggestedCategoryId = targetCategory ? targetCategory.id : routingResult.category;
-
-  // Resolve Priority
-  const priority = (routingResult.priority as PriorityLevel) || PriorityLevel.MEDIUM;
+  const finalCategoryId = targetCategory ? targetCategory.id : null;
+  const finalDepartmentId = targetCategory ? targetCategory.departmentId : null;
+  const finalPriority = (!isFallbackOrLowConfidence && routingResult.priority)
+    ? (routingResult.priority as PriorityLevel)
+    : (data.categoryId ? PriorityLevel.MEDIUM : null);
 
   // Photo Evidence Verification (using Gemini Vision API with fallback)
   let photoVerification: PhotoVerificationResult | null = null;
@@ -486,11 +514,11 @@ export async function createComplaint(data: {
       titleEn: routingResult.titleEn ?? null,
       descriptionEn: routingResult.descriptionEn ?? null,
       status: ComplaintStatus.SUBMITTED,
-      priority,
+      priority: finalPriority,
       citizenId: citizen.id,
       categoryId: finalCategoryId,
       originalCategoryId: finalCategoryId,
-      departmentId: targetCategory?.departmentId || undefined,
+      departmentId: finalDepartmentId,
       municipalityId: targetMunicipalityId,
       isVoiceInput: Boolean(data.isVoiceInput),
       voiceTranscript: data.voiceTranscript || undefined,
@@ -520,21 +548,27 @@ export async function createComplaint(data: {
       },
       aiPrediction: {
         create: {
-          suggestedCategoryId: suggestedCategoryId || undefined,
+          suggestedCategoryId: targetCategory?.id || (routingResult.category || undefined),
           suggestedDepartmentId: targetCategory?.departmentId || undefined,
-          suggestedPriority: priority,
-          confidenceScore: photoVerification ? photoVerification.confidence : 0.92,
+          suggestedPriority: (finalPriority || (routingResult.priority as PriorityLevel)) || undefined,
+          confidenceScore: routingResult.confidence ?? (photoVerification ? photoVerification.confidence : 0.92),
           rawResponse: {
-            recommendation: photoVerification
-              ? `AI Triage & Photo Verification completed. Photo Verified: ${photoVerification.verified}.`
-              : `Automated AI Triage assigned issue. Priority evaluated as ${priority}.`,
-            statusMessage: routingResult.reasoning.includes('Fallback') || routingResult.reasoning.includes('fallback')
-              ? 'AI unavailable — fallback used'
-              : 'AI Triage completed successfully.',
+            needsManualTriage: isFallbackOrLowConfidence,
+            provider: routingResult.provider,
+            recommendation: isFallbackOrLowConfidence
+              ? 'Low confidence or AI fallback: flagged for manual triage and review by staff.'
+              : (photoVerification
+                ? `AI Triage & Photo Verification completed. Photo Verified: ${photoVerification.verified}.`
+                : `AI routed to ${targetCategory?.name || 'Category'} (${targetCategory?.department?.name || 'Department'}).`),
+            statusMessage: isFallbackOrLowConfidence
+              ? 'Complaint will be reviewed by staff'
+              : 'AI triage classified and assigned to department',
             aiRouting: {
               category: routingResult.category,
               priority: routingResult.priority,
+              confidence: routingResult.confidence,
               reasoning: routingResult.reasoning,
+              provider: routingResult.provider,
             },
             photoVerification: photoVerification
               ? {
@@ -622,6 +656,8 @@ export async function listComplaints(filters?: {
     where.OR = [
       { status: ComplaintStatus.SUBMITTED },
       { status: ComplaintStatus.PENDING_DEPT_REVIEW, departmentId: null },
+      { departmentId: null },
+      { categoryId: null },
     ];
   }
 

@@ -727,8 +727,8 @@ export default function CitizenComplaintDetailPage() {
                   {complaint.department.name}
                 </div>
               ) : (
-                <div className="p-3 rounded-lg bg-muted border text-muted-foreground text-xs leading-relaxed">
-                  Your complaint is currently being reviewed in triage and will be assigned to the right municipal department shortly.
+                <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs leading-relaxed font-medium" data-testid="citizen-triage-notice">
+                  Your complaint will be reviewed by staff and assigned to the appropriate department.
                 </div>
               )}
             </CardContent>
@@ -752,7 +752,7 @@ export default function CitizenComplaintDetailPage() {
               <div className="flex justify-between border-b pb-2">
                 <span className="text-muted-foreground">Category</span>
                 <span className="font-medium text-foreground">
-                  {complaint.category?.name || 'General'}
+                  {complaint.category?.name || 'Pending Review (will be reviewed by staff)'}
                 </span>
               </div>
               {complaint.reopenCount && complaint.reopenCount > 0 ? (
