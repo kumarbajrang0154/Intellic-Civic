@@ -5,6 +5,7 @@ import {
   classifyComplaintRouting,
   verifyComplaintPhoto,
   PhotoVerificationResult,
+  ComplaintRoutingResult,
   CategoryInfo,
 } from '@/services/gemini-service';
 
@@ -67,6 +68,7 @@ export interface Complaint {
   descriptionEn?: string | null;
   status: 'SUBMITTED' | 'AI_PROCESSING' | 'PENDING_DEPT_REVIEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED' | 'REJECTED' | 'DUPLICATE';
   priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  needsTriage?: boolean;
   categoryId?: string;
   category?: ComplaintCategory | null;
   originalCategoryId?: string;
@@ -103,6 +105,7 @@ export interface Complaint {
     rawResponse?: {
       recommendation?: string;
       statusMessage?: string;
+      needsManualTriage?: boolean;
     };
   };
 }
@@ -447,16 +450,17 @@ export async function createComplaint(data: {
       }));
 
   // AI Complaint Routing Classification (using Gemini with fallback, vision and language detection/translation)
-  const routingResult = data.mockAiProvider === 'fallback'
+  const routingResult: ComplaintRoutingResult = data.mockAiProvider === 'fallback'
     ? {
         category: null,
         confidence: 0,
-        priority: 'MEDIUM' as const,
-        departmentId: null,
+        priority: 'MEDIUM',
         language: 'en',
+        titleEn: null,
+        descriptionEn: null,
+        reasoning: 'Fallback provider used for manual triage',
         needsManualTriage: true,
-        statusMessage: 'Complaint will be reviewed by staff',
-        provider: 'fallback' as const,
+        provider: 'fallback',
         fallbackTriggered: true,
       }
     : await classifyComplaintRouting(
