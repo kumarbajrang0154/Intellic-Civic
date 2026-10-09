@@ -95,16 +95,15 @@ export async function deleteCitizen(
     return { ok: false, status: 404, message: 'Citizen profile not found' };
   }
 
-  const res = await deleteUser(citizenId);
-  if (!res.success) {
-    const status =
-      res.reason === 'CITIZEN_HAS_COMPLAINTS' || res.reason === 'CITIZEN_HAS_FEEDBACK'
-        ? 409
-        : res.reason === 'NOT_FOUND'
-        ? 404
-        : 500;
-    return { ok: false, status, message: res.message };
-  }
+  const now = new Date();
+  await prisma.user.update({
+    where: { id: citizenId },
+    data: {
+      deletedAt: now,
+      isSuspended: true,
+      suspendedAt: now,
+    },
+  });
 
   await addAuditLog({
     actorId: actor.id,
@@ -113,8 +112,60 @@ export async function deleteCitizen(
     entityType: 'CITIZEN',
     targetId: citizen.id,
     targetName: citizen.name || citizen.mobileNumber || citizen.email || citizen.id,
-    metadata: { email: citizen.email, mobileNumber: citizen.mobileNumber },
+    metadata: {
+      deletedAt: now.toISOString(),
+      previousStatus: citizen.isSuspended ? 'SUSPENDED' : 'ACTIVE',
+      email: citizen.email,
+      mobileNumber: citizen.mobileNumber,
+    },
   });
 
   return { ok: true, status: 200, message: 'Citizen deleted successfully' };
+}
+
+export async function restoreCitizen(
+  citizenId: string,
+  actor: { id: string; name: string },
+): Promise<{ ok: boolean; status: number; message: string; citizen?: any }> {
+  const citizen = await prisma.user.findFirst({
+    where: { id: citizenId, role: UserRole.CITIZEN },
+  });
+  if (!citizen) {
+    return { ok: false, status: 404, message: 'Citizen profile not found' };
+  }
+
+  if (!citizen.isSuspended && !citizen.deletedAt) {
+    return { ok: true, status: 200, message: 'Citizen account is already active', citizen };
+  }
+
+  const previousStatus = citizen.deletedAt
+    ? 'DELETED'
+    : citizen.isSuspended
+    ? 'SUSPENDED'
+    : 'ACTIVE';
+
+  const updated = await prisma.user.update({
+    where: { id: citizenId },
+    data: {
+      isSuspended: false,
+      suspendedAt: null,
+      deletedAt: null,
+    },
+  });
+
+  const now = new Date();
+  await addAuditLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    action: 'CITIZEN_RESTORE',
+    entityType: 'CITIZEN',
+    targetId: citizen.id,
+    targetName: citizen.name || citizen.mobileNumber || citizen.email || citizen.id,
+    metadata: {
+      restoredAt: now.toISOString(),
+      previousStatus,
+    },
+  });
+
+  return { ok: true, status: 200, message: 'Citizen account restored successfully', citizen: updated };
 }

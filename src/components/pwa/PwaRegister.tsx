@@ -10,7 +10,7 @@ export function PwaRegister() {
   const [showBanner, setShowBanner] = React.useState(false);
   const [isIos, setIsIos] = React.useState(false);
 
-  const isEligiblePage = pathname === '/citizen' || (pathname ? pathname.startsWith('/login') : false);
+  const isEligiblePage = pathname === '/' || pathname === '/citizen' || (pathname ? pathname.startsWith('/login') : false);
 
   React.useEffect(() => {
     // 1. Service Worker Registration

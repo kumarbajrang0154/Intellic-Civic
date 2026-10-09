@@ -34,7 +34,7 @@ export function PwaInstallBanner({
             />
           </div>
           <div className="min-w-0">
-            <h4 className="text-xs sm:text-sm font-bold text-[#131E20] truncate">Install IntelliCivic</h4>
+            <h4 className="text-xs sm:text-sm font-bold text-[#131E20] truncate">Install IntelliCivic App</h4>
             <p className="text-[11px] text-[#6E6B64] truncate">Offline-ready smart city app</p>
           </div>
         </div>

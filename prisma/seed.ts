@@ -1,4 +1,69 @@
+import 'dotenv/config';
 import { PrismaClient, UserRole, AuthProvider, ComplaintStatus, PriorityLevel, EvidenceStage } from '@prisma/client';
+
+// Safety Guard: enforce --force flag and TEST_DATABASE_HOST
+function enforceSafetyGuard() {
+  const hasForce = process.argv.includes('--force');
+  if (!hasForce) {
+    console.error(
+      `\n====================================================================\n` +
+      `[DATABASE SAFETY GUARD] ABORTED: prisma/seed.ts requires an explicit --force flag.\n` +
+      `Usage: npx tsx prisma/seed.ts --force\n` +
+      `====================================================================\n`
+    );
+    process.exit(1);
+  }
+
+  const expectedHost = process.env.TEST_DATABASE_HOST?.trim();
+  if (!expectedHost) {
+    console.error(
+      `\n====================================================================\n` +
+      `[DATABASE SAFETY GUARD] ABORTED: TEST_DATABASE_HOST is not set in environment.\n` +
+      `Seeding is blocked to protect against touching the wrong database.\n` +
+      `====================================================================\n`
+    );
+    process.exit(1);
+  }
+
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) {
+    console.error(
+      `\n====================================================================\n` +
+      `[DATABASE SAFETY GUARD] ABORTED: DATABASE_URL is not set in environment.\n` +
+      `====================================================================\n`
+    );
+    process.exit(1);
+  }
+
+  let actualHost = '';
+  let actualHostname = '';
+  try {
+    const parsed = new URL(dbUrl);
+    actualHost = parsed.host;
+    actualHostname = parsed.hostname;
+  } catch {
+    console.error(
+      `\n====================================================================\n` +
+      `[DATABASE SAFETY GUARD] ABORTED: DATABASE_URL could not be parsed as a valid URL.\n` +
+      `====================================================================\n`
+    );
+    process.exit(1);
+  }
+
+  if (actualHost !== expectedHost && actualHostname !== expectedHost) {
+    console.error(
+      `\n====================================================================\n` +
+      `[DATABASE SAFETY GUARD] ABORTED: DATABASE_URL host (${actualHost}) does not match TEST_DATABASE_HOST (${expectedHost}).\n` +
+      `Seeding is blocked from touching non-test databases.\n` +
+      `====================================================================\n`
+    );
+    process.exit(1);
+  }
+
+  console.log(`[DATABASE SAFETY GUARD] Verified: DATABASE_URL host matches TEST_DATABASE_HOST (${expectedHost}).`);
+}
+
+enforceSafetyGuard();
 
 const prisma = new PrismaClient();
 

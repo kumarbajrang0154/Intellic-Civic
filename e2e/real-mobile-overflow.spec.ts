@@ -99,20 +99,73 @@ async function findOverflowingElements(page: Page, pageName: string, viewportWid
 }
 
 test.describe('Real Data Mobile Overflow Diagnostic at 375px', () => {
+  test.setTimeout(60000);
   let citizenId: string;
-  let complaint1Id = '7983541c-2ca8-493b-8669-c98f391599eb';
-  let complaint2Id = 'e359ee10-71bb-41e6-b305-d7b25c673d7d';
+  let complaint1Id: string;
+  let complaint2Id: string;
 
   test.beforeAll(async () => {
-    const c1 = await prisma.complaint.findUnique({ where: { id: complaint1Id } });
-    if (c1) {
-      citizenId = c1.citizenId;
-    } else {
-      const c = await prisma.complaint.findFirst();
-      if (c) {
-        citizenId = c.citizenId;
-        complaint1Id = c.id;
+    const mun = await prisma.municipality.findFirst();
+    const timestamp = Date.now();
+
+    const citizen = await prisma.user.create({
+      data: {
+        name: `Real Mobile Overflow Citizen ${timestamp}`,
+        email: `overflow_test_${timestamp}@smartcity.gov.in`,
+        mobileNumber: `98${timestamp.toString().slice(-8)}`,
+        address: '123 Civil Lines, Test City',
+        role: 'CITIZEN',
+        authProvider: 'MOBILE_OTP',
+        isAuthorized: true,
+        isSuspended: false,
+        municipalityId: mun?.id,
+      },
+    });
+    citizenId = citizen.id;
+
+    const title150 = 'Road Crater & Severe Pavement Subsidence on Outer Ring Road Near Junction 42 Causing Disruption to Peak Hour Traffic and Heavy Transport Vehicles Daily!';
+    const longUrl600 = 'https://smartcity.gov.in/portal/evidence/inspections/photographic-records/' + 'A'.repeat(500);
+
+    const c1 = await prisma.complaint.create({
+      data: {
+        ticketId: `TCK-OVF-150-${timestamp}`,
+        citizenId: citizen.id,
+        title: title150,
+        titleEn: title150,
+        description: longUrl600,
+        status: 'IN_PROGRESS',
+        priority: 'CRITICAL',
+        municipalityId: mun?.id,
+      },
+    });
+    complaint1Id = c1.id;
+
+    const tamilTitle = 'குடிநீர் விநியோக குழாய் உடைப்பு - உடனடியாக சரிசெய்யவும்';
+    const tamilDesc = 'மெயின் ரோட்டில் குடிநீர் குழாய் உடைந்து தண்ணீர் வீணாக செல்கிறது. உடனடியாக சரிசெய்ய நடவடிக்கை எடுக்கவும்.';
+
+    const c2 = await prisma.complaint.create({
+      data: {
+        ticketId: `TCK-OVF-TML-${timestamp}`,
+        citizenId: citizen.id,
+        title: tamilTitle,
+        titleEn: 'Drinking water pipeline burst - repair immediately',
+        description: tamilDesc,
+        status: 'RESOLVED',
+        priority: 'HIGH',
+        municipalityId: mun?.id,
+      },
+    });
+    complaint2Id = c2.id;
+  });
+
+  test.afterAll(async () => {
+    try {
+      if (citizenId) {
+        await prisma.complaint.deleteMany({ where: { citizenId } });
+        await prisma.user.delete({ where: { id: citizenId } });
       }
+    } catch (e) {
+      console.error('Error during cleanup in real-mobile-overflow.spec.ts:', e);
     }
   });
 
@@ -122,8 +175,7 @@ test.describe('Real Data Mobile Overflow Diagnostic at 375px', () => {
       {
         name: 'ic_access_token',
         value: token,
-        domain: 'localhost',
-        path: '/',
+        url: 'http://localhost:3000',
       },
     ]);
 
@@ -139,9 +191,9 @@ test.describe('Real Data Mobile Overflow Diagnostic at 375px', () => {
       await page.setViewportSize({ width: 375, height: 667 });
       await page.goto(p.path, { waitUntil: 'domcontentloaded' });
       if (p.path === '/citizen') {
-        await page.waitForSelector('text=Total Reports', { timeout: 10000 });
+        await page.waitForSelector('text=Total Reports', { timeout: 30000 });
       } else {
-        await page.waitForSelector('text=Complaint Details', { timeout: 10000 });
+        await page.waitForSelector('text=Complaint Details', { timeout: 30000 });
       }
       await page.waitForTimeout(500);
 

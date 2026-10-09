@@ -26,9 +26,8 @@ const ALLOWED_DEV_EMAILS = new Set([
 
 export async function POST(req: NextRequest) {
   const isProduction =
-    (process.env.NODE_ENV === 'production' && process.env.ENABLE_DEV_LOGIN !== 'true') ||
+    process.env.NODE_ENV === 'production' ||
     process.env.VERCEL_ENV === 'production' ||
-    process.env.VERCEL === '1' ||
     req.headers.get('x-simulated-env') === 'production';
 
   if (isProduction) {

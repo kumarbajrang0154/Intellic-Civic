@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
 import prisma from '@/lib/prisma';
 import { isSuperAdminTarget } from '@/lib/staff-dept-store';
-import { activateCitizen, deleteCitizen, suspendCitizen } from '@/services/citizenAdminService';
+import { activateCitizen, deleteCitizen, restoreCitizen, suspendCitizen } from '@/services/citizenAdminService';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const { action, ids, reason } = body;
 
-    if (!action || !['SUSPEND', 'ACTIVATE', 'DELETE'].includes(action)) {
+    if (!action || !['SUSPEND', 'ACTIVATE', 'DELETE', 'RESTORE'].includes(action)) {
       return NextResponse.json({ message: 'Invalid or missing action' }, { status: 400 });
     }
 
@@ -91,6 +91,13 @@ export async function POST(req: NextRequest) {
           const res = await deleteCitizen(id, auth.admin);
           if (res.ok) {
             results.push({ id, ok: true, message: 'Deleted successfully' });
+          } else {
+            results.push({ id, ok: false, error: res.message });
+          }
+        } else if (action === 'RESTORE') {
+          const res = await restoreCitizen(id, auth.admin);
+          if (res.ok) {
+            results.push({ id, ok: true, message: 'Restored successfully' });
           } else {
             results.push({ id, ok: false, error: res.message });
           }
