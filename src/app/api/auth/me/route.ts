@@ -3,6 +3,21 @@ import { NextResponse } from 'next/server';
 import { decodeJwtToken } from '@/lib/auth-jwt';
 import { getOrCreateCitizenProfile } from '@/lib/user-store';
 
+function formatAvatarUrl(userId: string, rawUrl?: string | null): string | null {
+  if (!rawUrl || typeof rawUrl !== 'string') return null;
+  const trimmed = rawUrl.trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('data:')) {
+    return `/api/users/${userId}/avatar`;
+  }
+  if (trimmed.startsWith('/api/users/')) {
+    return trimmed;
+  }
+  return null;
+}
+
 export async function GET() {
   try {
     const cookieStore = cookies();
@@ -54,7 +69,7 @@ export async function GET() {
             name: profile.name || `Citizen (${profile.mobileNumber ? '+91 ' + profile.mobileNumber : profile.email || 'User'})`,
             email: profile.email || null,
             address: profile.address || null,
-            avatarUrl: profile.avatarUrl || null,
+            avatarUrl: formatAvatarUrl(profile.id, profile.avatarUrl),
             role: 'CITIZEN',
             isProfileComplete: profile.isProfileComplete,
           },
@@ -89,10 +104,6 @@ export async function GET() {
     }
 
     if (staffUser) {
-      if (staffUser.avatarUrl && staffUser.avatarUrl.startsWith('data:') && staffUser.avatarUrl.length > 100 * 1024) {
-        console.warn(`[api/auth/me] Base64 avatar payload size: ${(staffUser.avatarUrl.length / 1024).toFixed(2)} KB for user ${staffUser.id}`);
-      }
-
       return NextResponse.json({
         user: {
           id: staffUser.id,
@@ -103,7 +114,7 @@ export async function GET() {
           municipalityId: staffUser.municipalityId,
           isAuthorized: staffUser.isAuthorized,
           isSuspended: staffUser.isSuspended,
-          avatarUrl: staffUser.avatarUrl ?? null,
+          avatarUrl: formatAvatarUrl(staffUser.id, staffUser.avatarUrl),
         },
       });
     }

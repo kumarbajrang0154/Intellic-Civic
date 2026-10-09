@@ -1,6 +1,4 @@
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
-import fs from 'node:fs';
-import path from 'node:path';
 
 export interface PhotoVerificationResult {
   verified: boolean;
@@ -307,47 +305,6 @@ export async function classifyComplaintRouting(
   hintLang?: string,
 ): Promise<ComplaintRoutingResult> {
   const fallback = fallbackKeywordRouting(complaintTitle, complaintDescription, hintLang);
-
-  // In test environments or when a local mock config exists, handle mocked Gemini
-  const mockFilePath = path.join(process.cwd(), '.gemini-mock.json');
-  if (fs.existsSync(mockFilePath)) {
-    try {
-      const rawMock = fs.readFileSync(mockFilePath, 'utf8');
-        const mockData = JSON.parse(rawMock);
-        if (mockData.mode === 'fail') {
-          throw new Error('Mocked Gemini API failure for test verification');
-        }
-        if (mockData.mode === 'success') {
-          const detectedLang = mockData.language || 'en';
-          return {
-            category: mockData.category || 'cat-sanitation',
-            priority: mockData.priority || 'MEDIUM',
-            reasoning: mockData.reasoning || 'Mocked Gemini AI classification.',
-            language: detectedLang,
-            titleEn: detectedLang !== 'en' ? (mockData.titleEn ?? null) : null,
-            descriptionEn: detectedLang !== 'en' ? (mockData.descriptionEn ?? null) : null,
-            fallbackTriggered: false,
-          };
-        }
-    } catch (mockErr: any) {
-      if (mockErr.message && mockErr.message.includes('Mocked Gemini API failure')) {
-        const currentModel = getGeminiModel();
-        const { status, message } = sanitizeAiErrorMessage(mockErr);
-        console.error('[Gemini AI] ROUTING_CLASSIFICATION_FAILED', {
-          type: 'GEMINI_CLASSIFICATION_FAILED',
-          model: currentModel,
-          status,
-          errorMessage: message,
-          timestamp: new Date().toISOString(),
-        });
-        return {
-          ...fallback,
-          reasoning: `[Fallback Heuristic Used — Gemini Error: ${message}] ${fallback.reasoning}`,
-          fallbackTriggered: true,
-        };
-      }
-    }
-  }
 
   const genAI = getGeminiClient();
   if (!genAI) {
