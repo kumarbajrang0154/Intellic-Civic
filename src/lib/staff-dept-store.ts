@@ -509,9 +509,10 @@ export async function approveUser(
   role: UserItem['role'],
   departmentId?: string | null,
 ): Promise<UserItem | null> {
+  const needsDept = role === 'DEPARTMENT_OFFICER' || role === 'FIELD_WORKER';
   return updateUser(id, {
     role,
-    departmentId: role === 'ADMIN' ? null : departmentId,
+    departmentId: needsDept ? (departmentId || null) : null,
     isAuthorized: true,
     isSuspended: false,
   });

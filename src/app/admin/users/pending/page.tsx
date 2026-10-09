@@ -148,12 +148,13 @@ export default function AdminPendingUsersPage() {
     if (!approveUser) return;
     setSubmitting(true);
     try {
+      const needsDept = selectedRole === 'DEPARTMENT_OFFICER' || selectedRole === 'FIELD_WORKER';
       const res = await fetch(`/api/users/${approveUser.id}/approve`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           role: selectedRole,
-          departmentId: selectedDeptId,
+          departmentId: needsDept ? selectedDeptId : null,
         }),
       });
 
@@ -297,7 +298,7 @@ export default function AdminPendingUsersPage() {
                 </Select>
               </div>
 
-              {selectedRole !== 'ADMIN' && (
+              {['DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(selectedRole) && (
                 <div>
                   <label className="text-xs font-semibold text-slate-700 block mb-1">
                     Assign Department
@@ -350,7 +351,7 @@ export default function AdminPendingUsersPage() {
                 </Select>
               </div>
 
-              {bulkRole !== 'ADMIN' && (
+              {['DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(bulkRole) && (
                 <div>
                   <label className="text-xs font-semibold text-slate-700 block mb-1">
                     Assign Department
@@ -375,7 +376,8 @@ export default function AdminPendingUsersPage() {
                 disabled={bulkSubmitting}
                 onClick={() => {
                   setShowBulkApproveDialog(false);
-                  handleBulkAction('APPROVE', { role: bulkRole, departmentId: bulkRole === 'ADMIN' ? null : bulkDeptId });
+                  const needsDept = ['DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(bulkRole);
+                  handleBulkAction('APPROVE', { role: bulkRole, departmentId: needsDept ? bulkDeptId : null });
                 }}
               >
                 {bulkSubmitting ? 'Approving...' : `Approve ${selectedIds.length} Staff`}

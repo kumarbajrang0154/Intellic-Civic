@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { decodeJwtToken } from '@/lib/auth-jwt';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } },
 ) {
   try {
+    const token = req.cookies.get('ic_access_token')?.value;
+    if (!token) {
+      return new NextResponse('Unauthorized: Valid session required', { status: 401 });
+    }
+    const payload = decodeJwtToken(token);
+    if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
+      return new NextResponse('Unauthorized: Session expired or invalid', { status: 401 });
+    }
+
     const userId = params.id;
     if (!userId) {
       return new NextResponse('User ID required', { status: 400 });
@@ -38,7 +48,7 @@ export async function GET(
           headers: {
             'Content-Type': mimeType,
             'Content-Length': buffer.length.toString(),
-            'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
+            'Cache-Control': 'private, max-age=86400',
           },
         });
       }
@@ -50,7 +60,7 @@ export async function GET(
       return NextResponse.redirect(avatarUrl, {
         status: 302,
         headers: {
-          'Cache-Control': 'public, max-age=86400',
+          'Cache-Control': 'private, max-age=86400',
         },
       });
     }

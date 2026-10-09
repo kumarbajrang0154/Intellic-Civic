@@ -227,4 +227,89 @@ test.describe('Multi-Provider AI Auto-Failover & Visibility Suite', () => {
       expect([200, 401, 429]).toContain(health.status);
     }
   });
+
+  test('5. Inert failover: with GROQ_API_KEY empty and Gemini OK, prove no Groq call is made', async () => {
+    process.env.AI_PROVIDER = 'gemini';
+    process.env.GEMINI_API_KEY = 'mock-valid-gemini-key';
+    delete process.env.GROQ_API_KEY;
+
+    let groqCallMade = false;
+    const originalFetch = global.fetch;
+
+    global.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      if (url.includes('api.groq.com')) {
+        groqCallMade = true;
+      }
+      if (url.includes('generativelanguage.googleapis.com')) {
+        return new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        category: 'cat-sanitation',
+                        priority: 'MEDIUM',
+                        reasoning: 'Overflowing garbage bin on street corner.',
+                        language: 'en',
+                      }),
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      return originalFetch(input, init);
+    };
+
+    try {
+      const result = await classifyComplaintRouting('Garbage dump not cleared', 'Garbage dump', DEFAULT_CATEGORIES);
+      expect(result.fallbackTriggered).toBe(false);
+      expect(result.provider).toBe('gemini');
+      expect(groqCallMade).toBe(false);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  test('6. With Gemini 403 mocked and no Groq key, result is heuristics plus a clear reason', async () => {
+    process.env.AI_PROVIDER = 'gemini';
+    process.env.GEMINI_API_KEY = 'mock-denied-gemini-key';
+    delete process.env.GROQ_API_KEY;
+
+    const originalFetch = global.fetch;
+
+    global.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      if (url.includes('generativelanguage.googleapis.com')) {
+        return new Response(
+          JSON.stringify({
+            error: { code: 403, message: 'Google project permission denied' },
+          }),
+          { status: 403, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      return originalFetch(input, init);
+    };
+
+    try {
+      const result = await classifyComplaintRouting(
+        'Water pipeline leaking heavily onto the main junction',
+        'Water leak emergency',
+        DEFAULT_CATEGORIES,
+      );
+      expect(result.fallbackTriggered).toBe(true);
+      expect(result.provider).toBe('fallback');
+      expect(result.category).toBe('cat-water');
+      expect(result.reasoning).toBeTruthy();
+      expect(result.reasoning).toContain('AI unavailable — fallback used');
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
 });

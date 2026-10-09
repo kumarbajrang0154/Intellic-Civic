@@ -79,17 +79,27 @@ test.describe('Auth Me & Cached Avatar Route (/api/auth/me + /api/users/[id]/ava
     expect(payloadBytes).toBeLessThan(1024);
   });
 
-  test('2. GET /api/users/[id]/avatar serves the cached binary image with proper headers', async ({ request }) => {
+  test('2. GET /api/users/[id]/avatar serves binary image with session auth and private cache-control', async ({ request }) => {
     // Update to valid PNG data URI so binary decode is a real image
     await prisma.user.update({
       where: { id: testAdminId },
       data: { avatarUrl: TEST_DATA_URI },
     });
 
-    const res = await request.get(`/api/users/${testAdminId}/avatar`);
+    // Unauthenticated: no cookie -> 401
+    const unauthRes = await request.get(`/api/users/${testAdminId}/avatar`);
+    expect(unauthRes.status()).toBe(401);
+
+    // Authenticated with valid session cookie -> 200
+    const token = await createAdminToken(testAdminId);
+    const res = await request.get(`/api/users/${testAdminId}/avatar`, {
+      headers: {
+        Cookie: `ic_access_token=${token}`,
+      },
+    });
     expect(res.status()).toBe(200);
     expect(res.headers()['content-type']).toBe('image/png');
-    expect(res.headers()['cache-control']).toContain('public');
+    expect(res.headers()['cache-control']).toContain('private');
     expect(res.headers()['cache-control']).toContain('max-age=86400');
 
     const imageBuffer = await res.body();

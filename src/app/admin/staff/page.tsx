@@ -371,11 +371,12 @@ export default function AdminStaffPage() {
   async function handleReassign() {
     if (!reassignTarget) return;
     setReassigning(true); setReassignError('');
+    const reassignNeedsDept = ['DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(reassignRole);
     try {
       const res = await fetch(`/api/admin/staff/${reassignTarget.id}/reassign`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newRole: reassignRole, newDepartmentId: reassignDept || null }),
+        body: JSON.stringify({ newRole: reassignRole, newDepartmentId: reassignNeedsDept ? (reassignDept || null) : null }),
       });
       const d = await res.json();
       if (!res.ok) { setReassignError(d.message || 'Failed to reassign.'); return; }

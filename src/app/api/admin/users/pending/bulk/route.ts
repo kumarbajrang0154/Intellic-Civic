@@ -75,7 +75,9 @@ export async function POST(req: NextRequest) {
       try {
         if (action === 'APPROVE') {
           const approvedRole = role || 'DEPARTMENT_OFFICER';
-          const approved = await approveUser(id, approvedRole, departmentId);
+          const needsDept = approvedRole === 'DEPARTMENT_OFFICER' || approvedRole === 'FIELD_WORKER';
+          const deptToAssign = needsDept ? departmentId : null;
+          const approved = await approveUser(id, approvedRole, deptToAssign);
           if (approved) {
             await addAuditLog({
               actorId: auth.admin.id,
@@ -84,7 +86,7 @@ export async function POST(req: NextRequest) {
               entityType: 'User',
               targetId: id,
               targetName: target.name || target.email || id,
-              metadata: { role: approvedRole, departmentId },
+              metadata: { role: approvedRole, departmentId: deptToAssign },
             });
             results.push({ id, ok: true, message: 'Approved successfully' });
           } else {

@@ -24,7 +24,7 @@ import {
 
 export type StaffRole = 'DEPARTMENT_HEAD' | 'DEPARTMENT_OFFICER' | 'FIELD_WORKER' | 'ADMIN';
 export const STAFF_ROLES: StaffRole[] = ['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER', 'FIELD_WORKER', 'ADMIN'];
-const ROLES_REQUIRING_DEPARTMENT: StaffRole[] = ['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER', 'FIELD_WORKER'];
+const ROLES_REQUIRING_DEPARTMENT: StaffRole[] = ['DEPARTMENT_OFFICER', 'FIELD_WORKER'];
 
 export interface StaffListFilters {
   search?: string;
@@ -337,7 +337,10 @@ export async function reassignStaff(
   }
 
   const newRole = (input.newRole ?? user.role) as StaffRole;
-  const newDepartmentId = input.newDepartmentId !== undefined ? input.newDepartmentId : user.departmentId;
+  const isTransitionToHead = newRole === 'DEPARTMENT_HEAD' && user.role !== 'DEPARTMENT_HEAD';
+  const newDepartmentId = input.newDepartmentId !== undefined
+    ? input.newDepartmentId
+    : (isTransitionToHead ? null : user.departmentId);
   const newAssignedOfficerId = input.newAssignedOfficerId !== undefined ? input.newAssignedOfficerId : user.assignedOfficerId;
 
   if (!STAFF_ROLES.includes(newRole)) {
@@ -375,7 +378,9 @@ export async function reassignStaff(
 
   const updated = await updateUser(targetId, {
     role: newRole,
-    departmentId: requiresDepartment(newRole) ? newDepartmentId : null,
+    departmentId: requiresDepartment(newRole)
+      ? newDepartmentId
+      : (newRole === 'DEPARTMENT_HEAD' ? (newDepartmentId ?? null) : null),
     assignedOfficerId: newRole === 'FIELD_WORKER' ? newAssignedOfficerId : null,
   });
 
