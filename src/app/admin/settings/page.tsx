@@ -141,10 +141,13 @@ export default function PlatformSettingsPage() {
   const [aiHealth, setAiHealth] = React.useState<{
     loading: boolean;
     ok?: boolean;
+    provider?: string;
     model?: string;
     status?: number;
     latencyMs?: number;
     error?: string;
+    failoverActive?: boolean;
+    failoverReason?: string;
   }>({ loading: true });
 
   React.useEffect(() => {
@@ -354,16 +357,16 @@ export default function PlatformSettingsPage() {
                 <span
                   data-testid="ai-health-badge"
                   className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                  title={`AI Model: ${aiHealth.model} (${aiHealth.latencyMs}ms)`}
+                  title={`AI Provider: ${aiHealth.provider || 'gemini'} | Model: ${aiHealth.model} (${aiHealth.latencyMs}ms)${aiHealth.failoverReason ? ` | Failover: ${aiHealth.failoverReason}` : ''}`}
                 >
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  AI connected
+                  AI connected: {aiHealth.provider ? aiHealth.provider.toUpperCase() : 'GEMINI'}{aiHealth.failoverActive ? ' (Failover)' : ''}
                 </span>
               ) : (
                 <span
                   data-testid="ai-health-badge"
                   className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 max-w-md truncate"
-                  title={aiHealth.error ? `AI Failure Reason: [${aiHealth.status || 'N/A'}] ${aiHealth.error}` : 'Fallback heuristic mode active'}
+                  title={aiHealth.error ? `AI Failure Reason: [${aiHealth.status || 'N/A'}] ${aiHealth.error}${aiHealth.failoverReason ? ` | ${aiHealth.failoverReason}` : ''}` : 'Fallback heuristic mode active'}
                 >
                   <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
                   Fallback mode{aiHealth.status ? ` (${aiHealth.status})` : ''}: {aiHealth.error || 'AI unavailable'}
