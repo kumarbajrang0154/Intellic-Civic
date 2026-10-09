@@ -198,7 +198,8 @@ export function initGlobalErrorInterceptor() {
 
       return response;
     } catch (err: any) {
-      const skipPopup = headers.get('x-skip-global-error') === 'true';
+      const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+      const skipPopup = headers.get('x-skip-global-error') === 'true' || headers.get('x-handled-inline') === 'true' || isOffline;
       if (!skipPopup && err?.name !== 'AbortError' && !urlStr.includes('polling=true')) {
         showGlobalError({
           title: 'Network Error',

@@ -159,17 +159,15 @@ export async function getDrafts(userId?: string): Promise<OfflineDraft[]> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly');
     const store = tx.objectStore(STORE_NAME);
-
-    let req: IDBRequest;
-    if (userId) {
-      const index = store.index('userId');
-      req = index.getAll(IDBKeyRange.only(userId));
-    } else {
-      req = store.getAll();
-    }
+    const req = store.getAll();
 
     req.onsuccess = () => {
-      const items: OfflineDraft[] = req.result || [];
+      let items: OfflineDraft[] = req.result || [];
+      if (userId && userId !== 'current_citizen') {
+        items = items.filter(
+          (d) => !d.userId || d.userId === 'current_citizen' || d.userId === userId,
+        );
+      }
       // Sort oldest first by capturedAt
       items.sort((a, b) => new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime());
       resolve(items);

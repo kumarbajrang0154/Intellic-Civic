@@ -53,24 +53,26 @@ interface RecentComplaint {
 function MiniBarChart({ data }: { data: { label: string; value: number; color: string }[] }) {
   const max = Math.max(...data.map((d) => d.value), 1);
   return (
-    <div className="flex items-end gap-2 h-24 w-full">
-      {data.map((item) => (
-        <div key={item.label} className="flex-1 flex flex-col items-center gap-1">
-          <div className="w-full flex items-end justify-center" style={{ height: '80px' }}>
-            <div
-              className="w-full rounded-t-sm transition-all duration-500"
-              style={{
-                height: `${Math.round((item.value / max) * 80)}px`,
-                backgroundColor: item.color,
-                minHeight: item.value > 0 ? '4px' : '0',
-              }}
-            />
+    <div className="w-full overflow-x-auto min-w-0">
+      <div className="flex items-end gap-1.5 sm:gap-2 h-24 w-full min-w-0">
+        {data.map((item) => (
+          <div key={item.label} className="flex-1 min-w-0 flex flex-col items-center gap-1">
+            <div className="w-full flex items-end justify-center" style={{ height: '80px' }}>
+              <div
+                className="w-full rounded-t-sm transition-all duration-500"
+                style={{
+                  height: `${Math.round((item.value / max) * 80)}px`,
+                  backgroundColor: item.color,
+                  minHeight: item.value > 0 ? '4px' : '0',
+                }}
+              />
+            </div>
+            <span className="text-[9px] text-slate-500 font-medium truncate w-full text-center">
+              {item.label}
+            </span>
           </div>
-          <span className="text-[9px] text-slate-500 font-medium truncate w-full text-center">
-            {item.label}
-          </span>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

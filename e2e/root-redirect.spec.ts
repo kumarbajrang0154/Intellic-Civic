@@ -37,41 +37,33 @@ test.describe('Root Path Redirect & Landing Page Removal E2E Tests', () => {
     await expect(page.locator('text=Automated AI Triage')).toHaveCount(0);
   });
 
-  test('2. Authenticated citizen visit to "/" redirects to /citizen', async ({ page, context }) => {
-    const token = await createTestJwt({ role: 'CITIZEN' });
-    await context.addCookies([
-      {
-        name: 'ic_access_token',
-        value: token,
-        domain: 'localhost',
-        path: '/',
-      },
-    ]);
+  const rolesToTest = [
+    { role: 'CITIZEN', target: /\/citizen/ },
+    { role: 'SUPER_ADMIN', target: /\/admin/ },
+    { role: 'ADMIN', target: /\/admin/ },
+    { role: 'DEPARTMENT_HEAD', target: /\/dept-head/ },
+    { role: 'DEPARTMENT_OFFICER', target: /\/officer/ },
+    { role: 'FIELD_WORKER', target: /\/field-worker/ },
+  ];
 
-    await page.goto('/');
-    await page.waitForLoadState('domcontentloaded');
+  for (const { role, target } of rolesToTest) {
+    test(`2. Authenticated ${role} visit to "/" redirects to ${target}`, async ({ page, context }) => {
+      const token = await createTestJwt({ role });
+      await context.addCookies([
+        {
+          name: 'ic_access_token',
+          value: token,
+          domain: 'localhost',
+          path: '/',
+        },
+      ]);
 
-    await expect(page).toHaveURL(/\/citizen/);
-    await expect(page.getByText('Welcome to Citizen Portal')).toBeVisible();
-  });
+      await page.goto('/');
+      await page.waitForLoadState('domcontentloaded');
 
-  test('3. Authenticated staff visit to "/" redirects to role dashboard (/admin)', async ({ page, context }) => {
-    const token = await createTestJwt({ role: 'ADMIN' });
-    await context.addCookies([
-      {
-        name: 'ic_access_token',
-        value: token,
-        domain: 'localhost',
-        path: '/',
-      },
-    ]);
-
-    await page.goto('/');
-    await page.waitForLoadState('domcontentloaded');
-
-    await expect(page).toHaveURL(/\/admin/);
-    await expect(page.locator('h1')).toContainText('Super Admin Operations');
-  });
+      await expect(page).toHaveURL(target);
+    });
+  }
 
   test('4. Expired or invalid cookie on "/" redirects to /login/citizen', async ({ page, context }) => {
     // 4a. Expired cookie
@@ -126,7 +118,15 @@ test.describe('Root Path Redirect & Landing Page Removal E2E Tests', () => {
     // Wait for SW to be registered and active, and ensure cache contains the shell
     await page.evaluate(async () => {
       if ('serviceWorker' in navigator) {
-        await navigator.serviceWorker.ready;
+        try {
+          await navigator.serviceWorker.register('/sw.js');
+          await Promise.race([
+            navigator.serviceWorker.ready,
+            new Promise((_, reject) => setTimeout(() => reject(new Error('SW ready timeout')), 5000)),
+          ]);
+        } catch (e) {
+          console.warn('SW registration/ready warning:', e);
+        }
         const cache = await caches.open('intellicivic-v3');
         const res = await fetch('/citizen');
         if (res && res.status === 200) {

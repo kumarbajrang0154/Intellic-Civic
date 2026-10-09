@@ -443,6 +443,23 @@ export default function NewComplaintPage() {
     return Object.keys(newErrors).length === 0;
   };
 
+  const dataUrlToBlob = (dataUrl: string): Blob => {
+    try {
+      const arr = dataUrl.split(',');
+      const mimeMatch = arr[0].match(/:(.*?);/);
+      const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+      const bstr = atob(arr[1] || '');
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      return new Blob([u8arr], { type: mime });
+    } catch {
+      return new Blob(['photo-evidence'], { type: 'image/jpeg' });
+    }
+  };
+
   const saveOfflineDraft = async () => {
     setIsSubmitting(true);
     setSubmitError(null);
@@ -454,8 +471,7 @@ export default function NewComplaintPage() {
         const url = evidenceUrls[i];
         let blob: Blob;
         if (url.startsWith('data:')) {
-          const res = await fetch(url);
-          blob = await res.blob();
+          blob = dataUrlToBlob(url);
         } else {
           try {
             const res = await fetch(url);
