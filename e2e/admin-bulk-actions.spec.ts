@@ -430,7 +430,7 @@ test.describe('Admin Bulk Actions Verification', () => {
     await expect(confirmDialog).not.toBeVisible();
   });
 
-  // ── 8. Outcome: Citizens bulk DELETE and RESTORE ────────────────────────────
+  // ── 8. Outcome: Citizens bulk DELETE and RESTORE (DB state + Audit Logs) ──
   test('outcome: citizens bulk DELETE and RESTORE', async ({ request }) => {
     const { cookie, admin } = await getAdminSession();
     const timestamp = Date.now();
@@ -479,6 +479,12 @@ test.describe('Admin Bulk Actions Verification', () => {
         expect(u.isSuspended).toBe(true);
       }
 
+      // Verify Audit logs for DELETE
+      const deleteAuditLogs = await prisma.auditLog.findMany({
+        where: { entityId: { in: targetIds }, action: 'CITIZEN_DELETED' },
+      });
+      expect(deleteAuditLogs.length).toBe(2);
+
       // 2. Bulk RESTORE
       const restoreRes = await request.post(`${BASE}/api/admin/citizens/bulk`, {
         headers: { cookie },
@@ -497,20 +503,26 @@ test.describe('Admin Bulk Actions Verification', () => {
         expect(u.deletedAt).toBeNull();
         expect(u.isSuspended).toBe(false);
       }
+
+      // Verify Audit logs for RESTORE
+      const restoreAuditLogs = await prisma.auditLog.findMany({
+        where: { entityId: { in: targetIds }, action: 'CITIZEN_RESTORE' },
+      });
+      expect(restoreAuditLogs.length).toBe(2);
     } finally {
       await prisma.auditLog.deleteMany({ where: { entityId: { in: targetIds } } });
       await prisma.user.deleteMany({ where: { id: { in: targetIds } } });
     }
   });
 
-  // ── 9. Outcome: Staff bulk DELETE refused (STAFF_HAS_FIELD_WORKERS & STAFF_HAS_OPEN_COMPLAINTS) ──
-  test('outcome: staff bulk DELETE refused with STAFF_HAS_FIELD_WORKERS and STAFF_HAS_OPEN_COMPLAINTS', async ({ request }) => {
+  // ── 9. Outcome: Staff bulk DELETE refused (with partial result: valid IDs processed) ──
+  test('outcome: staff bulk DELETE refused with STAFF_HAS_FIELD_WORKERS and with STAFF_HAS_OPEN_COMPLAINTS (partial result, other ids still processed)', async ({ request }) => {
     const { cookie, admin } = await getAdminSession();
     const timestamp = Date.now();
     const dept = await prisma.department.findFirst();
 
-    // 1. Officer with assigned field worker -> STAFF_HAS_FIELD_WORKERS
-    const officer = await prisma.user.create({
+    // 1. Officer with assigned field worker -> refused with STAFF_HAS_FIELD_WORKERS
+    const officerWithWorker = await prisma.user.create({
       data: {
         name: `Officer With Worker ${timestamp}`,
         email: `officer_worker_${timestamp}@smartcity.gov.in`,
@@ -529,13 +541,13 @@ test.describe('Admin Bulk Actions Verification', () => {
         role: UserRole.FIELD_WORKER,
         authProvider: AuthProvider.GOOGLE,
         isAuthorized: true,
-        assignedOfficerId: officer.id,
+        assignedOfficerId: officerWithWorker.id,
         departmentId: dept?.id,
         municipalityId: admin.municipalityId,
       },
     });
 
-    // 2. Field worker with an open complaint -> STAFF_HAS_OPEN_COMPLAINTS
+    // 2. Field worker with an open complaint -> refused with STAFF_HAS_OPEN_COMPLAINTS
     const workerWithComplaint = await prisma.user.create({
       data: {
         name: `Worker With Complaint ${timestamp}`,
@@ -561,43 +573,11 @@ test.describe('Admin Bulk Actions Verification', () => {
       },
     });
 
-    try {
-      // Try bulk delete on both
-      const delRes = await request.post(`${BASE}/api/admin/staff/bulk`, {
-        headers: { cookie },
-        data: { action: 'DELETE', ids: [officer.id, workerWithComplaint.id] },
-      });
-      expect(delRes.status()).toBe(200);
-      const delData = await delRes.json();
-      expect(delData.ok).toBe(true);
-      expect(delData.failed).toBe(2);
-      expect(delData.succeeded).toBe(0);
-
-      const officerResult = delData.results.find((r: any) => r.id === officer.id);
-      expect(officerResult?.ok).toBe(false);
-      expect(officerResult?.error).toContain('assigned field worker');
-
-      const workerResult = delData.results.find((r: any) => r.id === workerWithComplaint.id);
-      expect(workerResult?.ok).toBe(false);
-      expect(workerResult?.error).toContain('open complaint');
-    } finally {
-      await prisma.complaint.delete({ where: { id: openComplaint.id } }).catch(() => {});
-      await prisma.user.deleteMany({
-        where: { id: { in: [subordinateWorker.id, workerWithComplaint.id, officer.id] } },
-      }).catch(() => {});
-    }
-  });
-
-  // ── 10. Outcome: REASSIGN_DEPT skipping FIELD_WORKER ids with a reason ─────
-  test('outcome: REASSIGN_DEPT skipping FIELD_WORKER ids with a reason', async ({ request }) => {
-    const { cookie, admin } = await getAdminSession();
-    const timestamp = Date.now();
-    const dept = await prisma.department.findFirst();
-
-    const fieldWorker = await prisma.user.create({
+    // 3. Clean unencumbered staff member -> should succeed in the same batch
+    const cleanWorker = await prisma.user.create({
       data: {
-        name: `Skip Worker ${timestamp}`,
-        email: `skip_fw_${timestamp}@smartcity.gov.in`,
+        name: `Clean Worker ${timestamp}`,
+        email: `clean_worker_${timestamp}@smartcity.gov.in`,
         role: UserRole.FIELD_WORKER,
         authProvider: AuthProvider.GOOGLE,
         isAuthorized: true,
@@ -607,25 +587,131 @@ test.describe('Admin Bulk Actions Verification', () => {
     });
 
     try {
+      // Execute bulk DELETE with all 3 in one batch
+      const delRes = await request.post(`${BASE}/api/admin/staff/bulk`, {
+        headers: { cookie },
+        data: { action: 'DELETE', ids: [officerWithWorker.id, workerWithComplaint.id, cleanWorker.id] },
+      });
+      expect(delRes.status()).toBe(200);
+      const delData = await delRes.json();
+      expect(delData.ok).toBe(true);
+      expect(delData.failed).toBe(2);
+      expect(delData.succeeded).toBe(1);
+
+      // Verify refused reasons
+      const officerResult = delData.results.find((r: any) => r.id === officerWithWorker.id);
+      expect(officerResult?.ok).toBe(false);
+      expect(officerResult?.error).toContain('assigned field worker');
+
+      const workerResult = delData.results.find((r: any) => r.id === workerWithComplaint.id);
+      expect(workerResult?.ok).toBe(false);
+      expect(workerResult?.error).toContain('open complaint');
+
+      const cleanResult = delData.results.find((r: any) => r.id === cleanWorker.id);
+      expect(cleanResult?.ok).toBe(true);
+
+      // Assert DB state: Encumbered users STILL exist in DB
+      const officerDb = await prisma.user.findUnique({ where: { id: officerWithWorker.id } });
+      expect(officerDb).not.toBeNull();
+
+      const workerDb = await prisma.user.findUnique({ where: { id: workerWithComplaint.id } });
+      expect(workerDb).not.toBeNull();
+
+      // Clean user is DELETED from DB
+      const cleanDb = await prisma.user.findUnique({ where: { id: cleanWorker.id } });
+      expect(cleanDb).toBeNull();
+
+      // Assert Audit rows: Clean user has STAFF_DELETED audit row; refused users do NOT
+      const cleanAudit = await prisma.auditLog.findFirst({
+        where: { entityId: cleanWorker.id, action: 'STAFF_DELETED' },
+      });
+      expect(cleanAudit).not.toBeNull();
+
+      const officerAudit = await prisma.auditLog.findFirst({
+        where: { entityId: officerWithWorker.id, action: 'STAFF_DELETED' },
+      });
+      expect(officerAudit).toBeNull();
+    } finally {
+      await prisma.complaint.delete({ where: { id: openComplaint.id } }).catch(() => {});
+      await prisma.auditLog.deleteMany({
+        where: { entityId: { in: [subordinateWorker.id, workerWithComplaint.id, officerWithWorker.id, cleanWorker.id] } },
+      }).catch(() => {});
+      await prisma.user.deleteMany({
+        where: { id: { in: [subordinateWorker.id, workerWithComplaint.id, officerWithWorker.id, cleanWorker.id] } },
+      }).catch(() => {});
+    }
+  });
+
+  // ── 10. Outcome: REASSIGN_DEPT skipping FIELD_WORKER ids with a reason ─────
+  test('outcome: REASSIGN_DEPT skips FIELD_WORKER ids with a reason', async ({ request }) => {
+    const { cookie, admin } = await getAdminSession();
+    const timestamp = Date.now();
+    const departments = await prisma.department.findMany({ take: 2 });
+    const sourceDept = departments[0];
+    const targetDept = departments[1] || sourceDept;
+
+    const fieldWorker = await prisma.user.create({
+      data: {
+        name: `Skip Worker ${timestamp}`,
+        email: `skip_fw_${timestamp}@smartcity.gov.in`,
+        role: UserRole.FIELD_WORKER,
+        authProvider: AuthProvider.GOOGLE,
+        isAuthorized: true,
+        departmentId: sourceDept.id,
+        municipalityId: admin.municipalityId,
+      },
+    });
+
+    const officer = await prisma.user.create({
+      data: {
+        name: `Reassign Officer ${timestamp}`,
+        email: `reassign_off_${timestamp}@smartcity.gov.in`,
+        role: UserRole.DEPARTMENT_OFFICER,
+        authProvider: AuthProvider.GOOGLE,
+        isAuthorized: true,
+        departmentId: sourceDept.id,
+        municipalityId: admin.municipalityId,
+      },
+    });
+
+    try {
       const res = await request.post(`${BASE}/api/admin/staff/bulk`, {
         headers: { cookie },
         data: {
           action: 'REASSIGN_DEPT',
-          ids: [fieldWorker.id],
-          departmentId: dept?.id,
+          ids: [fieldWorker.id, officer.id],
+          departmentId: targetDept.id,
         },
       });
       expect(res.status()).toBe(200);
       const data = await res.json();
       expect(data.ok).toBe(true);
       expect(data.failed).toBe(1);
-      expect(data.succeeded).toBe(0);
+      expect(data.succeeded).toBe(1);
 
+      // Verify field worker skipped with reason
       const fwResult = data.results.find((r: any) => r.id === fieldWorker.id);
       expect(fwResult?.ok).toBe(false);
       expect(fwResult?.error).toBe('needs officer in target department');
+
+      const offResult = data.results.find((r: any) => r.id === officer.id);
+      expect(offResult?.ok).toBe(true);
+
+      // Assert DB state: Field worker department is UNCHANGED; Officer department is UPDATED
+      const fwDb = await prisma.user.findUnique({ where: { id: fieldWorker.id } });
+      expect(fwDb?.departmentId).toBe(sourceDept.id);
+
+      const offDb = await prisma.user.findUnique({ where: { id: officer.id } });
+      expect(offDb?.departmentId).toBe(targetDept.id);
+
+      // Assert Audit log: Officer has STAFF_REASSIGNED audit row; Field worker does not
+      const offAudit = await prisma.auditLog.findFirst({
+        where: { entityId: officer.id, action: 'STAFF_REASSIGNED' },
+      });
+      expect(offAudit).not.toBeNull();
     } finally {
-      await prisma.user.delete({ where: { id: fieldWorker.id } }).catch(() => {});
+      await prisma.auditLog.deleteMany({ where: { entityId: { in: [fieldWorker.id, officer.id] } } });
+      await prisma.user.deleteMany({ where: { id: { in: [fieldWorker.id, officer.id] } } }).catch(() => {});
     }
   });
 
@@ -674,11 +760,17 @@ test.describe('Admin Bulk Actions Verification', () => {
       expect(appData.succeeded).toBe(1);
       expect(appData.failed).toBe(0);
 
-      // Verify in DB
+      // Verify DB state: isAuthorized is true, role and department set
       const user1Db = await prisma.user.findUnique({ where: { id: pendingUser1.id } });
       expect(user1Db?.isAuthorized).toBe(true);
       expect(user1Db?.role).toBe(UserRole.DEPARTMENT_OFFICER);
       expect(user1Db?.departmentId).toBe(dept?.id);
+
+      // Verify Audit row for APPROVE
+      const appAudit = await prisma.auditLog.findFirst({
+        where: { entityId: pendingUser1.id, action: 'STAFF_APPROVED' },
+      });
+      expect(appAudit).not.toBeNull();
 
       // 2. Bulk REJECT
       const rejRes = await request.post(`${BASE}/api/admin/users/pending/bulk`, {
@@ -694,12 +786,91 @@ test.describe('Admin Bulk Actions Verification', () => {
       expect(rejData.succeeded).toBe(1);
       expect(rejData.failed).toBe(0);
 
-      // Verify deleted from DB
+      // Verify DB state: deleted from DB
       const user2Db = await prisma.user.findUnique({ where: { id: pendingUser2.id } });
       expect(user2Db).toBeNull();
+
+      // Verify Audit row for REJECT
+      const rejAudit = await prisma.auditLog.findFirst({
+        where: { entityId: pendingUser2.id, action: 'STAFF_REJECTED' },
+      });
+      expect(rejAudit).not.toBeNull();
     } finally {
       await prisma.auditLog.deleteMany({ where: { entityId: { in: [pendingUser1.id, pendingUser2.id] } } });
       await prisma.user.deleteMany({ where: { id: { in: [pendingUser1.id, pendingUser2.id] } } }).catch(() => {});
+    }
+  });
+
+  // ── 12. Outcome: ADMIN of municipality A cannot act on municipality B user ──
+  test('outcome: ADMIN of municipality A cannot act on municipality B user', async ({ request }) => {
+    const timestamp = Date.now();
+
+    // Create municipality A and admin A
+    const munA = await prisma.municipality.upsert({
+      where: { code: 'TEST_MUN_A' },
+      update: {},
+      create: { name: 'Municipality A Test', code: 'TEST_MUN_A', city: 'City A', state: 'Tamil Nadu' },
+    });
+
+    const adminA = await prisma.user.create({
+      data: {
+        name: `Admin Mun A ${timestamp}`,
+        email: `admin_a_${timestamp}@smartcity.gov.in`,
+        role: UserRole.ADMIN,
+        authProvider: AuthProvider.GOOGLE,
+        isAuthorized: true,
+        municipalityId: munA.id,
+      },
+    });
+    const cookieA = `ic_access_token=${makeJwt(adminA)}`;
+
+    // Create municipality B and staff B
+    const munB = await prisma.municipality.upsert({
+      where: { code: 'TEST_MUN_B' },
+      update: {},
+      create: { name: 'Municipality B Test', code: 'TEST_MUN_B', city: 'City B', state: 'Tamil Nadu' },
+    });
+
+    const staffB = await prisma.user.create({
+      data: {
+        name: `Staff Mun B ${timestamp}`,
+        email: `staff_b_${timestamp}@smartcity.gov.in`,
+        role: UserRole.DEPARTMENT_OFFICER,
+        authProvider: AuthProvider.GOOGLE,
+        isAuthorized: true,
+        isSuspended: false,
+        municipalityId: munB.id,
+      },
+    });
+
+    try {
+      // Admin A attempts to bulk suspend staff B from Municipality B
+      const res = await request.post(`${BASE}/api/admin/staff/bulk`, {
+        headers: { cookie: cookieA },
+        data: { action: 'SUSPEND', ids: [staffB.id] },
+      });
+      expect(res.status()).toBe(200);
+      const data = await res.json();
+      expect(data.ok).toBe(true);
+      expect(data.failed).toBe(1);
+      expect(data.succeeded).toBe(0);
+
+      const result = data.results.find((r: any) => r.id === staffB.id);
+      expect(result?.ok).toBe(false);
+      expect(result?.error).toContain('different municipality');
+
+      // Assert DB state: staffB is completely UNCHANGED
+      const staffDb = await prisma.user.findUnique({ where: { id: staffB.id } });
+      expect(staffDb?.isSuspended).toBe(false);
+      expect(staffDb?.deletedAt).toBeNull();
+
+      // Assert Audit rows: No audit log written for staffB
+      const auditLogs = await prisma.auditLog.findMany({
+        where: { entityId: staffB.id },
+      });
+      expect(auditLogs.length).toBe(0);
+    } finally {
+      await prisma.user.deleteMany({ where: { id: { in: [adminA.id, staffB.id] } } }).catch(() => {});
     }
   });
 });
