@@ -21,6 +21,7 @@ export interface UserItem {
   assignedOfficerId: string | null;
   isAuthorized: boolean;
   isSuspended: boolean;
+  deletedAt: string | null;
   lastLoginAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -80,6 +81,7 @@ function formatUserItem(user: any): UserItem {
     assignedOfficerId: user.assignedOfficerId || null,
     isAuthorized: Boolean(user.isAuthorized),
     isSuspended: Boolean(user.isSuspended),
+    deletedAt: user.deletedAt ? (user.deletedAt instanceof Date ? user.deletedAt.toISOString() : new Date(user.deletedAt).toISOString()) : null,
     lastLoginAt: user.lastLoginAt ? (user.lastLoginAt instanceof Date ? user.lastLoginAt.toISOString() : new Date(user.lastLoginAt).toISOString()) : null,
     createdAt: user.createdAt instanceof Date ? user.createdAt.toISOString() : new Date(user.createdAt || Date.now()).toISOString(),
     updatedAt: user.updatedAt instanceof Date ? user.updatedAt.toISOString() : new Date(user.updatedAt || Date.now()).toISOString(),
@@ -166,8 +168,13 @@ export async function listUsers(filters?: {
   assignedOfficerId?: string;
   pendingOnly?: boolean;
   search?: string;
+  includeArchived?: boolean;
 }): Promise<UserItem[]> {
   const where: any = {};
+
+  if (!filters?.includeArchived) {
+    where.deletedAt = null;
+  }
 
   if (filters?.pendingOnly) {
     where.isAuthorized = false;
@@ -361,6 +368,190 @@ export async function suspendUser(id: string, isSuspended: boolean): Promise<Use
   return updateUser(id, { isSuspended });
 }
 
+export interface DeletePreflightResult {
+  canHardDelete: boolean;
+  isSelf: boolean;
+  isProtected: boolean;
+  isLastAdmin: boolean;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string | null;
+    isSuspended: boolean;
+    deletedAt: string | null;
+  };
+  blockers: {
+    openAssignedComplaints: number;
+    resolvedComplaintsHandled: number;
+    citizenComplaints: number;
+    feedbacks: number;
+    assignedWorkers: number;
+    auditRows: number;
+    evidence: number;
+    notifications: number;
+    statusHistory: number;
+    pendingApprovals: number;
+  };
+  reasons: string[];
+}
+
+export async function getDeletePreflight(targetId: string, actorId?: string): Promise<DeletePreflightResult | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: targetId },
+  });
+
+  if (!user) {
+    return null;
+  }
+
+  const isSelf = actorId ? actorId === targetId : false;
+  const isProtected = isSuperAdminTarget(user);
+
+  let isLastAdmin = false;
+  if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
+    const adminCount = await prisma.user.count({
+      where: {
+        role: { in: ['ADMIN', 'SUPER_ADMIN'] },
+        isSuspended: false,
+        deletedAt: null,
+      },
+    });
+    isLastAdmin = adminCount <= 1;
+  }
+
+  const [
+    openAssignedComplaints,
+    resolvedComplaintsHandled,
+    citizenComplaints,
+    feedbacks,
+    assignedWorkers,
+    auditRows,
+    evidence,
+    notifications,
+    statusHistory,
+  ] = await Promise.all([
+    prisma.complaint.count({
+      where: {
+        status: { notIn: ['RESOLVED', 'CLOSED', 'REJECTED', 'DUPLICATE'] },
+        OR: [
+          { assignedFieldWorkerId: targetId },
+          { assignment: { departmentOfficerId: targetId } },
+        ],
+      },
+    }),
+    prisma.complaint.count({
+      where: {
+        status: { in: ['RESOLVED', 'CLOSED', 'REJECTED', 'DUPLICATE'] },
+        OR: [
+          { assignedFieldWorkerId: targetId },
+          { assignment: { departmentOfficerId: targetId } },
+        ],
+      },
+    }),
+    prisma.complaint.count({
+      where: { citizenId: targetId },
+    }),
+    prisma.feedback.count({
+      where: { citizenId: targetId },
+    }),
+    prisma.user.count({
+      where: { assignedOfficerId: targetId },
+    }),
+    prisma.auditLog.count({
+      where: { userId: targetId },
+    }),
+    prisma.evidence.count({
+      where: { uploadedByUserId: targetId },
+    }),
+    prisma.notification.count({
+      where: { recipientUserId: targetId },
+    }),
+    prisma.statusHistory.count({
+      where: { changedByUserId: targetId },
+    }),
+  ]);
+
+  const pendingApprovals = !user.isAuthorized ? 1 : 0;
+
+  const reasons: string[] = [];
+  if (isSelf) {
+    reasons.push('You cannot delete your own account.');
+  }
+  if (isProtected) {
+    reasons.push('Super Admin accounts are permanently protected and cannot be deleted.');
+  }
+  if (isLastAdmin) {
+    reasons.push('Cannot delete the last remaining active Administrator account.');
+  }
+  if (openAssignedComplaints > 0) {
+    reasons.push(`User has ${openAssignedComplaints} open assigned complaint(s). Reassign them first.`);
+  }
+  if (resolvedComplaintsHandled > 0) {
+    reasons.push(`User has handled ${resolvedComplaintsHandled} resolved/closed complaint(s). Historical records must be preserved.`);
+  }
+  if (citizenComplaints > 0) {
+    reasons.push(`User has submitted ${citizenComplaints} citizen complaint(s). Complaint history cannot be hard-deleted.`);
+  }
+  if (feedbacks > 0) {
+    reasons.push(`User has submitted ${feedbacks} feedback review(s).`);
+  }
+  if (assignedWorkers > 0) {
+    reasons.push(`User manages ${assignedWorkers} active field worker(s). Reassign them first.`);
+  }
+  if (evidence > 0) {
+    reasons.push(`User has uploaded ${evidence} evidence file(s).`);
+  }
+  if (auditRows > 0) {
+    reasons.push(`User is referenced in ${auditRows} system audit log entry/entries.`);
+  }
+  if (notifications > 0) {
+    reasons.push(`User has ${notifications} notification record(s).`);
+  }
+
+  const blockers = {
+    openAssignedComplaints,
+    resolvedComplaintsHandled,
+    citizenComplaints,
+    feedbacks,
+    assignedWorkers,
+    auditRows,
+    evidence,
+    notifications,
+    statusHistory,
+    pendingApprovals,
+  };
+
+  const totalBlockers =
+    openAssignedComplaints +
+    resolvedComplaintsHandled +
+    citizenComplaints +
+    feedbacks +
+    assignedWorkers +
+    evidence +
+    auditRows +
+    notifications;
+
+  const canHardDelete = !isSelf && !isProtected && !isLastAdmin && totalBlockers === 0;
+
+  return {
+    canHardDelete,
+    isSelf,
+    isProtected,
+    isLastAdmin,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email || '',
+      role: user.role,
+      isSuspended: user.isSuspended,
+      deletedAt: user.deletedAt ? user.deletedAt.toISOString() : null,
+    },
+    blockers,
+    reasons,
+  };
+}
+
 export type DeleteUserResult =
   | { success: true }
   | {
@@ -368,15 +559,20 @@ export type DeleteUserResult =
       reason:
         | 'NOT_FOUND'
         | 'SUPER_ADMIN_PROTECTED'
+        | 'LAST_ADMIN_PROTECTED'
+        | 'SELF_DELETE_PROTECTED'
+        | 'BLOCKERS_EXIST'
         | 'CITIZEN_HAS_COMPLAINTS'
         | 'CITIZEN_HAS_FEEDBACK'
         | 'STAFF_HAS_FIELD_WORKERS'
         | 'STAFF_HAS_OPEN_COMPLAINTS'
         | 'INTERNAL_ERROR';
       message: string;
+      blockers?: DeletePreflightResult['blockers'];
+      reasons?: string[];
     };
 
-export async function deleteUser(id: string): Promise<DeleteUserResult> {
+export async function deleteUser(id: string, actorId?: string): Promise<DeleteUserResult> {
   try {
     const user = await getUser(id);
     if (!user) {
@@ -391,49 +587,20 @@ export async function deleteUser(id: string): Promise<DeleteUserResult> {
       };
     }
 
-    const complaintCount = await prisma.complaint.count({ where: { citizenId: id } });
-    if (complaintCount > 0) {
-      return {
-        success: false,
-        reason: 'CITIZEN_HAS_COMPLAINTS',
-        message: `Cannot delete user because they have submitted ${complaintCount} complaint(s).`,
-      };
-    }
+    const preflight = await getDeletePreflight(id, actorId);
+    if (preflight && !preflight.canHardDelete) {
+      const primaryReason = preflight.isSelf
+        ? 'SELF_DELETE_PROTECTED'
+        : preflight.isLastAdmin
+        ? 'LAST_ADMIN_PROTECTED'
+        : 'BLOCKERS_EXIST';
 
-    const feedbackCount = await prisma.feedback.count({ where: { citizenId: id } });
-    if (feedbackCount > 0) {
       return {
         success: false,
-        reason: 'CITIZEN_HAS_FEEDBACK',
-        message: `Cannot delete user because they have submitted ${feedbackCount} feedback entry/entries.`,
-      };
-    }
-
-    // Refuse delete if staff has assigned field workers
-    const assignedWorkersCount = await prisma.user.count({ where: { assignedOfficerId: id } });
-    if (assignedWorkersCount > 0) {
-      return {
-        success: false,
-        reason: 'STAFF_HAS_FIELD_WORKERS',
-        message: `Cannot delete staff member because they have ${assignedWorkersCount} assigned field worker(s). Reassign them first.`,
-      };
-    }
-
-    // Refuse delete if staff has open complaints (assigned as field worker or officer)
-    const openComplaintsCount = await prisma.complaint.count({
-      where: {
-        status: { notIn: ['RESOLVED', 'CLOSED', 'REJECTED', 'DUPLICATE'] },
-        OR: [
-          { assignedFieldWorkerId: id },
-          { assignment: { departmentOfficerId: id } },
-        ],
-      },
-    });
-    if (openComplaintsCount > 0) {
-      return {
-        success: false,
-        reason: 'STAFF_HAS_OPEN_COMPLAINTS',
-        message: `Cannot delete staff member because they have ${openComplaintsCount} open complaint(s). Resolve or reassign them first.`,
+        reason: primaryReason,
+        message: `Cannot delete user: ${preflight.reasons.join(' ')}`,
+        blockers: preflight.blockers,
+        reasons: preflight.reasons,
       };
     }
 
@@ -474,7 +641,7 @@ export async function deleteUser(id: string): Promise<DeleteUserResult> {
         data: { changedByUserId: null },
       });
 
-      // 5. Snapshot AuditLog metadata in bulk before onDelete: SetNull disassociates userId
+      // 6. Snapshot AuditLog metadata in bulk before onDelete: SetNull disassociates userId
       const actorNameStr = user.name || user.email || 'Deleted User';
       const actorEmailStr = user.email || '';
       await tx.$executeRaw(Prisma.sql`
@@ -489,7 +656,7 @@ export async function deleteUser(id: string): Promise<DeleteUserResult> {
         WHERE "userId" = ${id}
       `);
 
-      // 6. Delete user (onDelete: SetNull automatically sets audit_logs.userId = NULL on foreign key relation)
+      // 7. Delete user (onDelete: SetNull automatically sets audit_logs.userId = NULL on foreign key relation)
       await tx.user.delete({ where: { id } });
     }, { timeout: 15000 });
 
@@ -502,6 +669,164 @@ export async function deleteUser(id: string): Promise<DeleteUserResult> {
       message: error?.message || 'Failed to delete user due to an internal error.',
     };
   }
+}
+
+export async function archiveUser(
+  targetId: string,
+  actor: { id: string; name: string },
+): Promise<{ ok: boolean; status: number; message: string; data?: any }> {
+  const user = await prisma.user.findUnique({
+    where: { id: targetId },
+  });
+
+  if (!user) {
+    return { ok: false, status: 404, message: 'User not found.' };
+  }
+
+  if (targetId === actor.id) {
+    return { ok: false, status: 400, message: 'You cannot archive your own account.' };
+  }
+
+  if (isSuperAdminTarget(user)) {
+    return { ok: false, status: 403, message: 'Super Admin accounts cannot be archived or deleted.' };
+  }
+
+  if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
+    const adminCount = await prisma.user.count({
+      where: {
+        role: { in: ['ADMIN', 'SUPER_ADMIN'] },
+        isSuspended: false,
+        deletedAt: null,
+      },
+    });
+    if (adminCount <= 1) {
+      return { ok: false, status: 403, message: 'Cannot archive the last remaining Administrator account.' };
+    }
+  }
+
+  const now = new Date();
+  const tombstoneEmail = `archived_${user.id.slice(0, 8)}_${Date.now()}@deleted.local`;
+  const originalEmail = user.email;
+
+  await prisma.$transaction(async (tx) => {
+    // 1. Delete refresh tokens
+    await tx.refreshToken.deleteMany({ where: { userId: targetId } });
+
+    // 2. Option A Evidence snapshot: preserve name snapshot in uploadedByName and disassociate uploadedByUserId
+    const staffNameSnapshot = user.name || 'Staff Member';
+    await tx.evidence.updateMany({
+      where: { uploadedByUserId: targetId },
+      data: {
+        uploadedByName: staffNameSnapshot,
+        uploadedByUserId: null,
+      },
+    });
+
+    // 3. Update user: set deletedAt, isSuspended, tombstone email, clear googleId & mobileNumber to free credentials
+    await tx.user.update({
+      where: { id: targetId },
+      data: {
+        deletedAt: now,
+        isSuspended: true,
+        suspendedAt: now,
+        email: tombstoneEmail,
+        googleId: null,
+        mobileNumber: null,
+      },
+    });
+  });
+
+  return {
+    ok: true,
+    status: 200,
+    message: 'User archived successfully.',
+    data: {
+      archived: true,
+      originalEmail,
+      tombstoneEmail,
+      originalRole: user.role,
+      name: user.name,
+      deletedAt: now.toISOString(),
+    },
+  };
+}
+
+export async function reassignUserComplaints(
+  sourceUserId: string,
+  targetStaffId: string,
+  actor: { id: string; name: string },
+): Promise<{ ok: boolean; status: number; message: string; data?: any }> {
+  if (sourceUserId === targetStaffId) {
+    return { ok: false, status: 400, message: 'Target staff member must be different from source staff.' };
+  }
+
+  const sourceUser = await prisma.user.findUnique({ where: { id: sourceUserId } });
+  if (!sourceUser) {
+    return { ok: false, status: 404, message: 'Source user not found.' };
+  }
+
+  const targetStaff = await prisma.user.findUnique({ where: { id: targetStaffId } });
+  if (!targetStaff || targetStaff.isSuspended || targetStaff.deletedAt) {
+    return { ok: false, status: 400, message: 'Target staff member not found or is inactive.' };
+  }
+
+  let count = 0;
+
+  await prisma.$transaction(async (tx) => {
+    // 1. Reassign open complaints where assignedFieldWorkerId === sourceUserId
+    const fwRes = await tx.complaint.updateMany({
+      where: {
+        assignedFieldWorkerId: sourceUserId,
+        status: { notIn: ['RESOLVED', 'CLOSED', 'REJECTED', 'DUPLICATE'] },
+      },
+      data: {
+        assignedFieldWorkerId: targetStaffId,
+      },
+    });
+    count += fwRes.count;
+
+    // 2. Reassign open assignments where departmentOfficerId === sourceUserId
+    const officerOpenComplaints = await tx.complaint.findMany({
+      where: {
+        assignment: { departmentOfficerId: sourceUserId },
+        status: { notIn: ['RESOLVED', 'CLOSED', 'REJECTED', 'DUPLICATE'] },
+      },
+      select: { id: true },
+    });
+
+    if (officerOpenComplaints.length > 0) {
+      const ids = officerOpenComplaints.map((c) => c.id);
+      const assignRes = await tx.assignment.updateMany({
+        where: {
+          complaintId: { in: ids },
+          departmentOfficerId: sourceUserId,
+        },
+        data: {
+          departmentOfficerId: targetStaffId,
+        },
+      });
+      count += assignRes.count;
+    }
+
+    // 3. Reassign supervised field workers if source was an officer
+    const workerRes = await tx.user.updateMany({
+      where: { assignedOfficerId: sourceUserId },
+      data: { assignedOfficerId: targetStaffId },
+    });
+    count += workerRes.count;
+  });
+
+  return {
+    ok: true,
+    status: 200,
+    message: `Successfully reassigned ${count} items.`,
+    data: {
+      reassignedCount: count,
+      sourceUserId,
+      targetStaffId,
+      targetStaffName: targetStaff.name,
+    },
+  };
 }
 
 export async function approveUser(

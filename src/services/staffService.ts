@@ -3,18 +3,23 @@
  * All route handlers call this service; no direct store access from routes.
  */
 
+import prisma from '@/lib/prisma';
 import { addAuditLog, listAuditLogs } from '@/lib/audit-store';
 import {
   addUser,
+  archiveUser,
   deleteUser,
+  getDeletePreflight,
   getDepartment,
   getUser,
   getUserByEmail,
   isSuperAdminTarget,
   listDepartments,
   listUsers,
+  reassignUserComplaints,
   suspendUser,
   updateUser,
+  type DeletePreflightResult,
   type UserItem,
 } from '@/lib/staff-dept-store';
 
@@ -73,9 +78,29 @@ export interface ReassignInput {
   newAssignedOfficerId?: string | null;
 }
 
+export interface ConflictDetails {
+  id: string;
+  name: string;
+  email: string;
+  role: string | null;
+  status: 'active' | 'deactivated' | 'pending' | 'citizen';
+  municipality: string;
+  municipalityId: string | null;
+  departmentName: string | null;
+  departmentId: string | null;
+  createdAt: string;
+}
+
 export type ServiceResult<T> =
   | { ok: true; data: T }
-  | { ok: false; status: number; message: string };
+  | {
+      ok: false;
+      status: number;
+      message: string;
+      conflict?: ConflictDetails;
+      blockers?: DeletePreflightResult['blockers'];
+      reasons?: string[];
+    };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -184,9 +209,45 @@ export async function createStaff(
     return { ok: false, status: 400, message: 'Name must be at least 2 characters.' };
   }
 
-  const existing = await getUserByEmail(input.email.trim());
+  const cleanEmail = input.email.trim().toLowerCase();
+  const existing = await getUserByEmail(cleanEmail);
   if (existing) {
-    return { ok: false, status: 409, message: `A user with email ${input.email} already exists.` };
+    const dept = existing.departmentId ? await getDepartment(existing.departmentId) : undefined;
+    const mun = existing.municipalityId
+      ? await prisma.municipality.findUnique({ where: { id: existing.municipalityId } })
+      : null;
+
+    let userStatus: 'active' | 'deactivated' | 'pending' | 'citizen' = 'active';
+    if (existing.isSuspended) {
+      userStatus = 'deactivated';
+    } else if (!existing.isAuthorized) {
+      userStatus = 'pending';
+    } else if (existing.role === 'CITIZEN' || !existing.role) {
+      userStatus = 'citizen';
+    } else {
+      userStatus = 'active';
+    }
+
+    const munName = mun?.name || 'Coimbatore Municipality';
+    const deptName = dept?.name || null;
+
+    return {
+      ok: false,
+      status: 409,
+      message: `A user with email ${cleanEmail} already exists.`,
+      conflict: {
+        id: existing.id,
+        name: existing.name,
+        email: existing.email,
+        role: existing.role,
+        status: userStatus,
+        municipality: munName,
+        municipalityId: existing.municipalityId,
+        departmentName: deptName,
+        departmentId: existing.departmentId,
+        createdAt: existing.createdAt,
+      },
+    };
   }
 
   if (requiresDepartment(input.role)) {
@@ -414,20 +475,23 @@ export async function removeStaff(
     return { ok: false, status: 404, message: 'Staff member not found.' };
   }
 
-  if (isSuperAdminTarget(user)) {
-    return { ok: false, status: 403, message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' };
-  }
-
   if (targetId === actor.id) {
     return { ok: false, status: 400, message: 'You cannot delete your own account.' };
   }
 
-  const deleteRes = await deleteUser(targetId);
+  if (isSuperAdminTarget(user)) {
+    return { ok: false, status: 403, message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' };
+  }
+
+  const deleteRes = await deleteUser(targetId, actor.id);
   if (!deleteRes.success) {
     const status =
-      deleteRes.reason === 'SUPER_ADMIN_PROTECTED'
+      deleteRes.reason === 'SUPER_ADMIN_PROTECTED' || deleteRes.reason === 'LAST_ADMIN_PROTECTED'
         ? 403
-        : deleteRes.reason === 'CITIZEN_HAS_COMPLAINTS' ||
+        : deleteRes.reason === 'SELF_DELETE_PROTECTED'
+        ? 400
+        : deleteRes.reason === 'BLOCKERS_EXIST' ||
+          deleteRes.reason === 'CITIZEN_HAS_COMPLAINTS' ||
           deleteRes.reason === 'CITIZEN_HAS_FEEDBACK' ||
           deleteRes.reason === 'STAFF_HAS_FIELD_WORKERS' ||
           deleteRes.reason === 'STAFF_HAS_OPEN_COMPLAINTS'
@@ -435,7 +499,13 @@ export async function removeStaff(
         : deleteRes.reason === 'NOT_FOUND'
         ? 404
         : 500;
-    return { ok: false, status, message: deleteRes.message };
+    return {
+      ok: false,
+      status,
+      message: deleteRes.message,
+      blockers: deleteRes.blockers,
+      reasons: deleteRes.reasons,
+    };
   }
 
   await addAuditLog({
@@ -450,6 +520,91 @@ export async function removeStaff(
 
   return { ok: true, data: { deleted: true } };
 }
+
+// ---------------------------------------------------------------------------
+// Convert User (Citizen / Pending) to Staff
+// ---------------------------------------------------------------------------
+
+export async function convertUserToStaff(
+  targetId: string,
+  input: {
+    role: StaffRole;
+    departmentId?: string | null;
+    assignedOfficerId?: string | null;
+  },
+  actor: { id: string; name: string },
+): Promise<ServiceResult<StaffSummary>> {
+  const user = await getUser(targetId);
+  if (!user) {
+    return { ok: false, status: 404, message: 'User not found.' };
+  }
+
+  if (!STAFF_ROLES.includes(input.role)) {
+    return { ok: false, status: 400, message: `Invalid role: ${input.role}. Must be one of ${STAFF_ROLES.join(', ')}.` };
+  }
+
+  const needsDept = requiresDepartment(input.role);
+  if (needsDept) {
+    if (!input.departmentId) {
+      return { ok: false, status: 400, message: `Role ${input.role} requires a department assignment.` };
+    }
+    const dept = await getDepartment(input.departmentId);
+    if (!dept) {
+      return { ok: false, status: 400, message: 'Selected department does not exist.' };
+    }
+    if (dept.isSuspended) {
+      return { ok: false, status: 400, message: 'Cannot assign staff to a suspended department.' };
+    }
+  }
+
+  if (input.role === 'FIELD_WORKER') {
+    if (!input.assignedOfficerId) {
+      return { ok: false, status: 400, message: 'Field Worker accounts require an assigned Department Officer.' };
+    }
+    const officer = await getUser(input.assignedOfficerId);
+    if (!officer) {
+      return { ok: false, status: 400, message: 'Assigned Department Officer does not exist.' };
+    }
+    if (officer.role !== 'DEPARTMENT_OFFICER') {
+      return { ok: false, status: 400, message: 'Assigned officer must be a Department Officer.' };
+    }
+  }
+
+  const previousRole = user.role;
+
+  const updated = await updateUser(targetId, {
+    role: input.role,
+    departmentId: needsDept
+      ? (input.departmentId ?? null)
+      : (input.role === 'DEPARTMENT_HEAD' ? (input.departmentId ?? null) : null),
+    assignedOfficerId: input.role === 'FIELD_WORKER' ? (input.assignedOfficerId ?? null) : null,
+    isAuthorized: true,
+    isSuspended: false,
+  });
+
+  if (!updated) {
+    return { ok: false, status: 500, message: 'Failed to convert user to staff.' };
+  }
+
+  await addAuditLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    action: 'USER_CONVERTED_TO_STAFF',
+    entityType: 'User',
+    targetId: updated.id,
+    targetName: updated.name,
+    metadata: {
+      previousRole,
+      newRole: updated.role,
+      departmentId: updated.departmentId,
+      assignedOfficerId: updated.assignedOfficerId,
+    },
+  });
+
+  return { ok: true, data: await userToSummary(updated) };
+}
+
+export { getDeletePreflight, archiveUser, reassignUserComplaints };
 
 // ---------------------------------------------------------------------------
 // Activity Log for a specific staff member

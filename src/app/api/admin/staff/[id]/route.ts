@@ -9,7 +9,14 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
   const result = await removeStaff(params.id, auth.admin);
   if (!result.ok) {
-    return NextResponse.json({ message: result.message }, { status: result.status });
+    return NextResponse.json(
+      {
+        message: result.message,
+        ...(result.blockers ? { blockers: result.blockers } : {}),
+        ...(result.reasons ? { reasons: result.reasons } : {}),
+      },
+      { status: result.status },
+    );
   }
 
   return NextResponse.json({ deleted: true });

@@ -19,6 +19,17 @@ export async function PATCH(
       return NextResponse.json({ message: 'User not found' }, { status: 404 });
     }
 
+    const { addAuditLog } = await import('@/lib/audit-store');
+    await addAuditLog({
+      actorId: auth.admin.id,
+      actorName: auth.admin.name,
+      action: 'USER_APPROVED',
+      entityType: 'User',
+      targetId: approved.id,
+      targetName: approved.name,
+      metadata: { role: approved.role, departmentId: approved.departmentId },
+    });
+
     return NextResponse.json(approved);
   } catch (error: any) {
     return NextResponse.json(

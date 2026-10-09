@@ -71,6 +71,8 @@ export default function CitizensListPage() {
   const [activeModal, setActiveModal] = useState<'suspend' | 'activate' | 'delete' | 'restore' | null>(null);
   const [suspendReason, setSuspendReason] = useState('');
   const [submittingAction, setSubmittingAction] = useState(false);
+  const [citizenPreflight, setCitizenPreflight] = useState<any>(null);
+  const [preflightLoading, setPreflightLoading] = useState(false);
 
   // Bulk State
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -243,6 +245,48 @@ export default function CitizensListPage() {
         fetchCitizens(pagination.page);
       } else {
         setActionNotice({ type: 'error', message: data.message || 'Failed to activate citizen account' });
+      }
+    } catch (err: any) {
+      setActionNotice({ type: 'error', message: err.message || 'Error executing action' });
+    } finally {
+      setSubmittingAction(false);
+      setActiveModal(null);
+      setSelectedCitizen(null);
+    }
+  };
+
+  const openCitizenDelete = async (citizen: Citizen) => {
+    setSelectedCitizen(citizen);
+    setActiveModal('delete');
+    setPreflightLoading(true);
+    setCitizenPreflight(null);
+    try {
+      const res = await fetch(`/api/admin/users/${citizen.id}/delete-preflight`);
+      if (res.ok) {
+        setCitizenPreflight(await res.json());
+      }
+    } finally {
+      setPreflightLoading(false);
+    }
+  };
+
+  const handleCitizenArchive = async () => {
+    if (!selectedCitizen) return;
+    setSubmittingAction(true);
+    setActionNotice(null);
+    try {
+      const res = await fetch(`/api/admin/users/${selectedCitizen.id}/archive`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setActionNotice({
+          type: 'success',
+          message: `Citizen "${selectedCitizen.name}" archived and anonymized. Original email and credentials freed.`,
+        });
+        fetchCitizens(pagination.page);
+      } else {
+        setActionNotice({ type: 'error', message: data.message || 'Failed to archive citizen account' });
       }
     } catch (err: any) {
       setActionNotice({ type: 'error', message: err.message || 'Error executing action' });
@@ -578,11 +622,8 @@ export default function CitizensListPage() {
                                   variant="outline"
                                   size="sm"
                                   className="h-8 px-2 text-xs border-slate-200 text-slate-500 hover:text-red-700 hover:border-red-200 hover:bg-red-50"
-                                  onClick={() => {
-                                    setSelectedCitizen(c);
-                                    setActiveModal('delete');
-                                  }}
-                                  title="Soft Delete Account"
+                                  onClick={() => openCitizenDelete(c)}
+                                  title="Delete Account"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </Button>
@@ -742,29 +783,82 @@ export default function CitizensListPage() {
         </div>
       )}
 
-      {/* DELETE CONFIRMATION MODAL */}
+      {/* DELETE CONFIRMATION MODAL WITH PREFLIGHT */}
       {activeModal === 'delete' && selectedCitizen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center gap-3 text-slate-800">
               <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
                 <Trash2 className="w-5 h-5 text-slate-700" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-900">Soft Delete Citizen</h3>
-                <p className="text-xs text-slate-500">{selectedCitizen.name}</p>
+                <h3 className="text-base font-bold text-slate-900">Citizen Deletion &amp; Safety Checks</h3>
+                <p className="text-xs text-slate-500">{selectedCitizen.name} ({selectedCitizen.email || selectedCitizen.mobileNumber || 'No contact info'})</p>
               </div>
             </div>
 
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs leading-relaxed space-y-1">
-              <div className="font-semibold flex items-center gap-1 text-amber-800">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                Data Integrity Safe
+            {preflightLoading ? (
+              <div className="p-6 text-center text-slate-500">
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-600" />
+                <p className="text-xs font-medium">Checking complaint history and database dependencies...</p>
               </div>
-              <p>
-                This soft-deletes the account and revokes access. All historical complaints, resolution records, and audit logs will be permanently preserved.
-              </p>
-            </div>
+            ) : citizenPreflight ? (
+              <div className="space-y-3">
+                {!citizenPreflight.canHardDelete ? (
+                  <div className="space-y-3">
+                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-900 text-xs leading-relaxed space-y-1">
+                      <div className="font-semibold flex items-center gap-1 text-rose-800">
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                        Hard Delete Blocked: Historical Records Exist
+                      </div>
+                      <p>
+                        This citizen has existing activity in the municipal registry. Hard delete is blocked to preserve data integrity and prevent foreign key violations.
+                      </p>
+                      <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-rose-800 pt-1">
+                        {citizenPreflight.reasons.map((r: string, idx: number) => (
+                          <li key={idx}>{r}</li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div className="p-2 bg-slate-50 border rounded-lg text-center">
+                        <div className="text-slate-500 text-[11px]">Complaints</div>
+                        <div className="font-bold text-slate-900">{citizenPreflight.blockers.citizenComplaints}</div>
+                      </div>
+                      <div className="p-2 bg-slate-50 border rounded-lg text-center">
+                        <div className="text-slate-500 text-[11px]">Feedbacks</div>
+                        <div className="font-bold text-slate-900">{citizenPreflight.blockers.feedbacks}</div>
+                      </div>
+                      <div className="p-2 bg-slate-50 border rounded-lg text-center">
+                        <div className="text-slate-500 text-[11px]">Audit Logs</div>
+                        <div className="font-bold text-slate-900">{citizenPreflight.blockers.auditRows}</div>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl flex items-center justify-between gap-3 text-xs">
+                      <div>
+                        <div className="font-semibold text-purple-900">Archive &amp; Anonymize</div>
+                        <div className="text-[11px] text-purple-700">Frees email and phone number for new signups while preserving history.</div>
+                      </div>
+                      <Button
+                        size="sm"
+                        disabled={submittingAction}
+                        className="bg-purple-600 hover:bg-purple-700 text-white text-xs shrink-0"
+                        onClick={handleCitizenArchive}
+                      >
+                        {submittingAction ? 'Archiving...' : 'Archive Account'}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs flex items-center gap-2">
+                    <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <div>Zero blockers found. This citizen account has no history and can be safely deleted.</div>
+                  </div>
+                )}
+              </div>
+            ) : null}
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
               <Button
@@ -785,7 +879,7 @@ export default function CitizensListPage() {
                 disabled={submittingAction}
                 onClick={handleDeleteConfirm}
               >
-                {submittingAction ? 'Deleting...' : 'Confirm Soft Delete'}
+                {submittingAction ? 'Processing...' : 'Confirm Soft Delete'}
               </Button>
             </div>
           </div>

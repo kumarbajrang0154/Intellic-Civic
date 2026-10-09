@@ -147,9 +147,54 @@ export default function AdminStaffPage() {
   const [deactivateTarget, setDeactivateTarget] = useState<StaffMember | null>(null);
   const [deactivating, setDeactivating] = useState(false);
 
-  // Delete (remove) confirmation
+  // Delete (remove) confirmation & preflight
   const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [preflightLoading, setPreflightLoading] = useState(false);
+  const [preflightData, setPreflightData] = useState<{
+    canHardDelete: boolean;
+    isSelf: boolean;
+    isProtected: boolean;
+    isLastAdmin: boolean;
+    blockers: {
+      openAssignedComplaints: number;
+      resolvedComplaintsHandled: number;
+      citizenComplaints: number;
+      feedbacks: number;
+      assignedWorkers: number;
+      auditRows: number;
+      evidence: number;
+      notifications: number;
+      statusHistory: number;
+      pendingApprovals: number;
+    };
+    reasons: string[];
+  } | null>(null);
+  const [archiving, setArchiving] = useState(false);
+  const [showReassignComplaintsModal, setShowReassignComplaintsModal] = useState(false);
+  const [targetStaffIdForComplaints, setTargetStaffIdForComplaints] = useState('');
+  const [reassigningComplaints, setReassigningComplaints] = useState(false);
+
+  // Conflict 409 State
+  const [conflictInfo, setConflictInfo] = useState<{
+    id: string;
+    name: string;
+    email: string;
+    role: string | null;
+    status: 'active' | 'deactivated' | 'pending' | 'citizen';
+    municipality: string;
+    municipalityId: string | null;
+    departmentName: string | null;
+    departmentId: string | null;
+    createdAt: string;
+  } | null>(null);
+
+  // Conversion Dialog State (Convert Citizen / Pending -> Staff)
+  const [showConvertModal, setShowConvertModal] = useState(false);
+  const [convertRole, setConvertRole] = useState('DEPARTMENT_OFFICER');
+  const [convertDept, setConvertDept] = useState('');
+  const [converting, setConverting] = useState(false);
+  const [convertError, setConvertError] = useState('');
 
   // Bulk actions state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -324,13 +369,153 @@ export default function AdminStaffPage() {
         }),
       });
       const d = await res.json();
-      if (!res.ok) { setCreateError(d.message || 'Failed to create staff.'); return; }
+      if (!res.ok) {
+        if (res.status === 409 && d.conflict) {
+          setCreateOpen(false);
+          setConflictInfo(d.conflict);
+          return;
+        }
+        setCreateError(d.message || 'Failed to create staff.');
+        return;
+      }
       setCreateOpen(false);
       fetchStaff();
     } catch {
       setCreateError('Network error. Please try again.');
     } finally {
       setCreating(false);
+    }
+  }
+
+  // ── Preflight & Safe Delete Alternatives ─────────────────────────────────────
+
+  function openDelete(staff: StaffMember) {
+    setDeleteTarget(staff);
+    fetchPreflight(staff.id);
+  }
+
+  async function fetchPreflight(staffId: string) {
+    setPreflightLoading(true);
+    setPreflightData(null);
+    try {
+      const res = await fetch(`/api/admin/users/${staffId}/delete-preflight`);
+      if (res.ok) {
+        const d = await res.json();
+        setPreflightData(d);
+      }
+    } catch (err) {
+      console.error('Error fetching delete preflight:', err);
+    } finally {
+      setPreflightLoading(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/staff/${deleteTarget.id}`, { method: 'DELETE' });
+      const d = await res.json();
+      if (!res.ok) {
+        showGlobalError({
+          title: 'Delete Blocked',
+          message: d.message || 'Cannot delete staff member.',
+          hint: d.reasons?.join('\n'),
+        });
+        return;
+      }
+      setDeleteTarget(null);
+      fetchStaff();
+      showGlobalError({
+        title: 'Staff Deleted',
+        message: 'Staff member permanently removed.',
+      });
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function handleArchive(staffId: string) {
+    setArchiving(true);
+    try {
+      const res = await fetch(`/api/admin/users/${staffId}/archive`, { method: 'POST' });
+      const d = await res.json();
+      if (!res.ok) {
+        showGlobalError({
+          title: 'Archive Failed',
+          message: d.message || 'Failed to archive account.',
+        });
+        return;
+      }
+      setDeleteTarget(null);
+      fetchStaff();
+      showGlobalError({
+        title: 'Account Archived & Anonymized',
+        message: 'Account archived successfully. Original email has been freed and can now be reused.',
+      });
+    } finally {
+      setArchiving(false);
+    }
+  }
+
+  async function handleReassignComplaints() {
+    if (!deleteTarget || !targetStaffIdForComplaints) return;
+    setReassigningComplaints(true);
+    try {
+      const res = await fetch(`/api/admin/users/${deleteTarget.id}/reassign-complaints`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetStaffId: targetStaffIdForComplaints }),
+      });
+      const d = await res.json();
+      if (!res.ok) {
+        showGlobalError({
+          title: 'Reassignment Failed',
+          message: d.message || 'Failed to reassign complaints.',
+        });
+        return;
+      }
+      setShowReassignComplaintsModal(false);
+      showGlobalError({
+        title: 'Complaints Reassigned',
+        message: `Successfully reassigned ${d.reassignedCount} items. Re-checking delete preflight...`,
+      });
+      fetchPreflight(deleteTarget.id);
+      fetchStaff();
+    } finally {
+      setReassigningComplaints(false);
+    }
+  }
+
+  async function handleConvertCitizen() {
+    if (!conflictInfo) return;
+    setConverting(true);
+    setConvertError('');
+    try {
+      const res = await fetch(`/api/admin/users/${conflictInfo.id}/convert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role: convertRole,
+          departmentId: ['DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(convertRole) ? (convertDept || null) : null,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) {
+        setConvertError(d.message || 'Failed to convert user.');
+        return;
+      }
+      setShowConvertModal(false);
+      setConflictInfo(null);
+      showGlobalError({
+        title: 'Account Converted to Staff',
+        message: `Successfully converted ${conflictInfo.name} (${conflictInfo.email}) to ${convertRole}.`,
+      });
+      fetchStaff();
+    } catch {
+      setConvertError('Network error occurred.');
+    } finally {
+      setConverting(false);
     }
   }
 
@@ -343,15 +528,6 @@ export default function AdminStaffPage() {
       const res = await fetch(`/api/admin/staff/${deactivateTarget.id}/deactivate`, { method: 'PATCH' });
       if (res.ok) { setDeactivateTarget(null); fetchStaff(); }
     } finally { setDeactivating(false); }
-  }
-
-  async function handleDelete() {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      const res = await fetch(`/api/admin/staff/${deleteTarget.id}`, { method: 'DELETE' });
-      if (res.ok) { setDeleteTarget(null); fetchStaff(); }
-    } finally { setDeleting(false); }
   }
 
   async function handleReactivate(staff: StaffMember) {
@@ -562,7 +738,7 @@ export default function AdminStaffPage() {
                                 variant="ghost"
                                 size="sm"
                                 title="Delete Staff"
-                                onClick={() => setDeleteTarget(staff)}
+                                onClick={() => openDelete(staff)}
                               >
                                 <Trash2 className="w-4 h-4 text-rose-500" />
                               </Button>
@@ -701,21 +877,364 @@ export default function AdminStaffPage() {
           </DialogContent>
         </Dialog>
 
-        {/* ── Delete Confirmation Modal ──────────────────────────────────── */}
-        <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
-          <DialogContent>
+        {/* ── Delete Preflight & Safe Alternatives Modal ──────────────────── */}
+        <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setPreflightData(null); } }}>
+          <DialogContent className="max-w-lg">
             <DialogHeader>
-              <DialogTitle className="text-rose-600">Permanently Delete Staff Account</DialogTitle>
+              <DialogTitle className="text-rose-600 flex items-center gap-2">
+                <Trash2 className="w-5 h-5 text-rose-600 shrink-0" />
+                Delete Staff Member: {deleteTarget?.name}
+              </DialogTitle>
               <DialogDescription>
-                Are you sure you want to <strong>permanently delete</strong>{' '}
-                <strong className="text-slate-900">{deleteTarget?.name}</strong>?
-                This action <strong>cannot be undone</strong>. All data associated with this account will be removed.
+                Account: <strong className="text-slate-900">{deleteTarget?.email}</strong>
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter className="mt-4">
-              <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-              <Button className="bg-rose-600 hover:bg-rose-700 text-white" onClick={handleDelete} disabled={deleting}>
+
+            <div className="space-y-4 py-2">
+              {preflightLoading ? (
+                <div className="p-6 text-center text-slate-500">
+                  <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-600" />
+                  <p className="text-xs font-medium">Checking active complaints and database constraints...</p>
+                </div>
+              ) : preflightData ? (
+                <>
+                  {!preflightData.canHardDelete ? (
+                    <div className="space-y-3">
+                      <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs">
+                        <div className="font-bold flex items-center gap-1.5 mb-1 text-rose-900">
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                          Hard Delete Blocked
+                        </div>
+                        <p className="text-xs leading-relaxed mb-2">
+                          Direct deletion is blocked to prevent data loss and broken complaint records.
+                        </p>
+                        <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-rose-800">
+                          {preflightData.reasons.map((r, idx) => (
+                            <li key={idx}>{r}</li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Blocker breakdown badges */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="p-2.5 bg-slate-50 border rounded-md">
+                          <div className="text-slate-500 text-[11px]">Open Assigned Complaints</div>
+                          <div className="text-base font-bold text-slate-900">{preflightData.blockers.openAssignedComplaints}</div>
+                        </div>
+                        <div className="p-2.5 bg-slate-50 border rounded-md">
+                          <div className="text-slate-500 text-[11px]">Resolved Complaints Handled</div>
+                          <div className="text-base font-bold text-slate-900">{preflightData.blockers.resolvedComplaintsHandled}</div>
+                        </div>
+                        <div className="p-2.5 bg-slate-50 border rounded-md">
+                          <div className="text-slate-500 text-[11px]">Audit Log Records</div>
+                          <div className="text-base font-bold text-slate-900">{preflightData.blockers.auditRows}</div>
+                        </div>
+                        <div className="p-2.5 bg-slate-50 border rounded-md">
+                          <div className="text-slate-500 text-[11px]">Uploaded Evidence</div>
+                          <div className="text-base font-bold text-slate-900">{preflightData.blockers.evidence}</div>
+                        </div>
+                      </div>
+
+                      {/* Safe Alternatives */}
+                      <div className="pt-2 border-t">
+                        <div className="text-xs font-bold text-slate-800 mb-2">Recommended Safe Alternatives:</div>
+                        <div className="space-y-2">
+                          {preflightData.blockers.openAssignedComplaints > 0 && (
+                            <div className="flex items-center justify-between p-2.5 bg-blue-50 border border-blue-200 rounded-lg">
+                              <div>
+                                <div className="text-xs font-semibold text-blue-900">1. Reassign Open Complaints</div>
+                                <div className="text-[11px] text-blue-700">Move open tasks to another staff member to allow retry</div>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="bg-white hover:bg-blue-100 text-blue-700 border-blue-300 text-xs shrink-0"
+                                onClick={() => {
+                                  setTargetStaffIdForComplaints('');
+                                  setShowReassignComplaintsModal(true);
+                                }}
+                              >
+                                Reassign
+                              </Button>
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                            <div>
+                              <div className="text-xs font-semibold text-amber-900">2. Deactivate Account</div>
+                              <div className="text-[11px] text-amber-700">Blocks login access while keeping audit history safe</div>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="bg-white hover:bg-amber-100 text-amber-800 border-amber-300 text-xs shrink-0"
+                              onClick={() => {
+                                const target = deleteTarget;
+                                setDeleteTarget(null);
+                                setDeactivateTarget(target);
+                              }}
+                            >
+                              Deactivate
+                            </Button>
+                          </div>
+
+                          <div className="flex items-center justify-between p-2.5 bg-purple-50 border border-purple-200 rounded-lg">
+                            <div>
+                              <div className="text-xs font-semibold text-purple-900">3. Archive &amp; Anonymize</div>
+                              <div className="text-[11px] text-purple-700">Soft-deletes, keeps evidence snapshot, and frees the email</div>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={archiving}
+                              className="bg-white hover:bg-purple-100 text-purple-800 border-purple-300 text-xs shrink-0"
+                              onClick={() => { if (deleteTarget) handleArchive(deleteTarget.id); }}
+                            >
+                              {archiving ? 'Archiving...' : 'Archive Account'}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-xs flex items-center gap-2">
+                      <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <div>
+                        <div className="font-bold text-emerald-900">Zero Blockers Found</div>
+                        <div>This account has no linked complaints or audit history. Hard delete is safe.</div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : null}
+            </div>
+
+            <DialogFooter className="mt-2 flex flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={() => { setDeleteTarget(null); setPreflightData(null); }}>
+                Close
+              </Button>
+              <Button
+                className="bg-rose-600 hover:bg-rose-700 text-white"
+                onClick={handleDelete}
+                disabled={deleting || preflightLoading || !preflightData?.canHardDelete}
+                title={!preflightData?.canHardDelete ? 'Hard delete is disabled because blockers exist' : undefined}
+              >
                 {deleting ? 'Deleting...' : 'Permanently Delete'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── 409 Conflict Explanation Dialog ─────────────────────────────── */}
+        <Dialog open={!!conflictInfo} onOpenChange={(o) => !o && setConflictInfo(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-amber-600 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                Email Already Registered
+              </DialogTitle>
+              <DialogDescription>
+                {conflictInfo && (
+                  <span className="text-slate-800 font-medium">
+                    This email is already a <strong className="text-indigo-700 uppercase">{conflictInfo.status === 'citizen' ? 'CITIZEN' : conflictInfo.status}</strong> account in <strong>{conflictInfo.municipality}</strong>.
+                  </span>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+
+            {conflictInfo && (
+              <div className="space-y-3 py-2 text-xs">
+                <div className="p-3 bg-slate-50 border rounded-lg space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Name:</span>
+                    <span className="font-semibold text-slate-900">{conflictInfo.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Email:</span>
+                    <span className="font-mono text-slate-700">{conflictInfo.email}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Role:</span>
+                    <span className="font-semibold text-slate-800">{conflictInfo.role || 'CITIZEN'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Status:</span>
+                    <span className="capitalize font-semibold text-slate-800">{conflictInfo.status}</span>
+                  </div>
+                  {conflictInfo.departmentName && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Department:</span>
+                      <span className="text-slate-800">{conflictInfo.departmentName}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Registered:</span>
+                    <span className="text-slate-800">{new Date(conflictInfo.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  <div className="text-[11px] font-bold text-slate-700">Available Actions:</div>
+                  <div className="flex flex-col gap-2">
+                    {/* 1. Open User */}
+                    {conflictInfo.status === 'citizen' ? (
+                      <Link href={`/admin/users/citizens/${conflictInfo.id}`} className="w-full">
+                        <Button variant="outline" size="sm" className="w-full text-xs justify-start border-slate-300">
+                          <Users className="w-3.5 h-3.5 mr-2 text-blue-600" /> Open Citizen Profile
+                        </Button>
+                      </Link>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs justify-start border-slate-300"
+                        onClick={() => {
+                          setSearch(conflictInfo.email);
+                          setConflictInfo(null);
+                        }}
+                      >
+                        <Search className="w-3.5 h-3.5 mr-2 text-blue-600" /> Filter Staff List to This User
+                      </Button>
+                    )}
+
+                    {/* 2. Reactivate (if deactivated) */}
+                    {conflictInfo.status === 'deactivated' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs justify-start border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+                        onClick={async () => {
+                          const res = await fetch(`/api/admin/staff/${conflictInfo.id}/reactivate`, { method: 'PATCH' });
+                          if (res.ok) {
+                            setConflictInfo(null);
+                            fetchStaff();
+                          }
+                        }}
+                      >
+                        <UserCheck className="w-3.5 h-3.5 mr-2 text-emerald-600" /> Reactivate Deactivated Account
+                      </Button>
+                    )}
+
+                    {/* 3. Convert citizen -> staff */}
+                    {(conflictInfo.status === 'citizen' || conflictInfo.status === 'pending') && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs justify-start border-indigo-300 text-indigo-800 hover:bg-indigo-50"
+                        onClick={() => {
+                          setConvertRole('DEPARTMENT_OFFICER');
+                          setConvertDept('');
+                          setConvertError('');
+                          setShowConvertModal(true);
+                        }}
+                      >
+                        <UserCheck className="w-3.5 h-3.5 mr-2 text-indigo-600" /> Convert Citizen to Staff
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setConflictInfo(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Convert Citizen -> Staff Dialog ──────────────────────────────── */}
+        <Dialog open={showConvertModal} onOpenChange={setShowConvertModal}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Convert Account to Staff</DialogTitle>
+              <DialogDescription>
+                Promote <strong className="text-slate-900">{conflictInfo?.name}</strong> ({conflictInfo?.email}) to a platform staff role.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              {convertError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded">{convertError}</div>
+              )}
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">Target Staff Role</label>
+                <select
+                  value={convertRole}
+                  onChange={(e) => { setConvertRole(e.target.value); setConvertDept(''); }}
+                  className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="DEPARTMENT_HEAD">Department Head</option>
+                  <option value="DEPARTMENT_OFFICER">Department Officer</option>
+                  <option value="FIELD_WORKER">Field Worker</option>
+                </select>
+              </div>
+
+              {['DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(convertRole) && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Assigned Department <span className="text-rose-500">*</span></label>
+                  <select
+                    value={convertDept}
+                    onChange={(e) => setConvertDept(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">— Select Department —</option>
+                    {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowConvertModal(false)}>Cancel</Button>
+              <Button
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={handleConvertCitizen}
+                disabled={converting || (['DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(convertRole) && !convertDept)}
+              >
+                {converting ? 'Converting...' : 'Confirm Conversion'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Reassign Open Complaints Dialog ─────────────────────────────── */}
+        <Dialog open={showReassignComplaintsModal} onOpenChange={setShowReassignComplaintsModal}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Reassign Open Complaints</DialogTitle>
+              <DialogDescription>
+                Transfer open complaints from <strong className="text-slate-900">{deleteTarget?.name}</strong> to another active staff member.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">Transfer To Staff Member</label>
+                <select
+                  value={targetStaffIdForComplaints}
+                  onChange={(e) => setTargetStaffIdForComplaints(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">— Select Active Staff Member —</option>
+                  {data?.items
+                    ?.filter((s) => s.id !== deleteTarget?.id && s.isActive)
+                    ?.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.role} · {s.departmentName || 'General'})
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowReassignComplaintsModal(false)}>Cancel</Button>
+              <Button
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={handleReassignComplaints}
+                disabled={reassigningComplaints || !targetStaffIdForComplaints}
+              >
+                {reassigningComplaints ? 'Reassigning...' : 'Transfer Complaints'}
               </Button>
             </DialogFooter>
           </DialogContent>

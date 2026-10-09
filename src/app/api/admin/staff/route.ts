@@ -48,7 +48,13 @@ export async function POST(req: NextRequest) {
   );
 
   if (!result.ok) {
-    return NextResponse.json({ message: result.message }, { status: result.status });
+    return NextResponse.json(
+      {
+        message: result.message,
+        ...(result.conflict ? { conflict: result.conflict } : {}),
+      },
+      { status: result.status },
+    );
   }
 
   return NextResponse.json({ staff: result.data }, { status: 201 });
