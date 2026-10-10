@@ -25,6 +25,8 @@ export interface UserItem {
   deletedAt: string | null;
   lastLoginAt: string | null;
   loginId?: string | null;
+  googleId?: string | null;
+  hasPassword?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -86,6 +88,8 @@ function formatUserItem(user: any): UserItem {
     deletedAt: user.deletedAt ? (user.deletedAt instanceof Date ? user.deletedAt.toISOString() : new Date(user.deletedAt).toISOString()) : null,
     lastLoginAt: user.lastLoginAt ? (user.lastLoginAt instanceof Date ? user.lastLoginAt.toISOString() : new Date(user.lastLoginAt).toISOString()) : null,
     loginId: user.loginId || null,
+    googleId: user.googleId || null,
+    hasPassword: Boolean(user.passwordHash),
     createdAt: user.createdAt instanceof Date ? user.createdAt.toISOString() : new Date(user.createdAt || Date.now()).toISOString(),
     updatedAt: user.updatedAt instanceof Date ? user.updatedAt.toISOString() : new Date(user.updatedAt || Date.now()).toISOString(),
   };
@@ -278,6 +282,7 @@ export async function addUser(input: {
   assignedOfficerId?: string | null;
   municipalityId?: string | null;
   isAuthorized?: boolean;
+  passwordHash?: string | null;
 }): Promise<UserItem> {
   const cleanEmail = input.email.trim().toLowerCase();
   const existing = await getUserByEmail(cleanEmail);
@@ -298,7 +303,18 @@ export async function addUser(input: {
       isAuthorized: input.isAuthorized ?? true,
       isSuspended: false,
     });
-    return updated!;
+    if (input.passwordHash) {
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          passwordHash: input.passwordHash,
+          mustChangePassword: false,
+          failedLoginCount: 0,
+          lockedUntil: null,
+        },
+      });
+    }
+    return (await getUser(existing.id))!;
   }
 
   const newUser = await prisma.user.create({
@@ -312,6 +328,8 @@ export async function addUser(input: {
       isAuthorized: input.isAuthorized ?? true,
       isSuspended: false,
       authProvider: AuthProvider.GOOGLE,
+      passwordHash: input.passwordHash || null,
+      mustChangePassword: false,
     },
   });
 
@@ -490,26 +508,14 @@ export async function getDeletePreflight(targetId: string, actorId?: string): Pr
   if (openAssignedComplaints > 0) {
     reasons.push(`User has ${openAssignedComplaints} open assigned complaint(s). Reassign them first.`);
   }
-  if (resolvedComplaintsHandled > 0) {
-    reasons.push(`User has handled ${resolvedComplaintsHandled} resolved/closed complaint(s). Historical records must be preserved.`);
+  if (assignedWorkers > 0) {
+    reasons.push(`User has ${assignedWorkers} assigned field worker(s). Reassign them first.`);
   }
   if (citizenComplaints > 0) {
     reasons.push(`User has submitted ${citizenComplaints} citizen complaint(s). Complaint history cannot be hard-deleted.`);
   }
   if (feedbacks > 0) {
     reasons.push(`User has submitted ${feedbacks} feedback review(s).`);
-  }
-  if (assignedWorkers > 0) {
-    reasons.push(`User manages ${assignedWorkers} active field worker(s). Reassign them first.`);
-  }
-  if (evidence > 0) {
-    reasons.push(`User has uploaded ${evidence} evidence file(s).`);
-  }
-  if (auditRows > 0) {
-    reasons.push(`User is referenced in ${auditRows} system audit log entry/entries.`);
-  }
-  if (notifications > 0) {
-    reasons.push(`User has ${notifications} notification record(s).`);
   }
 
   const blockers = {
@@ -527,13 +533,9 @@ export async function getDeletePreflight(targetId: string, actorId?: string): Pr
 
   const totalBlockers =
     openAssignedComplaints +
-    resolvedComplaintsHandled +
     citizenComplaints +
     feedbacks +
-    assignedWorkers +
-    evidence +
-    auditRows +
-    notifications;
+    assignedWorkers;
 
   const canHardDelete = !isSelf && !isProtected && !isLastAdmin && totalBlockers === 0;
 
@@ -592,11 +594,20 @@ export async function deleteUser(id: string, actorId?: string): Promise<DeleteUs
 
     const preflight = await getDeletePreflight(id, actorId);
     if (preflight && !preflight.canHardDelete) {
-      const primaryReason = preflight.isSelf
-        ? 'SELF_DELETE_PROTECTED'
-        : preflight.isLastAdmin
-        ? 'LAST_ADMIN_PROTECTED'
-        : 'BLOCKERS_EXIST';
+      let primaryReason: (DeleteUserResult & { success: false })['reason'] = 'BLOCKERS_EXIST';
+      if (preflight.isSelf) {
+        primaryReason = 'SELF_DELETE_PROTECTED';
+      } else if (preflight.isLastAdmin) {
+        primaryReason = 'LAST_ADMIN_PROTECTED';
+      } else if (preflight.blockers.assignedWorkers > 0) {
+        primaryReason = 'STAFF_HAS_FIELD_WORKERS';
+      } else if (preflight.blockers.openAssignedComplaints > 0) {
+        primaryReason = 'STAFF_HAS_OPEN_COMPLAINTS';
+      } else if (preflight.blockers.citizenComplaints > 0) {
+        primaryReason = 'CITIZEN_HAS_COMPLAINTS';
+      } else if (preflight.blockers.feedbacks > 0) {
+        primaryReason = 'CITIZEN_HAS_FEEDBACK';
+      }
 
       return {
         success: false,

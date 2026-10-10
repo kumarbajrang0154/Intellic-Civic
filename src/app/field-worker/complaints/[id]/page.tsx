@@ -312,7 +312,7 @@ export default function FieldWorkerComplaintDetailPage() {
                   <span>Task Assigned — Ready to Start On-Site Repairs</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Click 'Start Repair Work' when arriving on location to transition status to IN_PROGRESS.
+                  Click &apos;Start Repair Work&apos; when arriving on location to transition status to IN_PROGRESS.
                 </p>
               </div>
               <Button

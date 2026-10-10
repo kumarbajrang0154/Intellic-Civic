@@ -87,9 +87,15 @@ export async function DELETE(
     const deleteRes = await deleteUser(params.id);
     if (!deleteRes.success) {
       const status =
-        deleteRes.reason === 'SUPER_ADMIN_PROTECTED'
+        deleteRes.reason === 'SUPER_ADMIN_PROTECTED' || deleteRes.reason === 'LAST_ADMIN_PROTECTED'
           ? 403
-          : deleteRes.reason === 'CITIZEN_HAS_COMPLAINTS' || deleteRes.reason === 'CITIZEN_HAS_FEEDBACK'
+          : deleteRes.reason === 'SELF_DELETE_PROTECTED'
+          ? 400
+          : deleteRes.reason === 'CITIZEN_HAS_COMPLAINTS' ||
+            deleteRes.reason === 'CITIZEN_HAS_FEEDBACK' ||
+            deleteRes.reason === 'STAFF_HAS_FIELD_WORKERS' ||
+            deleteRes.reason === 'STAFF_HAS_OPEN_COMPLAINTS' ||
+            deleteRes.reason === 'BLOCKERS_EXIST'
           ? 409
           : deleteRes.reason === 'NOT_FOUND'
           ? 404

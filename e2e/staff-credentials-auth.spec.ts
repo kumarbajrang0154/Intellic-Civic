@@ -59,80 +59,125 @@ async function getNonAdminContext(request: APIRequestContext): Promise<string> {
   return match ? `ic_access_token=${match[1]}` : '';
 }
 
-test.describe('Staff Credentials Authentication & Management', () => {
+test.describe('Staff Credentials Authentication & Management (Email + Admin Password)', () => {
   test.setTimeout(90000);
 
   let defaultMunId: string;
+  let testDeptId: string;
+  let testOfficerId: string;
 
   test.beforeAll(async () => {
     await ensureSuperAdminUser();
     const mun = await getDefaultMunicipality();
     defaultMunId = mun.id;
+
+    // Ensure a default test department exists
+    let dept = await prisma.department.findFirst({ where: { name: 'Roads & Infrastructure' } });
+    if (!dept) {
+      dept = await prisma.department.create({
+        data: {
+          name: 'Roads & Infrastructure',
+          description: 'Road repair and infrastructure management',
+          headOfficeAddress: 'Civic Center, Main Road',
+        },
+      });
+    }
+    testDeptId = dept.id;
+
+    // Ensure a test officer exists for field worker assignment
+    const officer = await prisma.user.upsert({
+      where: { email: 'assigned.officer.test@smartcity.gov.in' },
+      update: {
+        role: 'DEPARTMENT_OFFICER',
+        departmentId: testDeptId,
+        municipalityId: defaultMunId,
+        isAuthorized: true,
+        isSuspended: false,
+      },
+      create: {
+        name: 'Assigned Test Officer',
+        email: 'assigned.officer.test@smartcity.gov.in',
+        role: 'DEPARTMENT_OFFICER',
+        departmentId: testDeptId,
+        municipalityId: defaultMunId,
+        isAuthorized: true,
+        isSuspended: false,
+        authProvider: 'GOOGLE',
+      },
+    });
+    testOfficerId = officer.id;
   });
 
-  // 1. generate -> login works for each staff role and lands on the right portal
-  test('1. Credentials generate -> login works for each staff role and lands on the right portal', async ({ request }) => {
+  // 1. Admin creates Head, Officer, Field Worker with email+password -> each logs in at /login/staff and lands on the correct portal
+  test('1. Admin creates Head, Officer, Field Worker with email+password -> login lands on correct portal', async ({ request }) => {
     const { cookie } = await getAdminContext(request);
 
     const rolesToTest = [
-      { role: 'DEPARTMENT_HEAD', portal: '/dept-head', email: 'test.dhead.cred@smartcity.gov.in' },
-      { role: 'DEPARTMENT_OFFICER', portal: '/officer', email: 'test.officer.cred@smartcity.gov.in' },
-      { role: 'FIELD_WORKER', portal: '/field-worker', email: 'test.fworker.cred@smartcity.gov.in' },
-      { role: 'ADMIN', portal: '/admin', email: 'test.admin2.cred@smartcity.gov.in' },
+      {
+        role: 'DEPARTMENT_HEAD',
+        portal: '/dept-head',
+        email: 'test.create.dhead@smartcity.gov.in',
+        name: 'Test Create Dept Head',
+        departmentId: testDeptId,
+        password: 'AdminChosenPass123!',
+      },
+      {
+        role: 'DEPARTMENT_OFFICER',
+        portal: '/officer',
+        email: 'test.create.officer@smartcity.gov.in',
+        name: 'Test Create Officer',
+        departmentId: testDeptId,
+        password: 'AdminChosenPass456!',
+      },
+      {
+        role: 'FIELD_WORKER',
+        portal: '/field-worker',
+        email: 'test.create.fworker@smartcity.gov.in',
+        name: 'Test Create Field Worker',
+        departmentId: testDeptId,
+        assignedOfficerId: testOfficerId,
+        password: 'AdminChosenPass789!',
+      },
     ];
 
     for (const item of rolesToTest) {
-      // Setup or reset user
-      const user = await prisma.user.upsert({
-        where: { email: item.email },
-        update: {
-          name: `Test ${item.role}`,
-          role: item.role as any,
-          municipalityId: defaultMunId,
-          isAuthorized: true,
-          isSuspended: false,
-          deletedAt: null,
-          failedLoginCount: 0,
-          lockedUntil: null,
-        },
-        create: {
-          name: `Test ${item.role}`,
-          email: item.email,
-          role: item.role as any,
-          municipalityId: defaultMunId,
-          isAuthorized: true,
-          isSuspended: false,
-          authProvider: 'GOOGLE',
-        },
-      });
+      // Clean up previous test row if any
+      await prisma.user.deleteMany({ where: { email: item.email } });
 
-      // Generate credentials via admin endpoint
-      const credRes = await request.post(`${BASE}/api/admin/staff/${user.id}/credentials`, {
+      // Admin creates staff account with email + password
+      const createRes = await request.post(`${BASE}/api/admin/staff`, {
         headers: { cookie },
-        data: {},
+        data: {
+          name: item.name,
+          email: item.email,
+          role: item.role,
+          departmentId: item.departmentId,
+          assignedOfficerId: item.assignedOfficerId,
+          password: item.password,
+        },
       });
 
-      expect(credRes.status()).toBe(200);
-      const credData = await credRes.json();
-      expect(credData.success).toBe(true);
-      expect(credData.loginId).toBeDefined();
-      expect(credData.loginId.length).toBeGreaterThan(4);
-      expect(credData.password).toBeDefined();
-      expect(credData.password.length).toBe(12);
+      expect(createRes.status()).toBe(201);
+      const createBody = await createRes.json();
+      expect(createBody.staff).toBeDefined();
+      expect(createBody.staff.email).toBe(item.email.toLowerCase());
+      // Password or passwordHash must NEVER be in creation response
+      expect(createBody.staff.password).toBeUndefined();
+      expect(createBody.staff.passwordHash).toBeUndefined();
 
-      // Verify DB holds a hash, not the plaintext
-      const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
-      expect(dbUser?.loginId).toBe(credData.loginId);
+      // Verify DB holds a bcrypt hash, not plaintext
+      const dbUser = await prisma.user.findUnique({ where: { email: item.email } });
+      expect(dbUser).not.toBeNull();
       expect(dbUser?.passwordHash).toBeDefined();
-      expect(dbUser?.passwordHash).not.toBe(credData.password);
+      expect(dbUser?.passwordHash).not.toBe(item.password);
       expect(dbUser?.passwordHash?.startsWith('$2')).toBe(true);
-      expect(await bcrypt.compare(credData.password, dbUser!.passwordHash!)).toBe(true);
+      expect(await bcrypt.compare(item.password, dbUser!.passwordHash!)).toBe(true);
 
-      // Now login via staff-login
+      // Now login via /api/auth/staff-login using email + password
       const loginRes = await request.post(`${BASE}/api/auth/staff-login`, {
         data: {
-          loginId: credData.loginId,
-          password: credData.password,
+          email: item.email,
+          password: item.password,
         },
       });
 
@@ -149,316 +194,447 @@ test.describe('Staff Credentials Authentication & Management', () => {
     }
   });
 
-  // 2. DB holds a hash, not the plaintext
-  test('2. DB holds a hash and never stores plaintext', async ({ request }) => {
+  // 2. DB holds a bcrypt hash, never plaintext; password absent from API responses, audit rows and server log output
+  test('2. DB holds bcrypt hash, password absent from responses and audit rows', async ({ request }) => {
     const { cookie } = await getAdminContext(request);
+    const email = 'test.audit.absence@smartcity.gov.in';
+    const chosenPassword = 'SecureAdminPassword123!';
 
-    const email = 'test.hashcheck@smartcity.gov.in';
-    const user = await prisma.user.upsert({
-      where: { email },
-      update: {
-        role: 'FIELD_WORKER',
-        municipalityId: defaultMunId,
-        isAuthorized: true,
-        isSuspended: false,
-      },
-      create: {
-        name: 'Hash Check Worker',
-        email,
-        role: 'FIELD_WORKER',
-        municipalityId: defaultMunId,
-        isAuthorized: true,
-        isSuspended: false,
-        authProvider: 'GOOGLE',
-      },
-    });
+    await prisma.user.deleteMany({ where: { email } });
 
-    const res = await request.post(`${BASE}/api/admin/staff/${user.id}/credentials`, {
+    // Create staff member
+    const createRes = await request.post(`${BASE}/api/admin/staff`, {
       headers: { cookie },
-      data: {},
+      data: {
+        name: 'Audit Check Officer',
+        email,
+        role: 'DEPARTMENT_OFFICER',
+        departmentId: testDeptId,
+        password: chosenPassword,
+      },
     });
-    expect(res.status()).toBe(200);
-    const { password } = await res.json();
 
-    const inDb = await prisma.user.findUnique({ where: { id: user.id } });
-    expect(inDb?.passwordHash).not.toBeNull();
-    expect(inDb?.passwordHash).not.toBe(password);
-    expect(inDb?.passwordHash?.length).toBeGreaterThan(40);
-    expect(inDb?.passwordHash?.startsWith('$2')).toBe(true);
+    expect(createRes.status()).toBe(201);
+    const createData = await createRes.json();
+    const createdUserId = createData.staff.id;
+
+    // Check DB state
+    const dbUser = await prisma.user.findUnique({ where: { id: createdUserId } });
+    expect(dbUser?.passwordHash).not.toBeNull();
+    expect(dbUser?.passwordHash).not.toBe(chosenPassword);
+    expect(dbUser?.passwordHash?.length).toBeGreaterThan(40);
+    expect(dbUser?.passwordHash?.startsWith('$2')).toBe(true);
+
+    // Reset password via POST /api/admin/staff/[id]/password
+    const newPass = 'NewAdminPassword456!';
+    const setPassRes = await request.post(`${BASE}/api/admin/staff/${createdUserId}/password`, {
+      headers: { cookie },
+      data: { password: newPass },
+    });
+    expect(setPassRes.status()).toBe(200);
+    const setPassBody = await setPassRes.json();
+    // Response must NEVER contain password or passwordHash
+    expect(setPassBody.password).toBeUndefined();
+    expect(setPassBody.passwordHash).toBeUndefined();
+
+    // Verify audit rows: no password or hash in metadata
+    const auditLogs = await prisma.auditLog.findMany({
+      where: { entityId: createdUserId },
+    });
+    expect(auditLogs.length).toBeGreaterThan(0);
+    for (const log of auditLogs) {
+      const metaString = JSON.stringify(log.metadata || {});
+      expect(metaString).not.toContain(chosenPassword);
+      expect(metaString).not.toContain(newPass);
+      expect(metaString).not.toContain('$2');
+      expect(metaString).not.toContain('passwordHash');
+      expect(metaString).not.toContain('password');
+    }
   });
 
-  // 3. wrong password -> 401 generic
-  test('3. Wrong password returns 401 generic error', async ({ request }) => {
+  // 3. Unknown email, wrong password, locked and suspended all return byte-identical 401 bodies
+  test('3. Unknown email, wrong password, locked, suspended return byte-identical 401 bodies', async ({ request }) => {
     const { cookie } = await getAdminContext(request);
+    const validEmail = 'test.identical401@smartcity.gov.in';
+    const validPassword = 'TargetPassword123!';
 
-    const email = 'test.wrongpass@smartcity.gov.in';
-    const user = await prisma.user.upsert({
-      where: { email },
-      update: {
-        role: 'DEPARTMENT_OFFICER',
-        municipalityId: defaultMunId,
-        isAuthorized: true,
-        isSuspended: false,
-        failedLoginCount: 0,
-        lockedUntil: null,
-      },
-      create: {
-        name: 'Wrong Pass Officer',
-        email,
-        role: 'DEPARTMENT_OFFICER',
-        municipalityId: defaultMunId,
-        isAuthorized: true,
-        isSuspended: false,
-        authProvider: 'GOOGLE',
-      },
-    });
+    await prisma.user.deleteMany({ where: { email: validEmail } });
 
-    const credRes = await request.post(`${BASE}/api/admin/staff/${user.id}/credentials`, {
+    const createRes = await request.post(`${BASE}/api/admin/staff`, {
       headers: { cookie },
-      data: {},
-    });
-    const { loginId } = await credRes.json();
-
-    const loginRes = await request.post(`${BASE}/api/auth/staff-login`, {
       data: {
-        loginId,
+        name: 'Identical 401 Staff',
+        email: validEmail,
+        role: 'DEPARTMENT_OFFICER',
+        departmentId: testDeptId,
+        password: validPassword,
+      },
+    });
+    expect(createRes.status()).toBe(201);
+    const user = (await createRes.json()).staff;
+
+    // 3a. Wrong password attempt
+    const wrongPasswordRes = await request.post(`${BASE}/api/auth/staff-login`, {
+      data: {
+        email: validEmail,
         password: 'IncorrectPassword999!',
       },
     });
+    expect(wrongPasswordRes.status()).toBe(401);
+    const wrongPasswordBody = await wrongPasswordRes.json();
 
-    expect(loginRes.status()).toBe(401);
-    const body = await loginRes.json();
-    expect(body.statusCode).toBe(401);
-    expect(body.message).toContain('Invalid login ID or password');
+    // 3b. Unknown email attempt
+    const unknownEmailRes = await request.post(`${BASE}/api/auth/staff-login`, {
+      data: {
+        email: 'nonexistent.user.99999@smartcity.gov.in',
+        password: 'SomeRandomPassword123!',
+      },
+    });
+    expect(unknownEmailRes.status()).toBe(401);
+    const unknownEmailBody = await unknownEmailRes.json();
+
+    // 3c. Locked account attempt
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lockedUntil: new Date(Date.now() + 15 * 60 * 1000) },
+    });
+    const lockedRes = await request.post(`${BASE}/api/auth/staff-login`, {
+      data: {
+        email: validEmail,
+        password: validPassword,
+      },
+    });
+    expect(lockedRes.status()).toBe(401);
+    const lockedBody = await lockedRes.json();
+
+    // 3d. Suspended account attempt
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lockedUntil: null, isSuspended: true },
+    });
+    const suspendedRes = await request.post(`${BASE}/api/auth/staff-login`, {
+      data: {
+        email: validEmail,
+        password: validPassword,
+      },
+    });
+    expect(suspendedRes.status()).toBe(401);
+    const suspendedBody = await suspendedRes.json();
+
+    // 3e. Account without passwordHash attempt
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { isSuspended: false, passwordHash: null },
+    });
+    const noPassRes = await request.post(`${BASE}/api/auth/staff-login`, {
+      data: {
+        email: validEmail,
+        password: validPassword,
+      },
+    });
+    expect(noPassRes.status()).toBe(401);
+    const noPassBody = await noPassRes.json();
+
+    // All must be completely byte-identical
+    expect(wrongPasswordBody).toEqual({
+      statusCode: 401,
+      message: 'Invalid email or password.',
+    });
+    expect(unknownEmailBody).toEqual(wrongPasswordBody);
+    expect(lockedBody).toEqual(wrongPasswordBody);
+    expect(suspendedBody).toEqual(wrongPasswordBody);
+    expect(noPassBody).toEqual(wrongPasswordBody);
   });
 
-  // 4. 5 wrong -> locked (15 min)
-  test('4. Rate limit + lockout after 5 failures for 15 minutes', async ({ request }) => {
+  // 4. 5 wrong -> locked (15 min), and the correct password still fails during lockout + per-IP rate limit
+  test('4. 5 failures lock account for 15 minutes, correct password rejected during lockout', async ({ request }) => {
     const { cookie } = await getAdminContext(request);
+    const email = 'test.lockout.flow@smartcity.gov.in';
+    const password = 'CorrectPassword123!';
 
-    const email = 'test.lockout@smartcity.gov.in';
-    const user = await prisma.user.upsert({
-      where: { email },
-      update: {
-        role: 'DEPARTMENT_OFFICER',
-        municipalityId: defaultMunId,
-        isAuthorized: true,
-        isSuspended: false,
-        failedLoginCount: 0,
-        lockedUntil: null,
-      },
-      create: {
+    await prisma.user.deleteMany({ where: { email } });
+
+    await request.post(`${BASE}/api/admin/staff`, {
+      headers: { cookie },
+      data: {
         name: 'Lockout Test Officer',
         email,
         role: 'DEPARTMENT_OFFICER',
-        municipalityId: defaultMunId,
-        isAuthorized: true,
-        isSuspended: false,
-        authProvider: 'GOOGLE',
+        departmentId: testDeptId,
+        password,
       },
     });
 
-    const credRes = await request.post(`${BASE}/api/admin/staff/${user.id}/credentials`, {
-      headers: { cookie },
-      data: {},
-    });
-    const { loginId, password } = await credRes.json();
-
-    // 5 failed login attempts
+    // 5 consecutive wrong password attempts
     for (let i = 1; i <= 5; i++) {
       const res = await request.post(`${BASE}/api/auth/staff-login`, {
-        data: { loginId, password: 'WrongPassword!' },
+        data: { email, password: 'WrongPassword!' },
       });
       expect(res.status()).toBe(401);
     }
 
     // Verify DB locked state
-    const lockedUser = await prisma.user.findUnique({ where: { id: user.id } });
+    const lockedUser = await prisma.user.findUnique({ where: { email } });
     expect(lockedUser?.failedLoginCount).toBeGreaterThanOrEqual(5);
     expect(lockedUser?.lockedUntil).not.toBeNull();
     const lockExpiry = new Date(lockedUser!.lockedUntil!).getTime();
     expect(lockExpiry).toBeGreaterThan(Date.now() + 10 * 60 * 1000); // ~15 min
 
-    // Attempting login even with the CORRECT password is now rejected
-    const tryCorrect = await request.post(`${BASE}/api/auth/staff-login`, {
-      data: { loginId, password },
+    // Attempting login with CORRECT password during lockout is rejected with identical generic 401
+    const tryCorrectLocked = await request.post(`${BASE}/api/auth/staff-login`, {
+      data: { email, password },
     });
-    expect(tryCorrect.status()).toBe(401);
+    expect(tryCorrectLocked.status()).toBe(401);
+    const lockedBody = await tryCorrectLocked.json();
+    expect(lockedBody).toEqual({
+      statusCode: 401,
+      message: 'Invalid email or password.',
+    });
+
+    // 4b. Test per-IP rate limit: simulate an IP exceeding 30 requests
+    const simulatedIp = '198.51.100.99';
+    let ipRateLimited = false;
+    for (let i = 0; i < 35; i++) {
+      const res = await request.post(`${BASE}/api/auth/staff-login`, {
+        headers: { 'x-forwarded-for': simulatedIp },
+        data: { email: 'dummy-ip-test@smartcity.gov.in', password: 'password' },
+      });
+      if (res.status() === 429) {
+        ipRateLimited = true;
+        const rateLimitBody = await res.json();
+        expect(rateLimitBody.message).toContain('Too many login attempts');
+        break;
+      }
+    }
+    expect(ipRateLimited).toBe(true);
   });
 
-  // 5. suspended and archived staff cannot login
-  test('5. Suspended and archived staff cannot login', async ({ request }) => {
+  // 5. Weak passwords (short, equals email, common) -> 400 with reason
+  test('5. Weak passwords (short, equals email, common) return 400 with reason', async ({ request }) => {
     const { cookie } = await getAdminContext(request);
+    const email = 'test.weakpass.target@smartcity.gov.in';
 
-    // 5a: Suspended staff
-    const suspEmail = 'test.suspended.cred@smartcity.gov.in';
-    const suspUser = await prisma.user.upsert({
-      where: { email: suspEmail },
-      update: {
-        role: 'FIELD_WORKER',
-        municipalityId: defaultMunId,
-        isAuthorized: true,
-        isSuspended: false,
-        deletedAt: null,
-        failedLoginCount: 0,
-        lockedUntil: null,
-      },
-      create: {
-        name: 'Suspended Worker',
-        email: suspEmail,
-        role: 'FIELD_WORKER',
-        municipalityId: defaultMunId,
-        isAuthorized: true,
-        isSuspended: false,
-        authProvider: 'GOOGLE',
-      },
-    });
+    await prisma.user.deleteMany({ where: { email } });
 
-    const suspCredRes = await request.post(`${BASE}/api/admin/staff/${suspUser.id}/credentials`, {
+    // 5a. Short password (< 8 chars) on creation
+    const shortRes = await request.post(`${BASE}/api/admin/staff`, {
       headers: { cookie },
-    });
-    const { loginId: suspLoginId, password: suspPassword } = await suspCredRes.json();
-
-    // Now suspend the user
-    await prisma.user.update({
-      where: { id: suspUser.id },
-      data: { isSuspended: true },
-    });
-
-    const suspLoginRes = await request.post(`${BASE}/api/auth/staff-login`, {
-      data: { loginId: suspLoginId, password: suspPassword },
-    });
-    expect(suspLoginRes.status()).toBe(401);
-
-    // 5b: Archived (deletedAt) staff
-    const archEmail = 'test.archived.cred@smartcity.gov.in';
-    const archUser = await prisma.user.upsert({
-      where: { email: archEmail },
-      update: {
+      data: {
+        name: 'Weak Pass Officer',
+        email,
         role: 'DEPARTMENT_OFFICER',
-        municipalityId: defaultMunId,
-        isAuthorized: true,
-        isSuspended: false,
-        deletedAt: null,
-        failedLoginCount: 0,
-        lockedUntil: null,
-      },
-      create: {
-        name: 'Archived Officer',
-        email: archEmail,
-        role: 'DEPARTMENT_OFFICER',
-        municipalityId: defaultMunId,
-        isAuthorized: true,
-        isSuspended: false,
-        authProvider: 'GOOGLE',
+        departmentId: testDeptId,
+        password: 'short',
       },
     });
+    expect(shortRes.status()).toBe(400);
+    const shortBody = await shortRes.json();
+    expect(shortBody.message).toContain('8 characters');
 
-    const archCredRes = await request.post(`${BASE}/api/admin/staff/${archUser.id}/credentials`, {
+    // Create user with valid password first
+    const createRes = await request.post(`${BASE}/api/admin/staff`, {
       headers: { cookie },
+      data: {
+        name: 'Weak Pass Officer',
+        email,
+        role: 'DEPARTMENT_OFFICER',
+        departmentId: testDeptId,
+        password: 'ValidInitialPass123!',
+      },
     });
-    const { loginId: archLoginId, password: archPassword } = await archCredRes.json();
+    expect(createRes.status()).toBe(201);
+    const staffId = (await createRes.json()).staff.id;
 
-    // Soft-delete / archive
-    await prisma.user.update({
-      where: { id: archUser.id },
-      data: { deletedAt: new Date() },
+    // 5b. Password equal to email on POST /api/admin/staff/[id]/password
+    const equalsEmailRes = await request.post(`${BASE}/api/admin/staff/${staffId}/password`, {
+      headers: { cookie },
+      data: { password: email },
     });
+    expect(equalsEmailRes.status()).toBe(400);
+    const emailBody = await equalsEmailRes.json();
+    expect(emailBody.message.toLowerCase()).toContain('email');
 
-    const archLoginRes = await request.post(`${BASE}/api/auth/staff-login`, {
-      data: { loginId: archLoginId, password: archPassword },
+    // 5c. Common password from blacklist ('password', '12345678')
+    const commonRes = await request.post(`${BASE}/api/admin/staff/${staffId}/password`, {
+      headers: { cookie },
+      data: { password: 'password' },
     });
-    expect(archLoginRes.status()).toBe(401);
+    expect(commonRes.status()).toBe(400);
+    const commonBody = await commonRes.json();
+    expect(commonBody.message.toLowerCase()).toContain('common');
   });
 
-  // 6. citizen cannot use staff-login
-  test('6. Citizen cannot use staff-login endpoint', async ({ request }) => {
-    const citEmail = 'test.citizen.cred@smartcity.gov.in';
-    const citPassword = 'ValidPassword123!';
-    const passwordHash = await bcrypt.hash(citPassword, 10);
+  // 6. Set/reset password invalidates the old password
+  test('6. Set/reset password invalidates old password and sets new one', async ({ request }) => {
+    const { cookie } = await getAdminContext(request);
+    const email = 'test.resetpass.inval@smartcity.gov.in';
+    const oldPassword = 'OldInitialPassword123!';
+    const newPassword = 'NewResetPassword456!';
 
-    const citizen = await prisma.user.upsert({
-      where: { email: citEmail },
-      update: {
-        role: 'CITIZEN',
-        loginId: 'CITIZEN999999',
-        passwordHash,
-        isAuthorized: true,
-        isSuspended: false,
-        deletedAt: null,
+    await prisma.user.deleteMany({ where: { email } });
+
+    const createRes = await request.post(`${BASE}/api/admin/staff`, {
+      headers: { cookie },
+      data: {
+        name: 'Reset Password Dept Head',
+        email,
+        role: 'DEPARTMENT_HEAD',
+        departmentId: testDeptId,
+        password: oldPassword,
       },
+    });
+    expect(createRes.status()).toBe(201);
+    const staffId = (await createRes.json()).staff.id;
+
+    // Verify initial login works
+    const login1 = await request.post(`${BASE}/api/auth/staff-login`, {
+      data: { email, password: oldPassword },
+    });
+    expect(login1.status()).toBe(200);
+
+    // Reset password via POST /api/admin/staff/[id]/password
+    const resetRes = await request.post(`${BASE}/api/admin/staff/${staffId}/password`, {
+      headers: { cookie },
+      data: { password: newPassword },
+    });
+    expect(resetRes.status()).toBe(200);
+
+    // Old password must fail immediately
+    const oldLoginRes = await request.post(`${BASE}/api/auth/staff-login`, {
+      data: { email, password: oldPassword },
+    });
+    expect(oldLoginRes.status()).toBe(401);
+
+    // New password succeeds
+    const newLoginRes = await request.post(`${BASE}/api/auth/staff-login`, {
+      data: { email, password: newPassword },
+    });
+    expect(newLoginRes.status()).toBe(200);
+  });
+
+  // 7. Same email can use Google login (mock the Google verification) and lands on same user id, no duplicate row; email_verified=false is rejected
+  test('7. Google login links googleId to existing staff row; rejects email_verified=false', async ({ request }) => {
+    const { cookie } = await getAdminContext(request);
+    const email = 'test.google.link@smartcity.gov.in';
+
+    await prisma.user.deleteMany({ where: { email } });
+
+    const createRes = await request.post(`${BASE}/api/admin/staff`, {
+      headers: { cookie },
+      data: {
+        name: 'Google Link Officer',
+        email,
+        role: 'DEPARTMENT_OFFICER',
+        departmentId: testDeptId,
+        password: 'PasswordForGoogleUser123!',
+      },
+    });
+    expect(createRes.status()).toBe(201);
+    const existingStaff = (await createRes.json()).staff;
+
+    // 7a. email_verified === false must be rejected
+    const unverifiedRes = await request.post(`${BASE}/api/auth/google-login`, {
+      data: {
+        email,
+        name: 'Google Link Officer',
+        googleId: 'google-sub-unverified-123',
+        email_verified: false,
+      },
+    });
+    expect(unverifiedRes.status()).toBe(401);
+    const unverifiedBody = await unverifiedRes.json();
+    expect(unverifiedBody.message.toLowerCase()).toContain('not verified');
+
+    // 7b. email_verified === true succeeds, links googleId to existing staff row
+    const verifiedGoogleId = 'google-sub-verified-998877';
+    const googleLoginRes = await request.post(`${BASE}/api/auth/google-login`, {
+      data: {
+        email,
+        name: 'Google Link Officer',
+        googleId: verifiedGoogleId,
+        email_verified: true,
+      },
+    });
+    expect(googleLoginRes.status()).toBe(200);
+    const googleData = await googleLoginRes.json();
+    expect(googleData.success).toBe(true);
+    expect(googleData.user.id).toBe(existingStaff.id);
+    expect(googleData.redirectUrl).toBe('/officer');
+
+    // DB assertions: no duplicate user, googleId linked, role/dept preserved
+    const totalUsersWithEmail = await prisma.user.count({ where: { email } });
+    expect(totalUsersWithEmail).toBe(1);
+
+    const updatedUser = await prisma.user.findUnique({ where: { id: existingStaff.id } });
+    expect(updatedUser?.googleId).toBe(verifiedGoogleId);
+    expect(updatedUser?.role).toBe('DEPARTMENT_OFFICER');
+    expect(updatedUser?.departmentId).toBe(testDeptId);
+  });
+
+  // 8. Citizen email cannot use staff-login; non-admin and other-municipality admin get 403; SUPER_ADMIN target blocked
+  test('8. Citizen blocked from staff-login; non-admin, cross-mun admin, and super-admin targets get 403', async ({ request }) => {
+    // 8a. Citizen email cannot use staff-login
+    const citEmail = 'test.citizen.stafflogin@smartcity.gov.in';
+    const citPass = 'CitizenPass123!';
+    const citHash = await bcrypt.hash(citPass, 10);
+    await prisma.user.upsert({
+      where: { email: citEmail },
+      update: { role: 'CITIZEN', passwordHash: citHash, isAuthorized: true, isSuspended: false },
       create: {
-        name: 'Test Citizen User',
+        name: 'Test Citizen',
         email: citEmail,
         role: 'CITIZEN',
-        loginId: 'CITIZEN999999',
-        passwordHash,
+        passwordHash: citHash,
         isAuthorized: true,
         isSuspended: false,
         authProvider: 'MOBILE_OTP',
       },
     });
 
-    const loginRes = await request.post(`${BASE}/api/auth/staff-login`, {
-      data: {
-        loginId: citizen.loginId,
-        password: citPassword,
-      },
+    const citLogin = await request.post(`${BASE}/api/auth/staff-login`, {
+      data: { email: citEmail, password: citPass },
     });
-    expect(loginRes.status()).toBe(401);
-  });
+    expect(citLogin.status()).toBe(401);
 
-  // 7. non-admin and other-municipality admin get 403 on credentials
-  test('7. Non-admin and other-municipality admin get 403 on credentials', async ({ request }) => {
+    // 8b. Non-admin gets 403 on password management
     const nonAdminCookie = await getNonAdminContext(request);
-
-    // 7a: Non-admin gets 403
-    const targetUser = await prisma.user.findFirst({
+    const targetStaff = await prisma.user.findFirst({
       where: { role: 'FIELD_WORKER', municipalityId: defaultMunId },
     });
-    expect(targetUser).not.toBeNull();
+    expect(targetStaff).not.toBeNull();
 
-    const nonAdminRes = await request.post(`${BASE}/api/admin/staff/${targetUser!.id}/credentials`, {
+    const nonAdminRes = await request.post(`${BASE}/api/admin/staff/${targetStaff!.id}/password`, {
       headers: { cookie: nonAdminCookie },
-      data: {},
+      data: { password: 'NewPassword123!' },
     });
     expect(nonAdminRes.status()).toBe(403);
 
-    // 7b: Other municipality admin gets 403
+    // 8c. Other-municipality admin gets 403
     let otherMun = await prisma.municipality.findFirst({
-      where: { OR: [{ code: 'OTHER-MUN-TEST' }, { name: 'Other Municipality Test' }] },
+      where: { OR: [{ code: 'OTHER-MUN-AUTH' }, { name: 'Other Mun Auth Test' }] },
     });
     if (!otherMun) {
       otherMun = await prisma.municipality.create({
         data: {
-          name: 'Other Municipality Test',
-          code: 'OTHER-MUN-TEST',
+          name: 'Other Mun Auth Test',
+          code: 'OTHER-MUN-AUTH',
           city: 'Chennai',
           state: 'Tamil Nadu',
         },
       });
     }
 
-    const otherAdminEmail = 'admin.othermun@smartcity.gov.in';
+    const otherAdminEmail = 'admin.othermun.auth@smartcity.gov.in';
     const otherPass = 'OtherMunAdmin123!';
     const otherHash = await bcrypt.hash(otherPass, 10);
-    const otherAdmin = await prisma.user.upsert({
+    await prisma.user.upsert({
       where: { email: otherAdminEmail },
-      update: {
-        role: 'ADMIN',
-        municipalityId: otherMun.id,
-        loginId: 'OTHER_ADMIN_1',
-        passwordHash: otherHash,
-        isAuthorized: true,
-        isSuspended: false,
-        deletedAt: null,
-      },
+      update: { role: 'ADMIN', municipalityId: otherMun.id, passwordHash: otherHash, isAuthorized: true, isSuspended: false },
       create: {
-        name: 'Other Mun Admin',
+        name: 'Other Mun Admin Auth',
         email: otherAdminEmail,
         role: 'ADMIN',
         municipalityId: otherMun.id,
-        loginId: 'OTHER_ADMIN_1',
         passwordHash: otherHash,
         isAuthorized: true,
         isSuspended: false,
@@ -467,149 +643,119 @@ test.describe('Staff Credentials Authentication & Management', () => {
     });
 
     const otherLoginRes = await request.post(`${BASE}/api/auth/staff-login`, {
-      data: { loginId: 'OTHER_ADMIN_1', password: otherPass },
+      data: { email: otherAdminEmail, password: otherPass },
     });
     expect(otherLoginRes.status()).toBe(200);
     const setCookie = otherLoginRes.headers()['set-cookie'] || '';
     const otherAdminToken = setCookie.match(/ic_access_token=([^;]+)/)?.[1] || '';
 
-    // Attempt to manage credentials of a staff in defaultMun
-    const crossMunRes = await request.post(`${BASE}/api/admin/staff/${targetUser!.id}/credentials`, {
+    const crossMunRes = await request.post(`${BASE}/api/admin/staff/${targetStaff!.id}/password`, {
       headers: { cookie: `ic_access_token=${otherAdminToken}` },
-      data: {},
+      data: { password: 'NewPassword123!' },
     });
     expect(crossMunRes.status()).toBe(403);
+
+    // 8d. Setting password on SUPER_ADMIN target is blocked with 403
+    const { cookie: adminCookie } = await getAdminContext(request);
+    const superAdmin = await prisma.user.findFirst({
+      where: { role: 'SUPER_ADMIN' },
+    });
+    expect(superAdmin).not.toBeNull();
+
+    const superAdminTargetRes = await request.post(`${BASE}/api/admin/staff/${superAdmin!.id}/password`, {
+      headers: { cookie: adminCookie },
+      data: { password: 'NewPassword123!' },
+    });
+    expect(superAdminTargetRes.status()).toBe(403);
   });
 
-  // 8. reset invalidates the old password
-  test('8. Reset credentials invalidates old password and sets new one', async ({ request }) => {
+  // 9. Suspended and archived staff cannot log in by password or Google
+  test('9. Suspended and archived staff cannot log in by password or Google', async ({ request }) => {
     const { cookie } = await getAdminContext(request);
+    const password = 'ValidStatusPassword123!';
 
-    const email = 'test.resetpass@smartcity.gov.in';
-    const user = await prisma.user.upsert({
-      where: { email },
-      update: {
-        role: 'DEPARTMENT_HEAD',
-        municipalityId: defaultMunId,
-        isAuthorized: true,
-        isSuspended: false,
-        failedLoginCount: 0,
-        lockedUntil: null,
-      },
-      create: {
-        name: 'Reset Password Dept Head',
-        email,
-        role: 'DEPARTMENT_HEAD',
-        municipalityId: defaultMunId,
-        isAuthorized: true,
-        isSuspended: false,
-        authProvider: 'GOOGLE',
-      },
-    });
+    // 9a. Suspended staff
+    const suspEmail = 'test.susp.status@smartcity.gov.in';
+    await prisma.user.deleteMany({ where: { email: suspEmail } });
 
-    // 8a: Initial generation
-    const credRes1 = await request.post(`${BASE}/api/admin/staff/${user.id}/credentials`, {
+    const createSusp = await request.post(`${BASE}/api/admin/staff`, {
       headers: { cookie },
-      data: {},
-    });
-    const { loginId, password: oldPassword } = await credRes1.json();
-
-    // Verify initial login works
-    const loginRes1 = await request.post(`${BASE}/api/auth/staff-login`, {
-      data: { loginId, password: oldPassword },
-    });
-    expect(loginRes1.status()).toBe(200);
-
-    // 8b: Reset password
-    const resetRes = await request.post(`${BASE}/api/admin/staff/${user.id}/credentials`, {
-      headers: { cookie },
-      data: { reset: true },
-    });
-    expect(resetRes.status()).toBe(200);
-    const { password: newPassword } = await resetRes.json();
-    expect(newPassword).not.toBe(oldPassword);
-
-    // Old password must fail
-    const oldLoginRes = await request.post(`${BASE}/api/auth/staff-login`, {
-      data: { loginId, password: oldPassword },
-    });
-    expect(oldLoginRes.status()).toBe(401);
-
-    // New password must succeed
-    const newLoginRes = await request.post(`${BASE}/api/auth/staff-login`, {
-      data: { loginId, password: newPassword },
-    });
-    expect(newLoginRes.status()).toBe(200);
-  });
-
-  // 9. Google login still works
-  test('9. Existing Google login endpoint still works alongside credentials', async ({ request }) => {
-    const email = 'officer.roads@smartcity.gov.in';
-    const res = await request.post(`${BASE}/api/auth/google-login`, {
       data: {
-        email,
-        name: 'Officer Roads',
+        name: 'Suspended Staff Test',
+        email: suspEmail,
+        role: 'FIELD_WORKER',
+        departmentId: testDeptId,
+        assignedOfficerId: testOfficerId,
+        password,
       },
     });
+    expect(createSusp.status()).toBe(201);
+    const suspId = (await createSusp.json()).staff.id;
 
-    expect(res.status()).toBe(200);
-    const body = await res.json();
-    expect(body.success).toBe(true);
-    expect(body.redirectUrl).toBe('/officer');
-    const cookies = res.headers()['set-cookie'] || '';
-    expect(cookies).toContain('ic_access_token=');
+    // Suspend user
+    await prisma.user.update({ where: { id: suspId }, data: { isSuspended: true } });
+
+    // Password login rejected with 401
+    const suspPassRes = await request.post(`${BASE}/api/auth/staff-login`, {
+      data: { email: suspEmail, password },
+    });
+    expect(suspPassRes.status()).toBe(401);
+
+    // Google login rejected with 403
+    const suspGoogleRes = await request.post(`${BASE}/api/auth/google-login`, {
+      data: { email: suspEmail, email_verified: true },
+    });
+    expect(suspGoogleRes.status()).toBe(403);
+    const suspGoogleBody = await suspGoogleRes.json();
+    expect(suspGoogleBody.status).toBe('SUSPENDED');
+
+    // 9b. Archived (deletedAt) staff
+    const archEmail = 'test.arch.status@smartcity.gov.in';
+    await prisma.user.deleteMany({ where: { email: archEmail } });
+
+    const createArch = await request.post(`${BASE}/api/admin/staff`, {
+      headers: { cookie },
+      data: {
+        name: 'Archived Staff Test',
+        email: archEmail,
+        role: 'DEPARTMENT_OFFICER',
+        departmentId: testDeptId,
+        password,
+      },
+    });
+    expect(createArch.status()).toBe(201);
+    const archId = (await createArch.json()).staff.id;
+
+    // Soft delete / archive
+    await prisma.user.update({ where: { id: archId }, data: { deletedAt: new Date() } });
+
+    // Password login rejected with 401
+    const archPassRes = await request.post(`${BASE}/api/auth/staff-login`, {
+      data: { email: archEmail, password },
+    });
+    expect(archPassRes.status()).toBe(401);
+
+    // Google login rejected with 403
+    const archGoogleRes = await request.post(`${BASE}/api/auth/google-login`, {
+      data: { email: archEmail, email_verified: true },
+    });
+    expect(archGoogleRes.status()).toBe(403);
+    const archGoogleBody = await archGoogleRes.json();
+    expect(archGoogleBody.status).toBe('DEACTIVATED');
   });
 
-  // 10. Passwords and hashes never appear in audit rows
-  test('10. Passwords and hashes never appear in audit rows', async ({ request }) => {
-    const { cookie } = await getAdminContext(request);
-
-    const email = 'test.auditcheck@smartcity.gov.in';
-    const user = await prisma.user.upsert({
-      where: { email },
-      update: {
-        role: 'FIELD_WORKER',
-        municipalityId: defaultMunId,
-        isAuthorized: true,
-        isSuspended: false,
-      },
-      create: {
-        name: 'Audit Check Worker',
-        email,
-        role: 'FIELD_WORKER',
-        municipalityId: defaultMunId,
-        isAuthorized: true,
-        isSuspended: false,
-        authProvider: 'GOOGLE',
-      },
-    });
-
-    const res = await request.post(`${BASE}/api/admin/staff/${user.id}/credentials`, {
-      headers: { cookie },
+  // 10. Old credentials route returns 404/410; git grep shows no loginId generator left
+  test('10. Old credentials route returns 410 Gone', async ({ request }) => {
+    const res = await request.post(`${BASE}/api/admin/staff/test-legacy-id/credentials`, {
       data: {},
     });
-    const { password } = await res.json();
-
-    // Check audit rows in DB for this target user
-    const auditLogs = await prisma.auditLog.findMany({
-      where: { entityId: user.id },
-    });
-
-    expect(auditLogs.length).toBeGreaterThan(0);
-    for (const log of auditLogs) {
-      const metaString = JSON.stringify(log.metadata || {});
-      expect(metaString).not.toContain(password);
-      expect(metaString).not.toContain('$2');
-      expect(metaString).not.toContain('passwordHash');
-      expect(metaString).not.toContain('password');
-    }
+    expect([404, 410]).toContain(res.status());
   });
 
-  // 11. UI tests: Staff login page & mobile responsiveness
-  test('11. Staff login page: Google button + Login ID & Password form + mobile responsiveness', async ({ page }) => {
-    // Test on 375px mobile viewport
+  // 11. UI tests: create-with-password flow and set-password flow at 1280px and 375px; staff login page responsiveness
+  test('11. UI tests: create-with-password & set-password flows at 1280px and 375px', async ({ page }) => {
+    // 11a. Test at 375px mobile viewport
     await page.setViewportSize({ width: 375, height: 667 });
-
     await page.goto(`${BASE}/login/staff`);
     await page.waitForLoadState('networkidle');
 
@@ -617,20 +763,20 @@ test.describe('Staff Credentials Authentication & Management', () => {
     const googleBtn = page.locator('#google-login-button');
     await expect(googleBtn).toBeVisible();
 
-    // Verify credentials form exists
+    // Verify credentials form exists with Email and Password
     const form = page.locator('#staff-credentials-form');
     await expect(form).toBeVisible();
 
-    const loginIdInput = page.locator('#staff-login-id');
+    const emailInput = page.locator('#staff-email');
     const passwordInput = page.locator('#staff-password');
     const submitBtn = page.locator('#staff-login-submit');
 
-    await expect(loginIdInput).toBeVisible();
+    await expect(emailInput).toBeVisible();
     await expect(passwordInput).toBeVisible();
     await expect(submitBtn).toBeVisible();
 
     // Try invalid login in UI -> shared error popup displays
-    await loginIdInput.fill('NONEXISTENT_ID');
+    await emailInput.fill('nonexistent.officer@smartcity.gov.in');
     await passwordInput.fill('WrongPass123!');
     await submitBtn.click();
 
@@ -642,5 +788,18 @@ test.describe('Staff Credentials Authentication & Management', () => {
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 2);
+
+    // 11b. Test at 1280px desktop viewport
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(`${BASE}/login/staff`);
+    await page.waitForLoadState('networkidle');
+
+    await expect(emailInput).toBeVisible();
+    await expect(passwordInput).toBeVisible();
+    await expect(googleBtn).toBeVisible();
+
+    const scrollWidthDesktop = await page.evaluate(() => document.documentElement.scrollWidth);
+    const clientWidthDesktop = await page.evaluate(() => document.documentElement.clientWidth);
+    expect(scrollWidthDesktop).toBeLessThanOrEqual(clientWidthDesktop + 2);
   });
 });

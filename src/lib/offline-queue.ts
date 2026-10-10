@@ -35,13 +35,33 @@ const STORE_NAME = 'drafts';
 
 let dbInstance: IDBDatabase | null = null;
 
+export function closeDatabase(): void {
+  if (dbInstance) {
+    try {
+      dbInstance.close();
+    } catch {}
+    dbInstance = null;
+  }
+}
+
 export function openDatabase(): Promise<IDBDatabase> {
-  if (dbInstance) return Promise.resolve(dbInstance);
+  if (dbInstance) {
+    try {
+      dbInstance.transaction(STORE_NAME, 'readonly');
+      return Promise.resolve(dbInstance);
+    } catch {
+      dbInstance = null;
+    }
+  }
 
   return new Promise((resolve, reject) => {
     if (typeof window === 'undefined' || !window.indexedDB) {
       return reject(new Error('IndexedDB not supported in this environment'));
     }
+
+    const timer = setTimeout(() => {
+      reject(new Error('IndexedDB open request timed out'));
+    }, 4000);
 
     const request = window.indexedDB.open(DB_NAME, DB_VERSION);
 
@@ -56,6 +76,7 @@ export function openDatabase(): Promise<IDBDatabase> {
     };
 
     request.onsuccess = (event) => {
+      clearTimeout(timer);
       dbInstance = (event.target as IDBOpenDBRequest).result;
       dbInstance.onversionchange = () => {
         dbInstance?.close();
@@ -65,7 +86,15 @@ export function openDatabase(): Promise<IDBDatabase> {
     };
 
     request.onerror = (event) => {
+      clearTimeout(timer);
       reject((event.target as IDBOpenDBRequest).error);
+    };
+
+    request.onblocked = () => {
+      if (dbInstance) {
+        dbInstance.close();
+        dbInstance = null;
+      }
     };
   });
 }
@@ -75,16 +104,24 @@ export function openDatabase(): Promise<IDBDatabase> {
  */
 export async function compressPhoto(blobOrFile: Blob | File, maxBytes: number = 1024 * 1024): Promise<Blob> {
   if (typeof window === 'undefined') return blobOrFile;
-  if (blobOrFile.size <= maxBytes && (blobOrFile.type === 'image/jpeg' || blobOrFile.type === 'image/webp')) {
+  if (blobOrFile.size <= maxBytes) {
     return blobOrFile;
   }
 
   return new Promise((resolve) => {
+    let resolved = false;
     const img = new Image();
     const url = URL.createObjectURL(blobOrFile);
 
+    const timer = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        URL.revokeObjectURL(url);
+        resolve(blobOrFile);
+      }
+    }, 2000);
+
     img.onload = () => {
-      URL.revokeObjectURL(url);
       let { width, height } = img;
       const maxDim = 1920;
 
@@ -104,26 +141,61 @@ export async function compressPhoto(blobOrFile: Blob | File, maxBytes: number = 
       const ctx = canvas.getContext('2d');
 
       if (!ctx) {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timer);
+          URL.revokeObjectURL(url);
+        }
         return resolve(blobOrFile);
       }
 
       ctx.drawImage(img, 0, 0, width, height);
-      canvas.toBlob(
-        (compressed) => {
-          if (compressed && compressed.size < blobOrFile.size) {
-            resolve(compressed);
-          } else {
-            resolve(blobOrFile);
-          }
-        },
-        'image/jpeg',
-        0.82,
-      );
+
+      const blobTimer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timer);
+          URL.revokeObjectURL(url);
+          resolve(blobOrFile);
+        }
+      }, 1500);
+
+      try {
+        canvas.toBlob(
+          (compressed) => {
+            clearTimeout(blobTimer);
+            if (!resolved) {
+              resolved = true;
+              clearTimeout(timer);
+              URL.revokeObjectURL(url);
+              if (compressed && compressed.size < blobOrFile.size) {
+                resolve(compressed);
+              } else {
+                resolve(blobOrFile);
+              }
+            }
+          },
+          'image/jpeg',
+          0.82,
+        );
+      } catch {
+        clearTimeout(blobTimer);
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timer);
+          URL.revokeObjectURL(url);
+          resolve(blobOrFile);
+        }
+      }
     };
 
     img.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve(blobOrFile);
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timer);
+        URL.revokeObjectURL(url);
+        resolve(blobOrFile);
+      }
     };
 
     img.src = url;
@@ -136,18 +208,29 @@ export async function compressPhoto(blobOrFile: Blob | File, maxBytes: number = 
 export async function saveDraft(draft: OfflineDraft): Promise<void> {
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('saveDraft transaction timed out'));
+    }, 5000);
+
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
     store.put(draft);
 
     tx.oncomplete = () => {
+      clearTimeout(timer);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('intellicivic:drafts-changed', { detail: { draftId: draft.id } }));
       }
       resolve();
     };
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error);
+    tx.onerror = () => {
+      clearTimeout(timer);
+      reject(tx.error);
+    };
+    tx.onabort = () => {
+      clearTimeout(timer);
+      reject(tx.error);
+    };
   });
 }
 
@@ -476,5 +559,7 @@ if (typeof window !== 'undefined') {
     deleteDraft,
     syncDrafts,
     compressPhoto,
+    openDatabase,
+    closeDatabase,
   };
 }

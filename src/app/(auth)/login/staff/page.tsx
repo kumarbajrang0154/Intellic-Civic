@@ -22,7 +22,7 @@ function StaffLoginContent() {
   const errorKey = searchParams.get('error');
   const googleErrorMessage = errorKey ? (ERROR_MESSAGES[errorKey] || 'An error occurred during Google sign-in.') : null;
 
-  const [loginId, setLoginId] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -32,9 +32,16 @@ function StaffLoginContent() {
     e.preventDefault();
     setLoginError(null);
 
-    const cleanLoginId = loginId.trim();
-    if (!cleanLoginId || !password) {
-      setLoginError('Both Login ID and Password are required.');
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !password) {
+      const errorMsg = 'Invalid email or password.';
+      setLoginError(errorMsg);
+      showGlobalError({
+        title: 'Authentication Failed',
+        message: errorMsg,
+        statusCode: 401,
+        hint: 'Please check your email and password or contact your municipal administrator.',
+      });
       return;
     }
 
@@ -43,19 +50,19 @@ function StaffLoginContent() {
       const res = await fetch('/api/auth/staff-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ loginId: cleanLoginId, password }),
+        body: JSON.stringify({ email: cleanEmail, password }),
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        const errorMsg = data?.message || 'Invalid login ID or password.';
+        const errorMsg = data?.message || 'Invalid email or password.';
         setLoginError(errorMsg);
         showGlobalError({
           title: 'Authentication Failed',
           message: errorMsg,
           statusCode: res.status,
-          hint: 'Please check your Login ID and password or contact your municipal administrator.',
+          hint: 'Please check your email and password or contact your municipal administrator.',
         });
         return;
       }
@@ -128,7 +135,7 @@ function StaffLoginContent() {
                   Staff & Admin Access
                 </h2>
                 <p className="text-xs sm:text-sm text-[#6E6B64] leading-relaxed">
-                  Sign in using your assigned Login ID & password, or your authorized Google account.
+                  Sign in using your email & password, or your authorized Google account.
                 </p>
               </div>
 
@@ -148,23 +155,24 @@ function StaffLoginContent() {
                 </div>
               )}
 
-              {/* Form: Login ID & Password */}
+              {/* Form: Email & Password */}
               <form onSubmit={handleCredentialsLogin} className="space-y-4" id="staff-credentials-form">
                 <div className="space-y-1.5 text-left">
-                  <label htmlFor="staff-login-id" className="text-xs font-bold text-[#131E20] block">
-                    Staff Login ID <span className="text-rose-500">*</span>
+                  <label htmlFor="staff-email" className="text-xs font-bold text-[#131E20] block">
+                    Email <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
                     <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <Input
-                      id="staff-login-id"
-                      type="text"
-                      placeholder="e.g. DHD123456 or OFF987654"
-                      value={loginId}
-                      onChange={(e) => setLoginId(e.target.value)}
+                      id="staff-email"
+                      name="email"
+                      type="email"
+                      placeholder="e.g. officer@smartcity.gov.in"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       disabled={submitting}
                       className="pl-10 h-11 text-sm rounded-xl border-[#E5E2D9] focus:border-[#3468A1] focus:ring-[#3468A1]"
-                      autoComplete="username"
+                      autoComplete="email"
                       required
                     />
                   </div>
@@ -214,7 +222,7 @@ function StaffLoginContent() {
                   ) : (
                     <>
                       <KeyRound className="w-4 h-4" />
-                      <span>Sign In with Login ID</span>
+                      <span>Sign In with Password</span>
                     </>
                   )}
                 </Button>

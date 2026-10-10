@@ -29,21 +29,37 @@ export async function POST(req: NextRequest) {
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 
-  let body: { name?: string; email?: string; role?: string; departmentId?: string | null; assignedOfficerId?: string | null };
+  let body: {
+    name?: string;
+    email?: string;
+    role?: string;
+    departmentId?: string | null;
+    assignedOfficerId?: string | null;
+    password?: string | null;
+  };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ message: 'Invalid request body.' }, { status: 400 });
   }
 
-  const { name, email, role, departmentId, assignedOfficerId } = body;
+  const { name, email, role, departmentId, assignedOfficerId, password } = body;
 
   if (!name || !email || !role) {
     return NextResponse.json({ message: 'name, email, and role are required.' }, { status: 400 });
   }
 
+  const cleanEmail = email.trim().toLowerCase();
+
   const result = await createStaff(
-    { name, email, role: role as StaffRole, departmentId, assignedOfficerId },
+    {
+      name: name.trim(),
+      email: cleanEmail,
+      role: role as StaffRole,
+      departmentId,
+      assignedOfficerId,
+      password: typeof password === 'string' && password.length > 0 ? password : null,
+    },
     auth.admin,
   );
 

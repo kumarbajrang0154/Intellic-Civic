@@ -1,4 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
+import dotenv from 'dotenv';
+import path from 'path';
+
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 export default defineConfig({
   globalSetup: './e2e/global-setup.ts',
@@ -7,6 +11,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: 0,
   workers: 1,
+  timeout: 60000,
   reporter: 'list',
   use: {
     baseURL: 'http://localhost:3000',

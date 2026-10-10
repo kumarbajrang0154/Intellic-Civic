@@ -104,7 +104,7 @@ export function EvidenceTimeline({ evidence, className }: EvidenceTimelineProps)
                     <span>{new Date(item.uploadedAt).toLocaleDateString()}</span>
                     {item.uploadedByName && <span className="font-medium text-slate-700">{item.uploadedByName}</span>}
                   </div>
-                  {item.notes && <p className="text-xs italic text-slate-700 line-clamp-2">"{item.notes}"</p>}
+                  {item.notes && <p className="text-xs italic text-slate-700 line-clamp-2">&ldquo;{item.notes}&rdquo;</p>}
                 </div>
               ) : (
                 <div className="text-[11px] text-slate-400 text-center py-1 font-mono">Stage Not Uploaded</div>

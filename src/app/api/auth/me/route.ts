@@ -52,13 +52,10 @@ export async function GET() {
         });
 
         if (dbUser && (dbUser.isSuspended || dbUser.deletedAt)) {
-          const response = NextResponse.json(
+          return NextResponse.json(
             { user: null, message: 'Your account has been deactivated by administration.' },
             { status: 403 },
           );
-          response.cookies.delete('ic_access_token');
-          response.cookies.delete('ic_refresh_token');
-          return response;
         }
 
         const profile = await getOrCreateCitizenProfile(identifier);

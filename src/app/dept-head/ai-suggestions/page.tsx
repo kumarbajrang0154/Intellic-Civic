@@ -250,7 +250,7 @@ export default function AiSuggestionsPage() {
                           <span>Gemini AI Reason Code</span>
                         </div>
                         <p className="text-indigo-800 italic leading-normal">
-                          "{item.aiSuggestion.reasoning}"
+                          &ldquo;{item.aiSuggestion.reasoning}&rdquo;
                         </p>
                       </div>
                     )}

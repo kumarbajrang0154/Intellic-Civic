@@ -8,6 +8,43 @@ export const dynamic = 'force-dynamic';
 
 const ALLOWED_STAFF_ROLES = ['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER', 'FIELD_WORKER', 'ADMIN', 'SUPER_ADMIN'];
 
+// Pre-computed constant salt-10 bcrypt hash used to prevent timing attacks
+const DUMMY_BCRYPT_HASH = '$2a$10$e7eG/J.cWz.t70f5Zt4f2eZl76V1.V3p0.o73jZ0rF8s51oW8x2nO';
+
+// In-memory per-IP rate limiter (max 30 requests per minute per IP)
+const IP_RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const IP_MAX_ATTEMPTS = 30;
+const ipRateLimitStore: Map<string, { count: number; resetAt: number }> =
+  (globalThis as any).__staffLoginIpRateLimit || new Map<string, { count: number; resetAt: number }>();
+(globalThis as any).__staffLoginIpRateLimit = ipRateLimitStore;
+
+function checkIpRateLimit(ip: string): boolean {
+  const now = Date.now();
+  if (ipRateLimitStore.size > 2000) {
+    ipRateLimitStore.forEach((entry, key) => {
+      if (entry.resetAt < now) ipRateLimitStore.delete(key);
+    });
+  }
+  const current = ipRateLimitStore.get(ip);
+  if (!current || now > current.resetAt) {
+    ipRateLimitStore.set(ip, { count: 1, resetAt: now + IP_RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  if (current.count >= IP_MAX_ATTEMPTS) {
+    return false;
+  }
+  current.count++;
+  return true;
+}
+
+function getClientIp(req: NextRequest): string {
+  const forwarded = req.headers.get('x-forwarded-for');
+  if (forwarded) return forwarded.split(',')[0].trim();
+  const realIp = req.headers.get('x-real-ip');
+  if (realIp) return realIp.trim();
+  return '127.0.0.1';
+}
+
 function getPortalRouteForRole(role?: string | null): string {
   switch (role) {
     case 'ADMIN':
@@ -26,43 +63,72 @@ function getPortalRouteForRole(role?: string | null): string {
   }
 }
 
+const GENERIC_ERROR_RESPONSE = {
+  statusCode: 401,
+  message: 'Invalid email or password.',
+};
+
 export async function POST(req: NextRequest) {
   try {
+    const clientIp = getClientIp(req);
+    if (!checkIpRateLimit(clientIp)) {
+      return NextResponse.json(
+        { statusCode: 429, message: 'Too many login attempts. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': '60' } },
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
-    const rawLoginId = typeof body.loginId === 'string' ? body.loginId.trim() : '';
+    const rawEmail = typeof body.email === 'string'
+      ? body.email.trim().toLowerCase()
+      : typeof body.loginId === 'string'
+      ? body.loginId.trim().toLowerCase()
+      : '';
     const rawPassword = typeof body.password === 'string' ? body.password : '';
 
-    const GENERIC_ERROR_RESPONSE = {
-      statusCode: 401,
-      message: 'Invalid login ID or password.',
-    };
-
-    if (!rawLoginId || !rawPassword) {
+    if (!rawEmail || !rawPassword) {
+      await bcrypt.compare(rawPassword || 'dummy', DUMMY_BCRYPT_HASH);
       return NextResponse.json(GENERIC_ERROR_RESPONSE, { status: 401 });
     }
 
-    // Look up staff user by unique loginId (case-insensitive)
+    // Look up staff user by unique email (case-insensitive)
     const user = await prisma.user.findFirst({
       where: {
-        loginId: {
-          equals: rawLoginId,
+        email: {
+          equals: rawEmail,
           mode: 'insensitive',
         },
       },
     });
 
     if (!user) {
+      // Timing attack mitigation: always run bcrypt.compare even if user not found
+      await bcrypt.compare(rawPassword, DUMMY_BCRYPT_HASH);
       return NextResponse.json(GENERIC_ERROR_RESPONSE, { status: 401 });
     }
 
-    // Lockout check: if account is locked until a future time, reject
+    // Lockout check: if account is locked until a future time, reject with identical generic 401 and timing
     const now = new Date();
     if (user.lockedUntil && user.lockedUntil > now) {
+      await bcrypt.compare(rawPassword, DUMMY_BCRYPT_HASH);
       return NextResponse.json(GENERIC_ERROR_RESPONSE, { status: 401 });
     }
 
     // If account has no password hash set
     if (!user.passwordHash) {
+      await bcrypt.compare(rawPassword, DUMMY_BCRYPT_HASH);
+      return NextResponse.json(GENERIC_ERROR_RESPONSE, { status: 401 });
+    }
+
+    // Reject suspended, archived, unauthorized, or non-staff accounts
+    if (user.isSuspended || user.deletedAt !== null || !user.isAuthorized) {
+      await bcrypt.compare(rawPassword, user.passwordHash);
+      return NextResponse.json(GENERIC_ERROR_RESPONSE, { status: 401 });
+    }
+
+    // Citizens and accounts without staff role cannot use this endpoint
+    if (!user.role || user.role === 'CITIZEN' || !ALLOWED_STAFF_ROLES.includes(user.role)) {
+      await bcrypt.compare(rawPassword, user.passwordHash);
       return NextResponse.json(GENERIC_ERROR_RESPONSE, { status: 401 });
     }
 
@@ -83,24 +149,6 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      return NextResponse.json(GENERIC_ERROR_RESPONSE, { status: 401 });
-    }
-
-    // Reject suspended, archived, unauthorized, or non-staff accounts
-    if (user.isSuspended) {
-      return NextResponse.json(GENERIC_ERROR_RESPONSE, { status: 401 });
-    }
-
-    if (user.deletedAt !== null) {
-      return NextResponse.json(GENERIC_ERROR_RESPONSE, { status: 401 });
-    }
-
-    if (!user.isAuthorized) {
-      return NextResponse.json(GENERIC_ERROR_RESPONSE, { status: 401 });
-    }
-
-    // Citizens and accounts without staff role cannot use this endpoint
-    if (!user.role || user.role === 'CITIZEN' || !ALLOWED_STAFF_ROLES.includes(user.role)) {
       return NextResponse.json(GENERIC_ERROR_RESPONSE, { status: 401 });
     }
 
@@ -135,6 +183,7 @@ export async function POST(req: NextRequest) {
       success: true,
       role: user.role,
       redirectUrl: targetPortal,
+      redirectPath: targetPortal,
       user: {
         id: user.id,
         name: user.name,
@@ -162,9 +211,6 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch {
-    return NextResponse.json(
-      { statusCode: 401, message: 'Invalid login ID or password.' },
-      { status: 401 },
-    );
+    return NextResponse.json(GENERIC_ERROR_RESPONSE, { status: 401 });
   }
 }

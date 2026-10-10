@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
 import { createJwtToken } from '@/lib/auth-jwt';
 import { addUser, ensureSuperAdminUser, getUserByEmail, isSuperAdminEmail } from '@/lib/staff-dept-store';
 
@@ -73,9 +74,11 @@ export async function GET(req: NextRequest) {
     const googleUser = await userInfoRes.json();
     const googleEmail = googleUser.email?.toLowerCase().trim();
     const googleName = googleUser.name || googleUser.email?.split('@')[0] || 'Staff Member';
+    const emailVerified = googleUser.email_verified === true || googleUser.email_verified === 'true';
+    const googleId = googleUser.sub || null;
 
-    if (!googleEmail) {
-      return NextResponse.redirect(new URL('/login/staff?error=no_email', frontendUrl));
+    if (!googleEmail || !emailVerified) {
+      return NextResponse.redirect(new URL('/login/staff?error=unverified_email', frontendUrl));
     }
 
     // Step 3: Look up the user in the staff database
@@ -90,20 +93,41 @@ export async function GET(req: NextRequest) {
 
     // Step 4: If user not in database, register as pending and redirect
     if (!staffUser) {
-      await addUser({
+      const newUser = await addUser({
         name: googleName,
         email: googleEmail,
         role: null,
         departmentId: null,
         isAuthorized: false,
       });
+      if (googleId) {
+        await prisma.user.update({
+          where: { id: newUser.id },
+          data: { googleId },
+        });
+      }
       const res = NextResponse.redirect(new URL('/pending-approval', frontendUrl));
       res.cookies.delete('ic_access_token');
       res.cookies.delete('ic_refresh_token');
       return res;
     }
 
-    // Step 5: Check suspension
+    // Link googleId to existing staff row if needed
+    if (googleId && staffUser.googleId !== googleId) {
+      await prisma.user.update({
+        where: { id: staffUser.id },
+        data: { googleId },
+      });
+    }
+
+    // Step 5: Check archive & suspension
+    if (staffUser.deletedAt) {
+      const res = NextResponse.redirect(new URL('/denied', frontendUrl));
+      res.cookies.delete('ic_access_token');
+      res.cookies.delete('ic_refresh_token');
+      return res;
+    }
+
     if (staffUser.isSuspended) {
       const res = NextResponse.redirect(new URL('/denied', frontendUrl));
       res.cookies.delete('ic_access_token');

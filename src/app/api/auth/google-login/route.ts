@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
 import { createJwtToken } from '@/lib/auth-jwt';
 import { addUser, ensureSuperAdminUser, getUserByEmail, isSuperAdminEmail } from '@/lib/staff-dept-store';
 
@@ -28,11 +29,21 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const email = (body.email || '').trim().toLowerCase();
     const googleName = (body.name || '').trim();
+    const googleId = body.googleId || body.sub || null;
+    const emailVerified = body.email_verified ?? body.emailVerified;
 
     if (!email) {
       return NextResponse.json(
         { statusCode: 400, message: 'Google account email is required' },
         { status: 400 },
+      );
+    }
+
+    // Require email_verified === true to prevent unverified email impersonation
+    if (emailVerified !== true) {
+      return NextResponse.json(
+        { statusCode: 401, message: 'Google email address is not verified.' },
+        { status: 401 },
       );
     }
 
@@ -45,6 +56,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!user) {
+      // New user registering via Google
       user = await addUser({
         name: googleName || email.split('@')[0],
         email: email,
@@ -52,6 +64,13 @@ export async function POST(req: NextRequest) {
         departmentId: null,
         isAuthorized: false,
       });
+
+      if (googleId) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { googleId },
+        });
+      }
 
       const res = NextResponse.json({
         success: false,
@@ -64,6 +83,31 @@ export async function POST(req: NextRequest) {
       return res;
     }
 
+    // Existing staff row found: link googleId and preserve role/department/municipality
+    if (googleId && user.googleId !== googleId) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { googleId },
+      });
+    }
+
+    // Respect archived / soft-deleted state
+    if (user.deletedAt !== null) {
+      const res = NextResponse.json(
+        {
+          success: false,
+          status: 'DEACTIVATED',
+          message: 'Your staff account has been archived. Contact Super Admin.',
+          redirectUrl: '/denied',
+        },
+        { status: 403 },
+      );
+      res.cookies.delete('ic_access_token');
+      res.cookies.delete('ic_refresh_token');
+      return res;
+    }
+
+    // Respect suspended state
     if (user.isSuspended) {
       const res = NextResponse.json(
         {
@@ -79,6 +123,7 @@ export async function POST(req: NextRequest) {
       return res;
     }
 
+    // Respect unauthorized state
     if (!user.isAuthorized) {
       const res = NextResponse.json({
         success: false,
@@ -97,6 +142,7 @@ export async function POST(req: NextRequest) {
       name: user.name,
       role: user.role,
       departmentId: user.departmentId,
+      municipalityId: user.municipalityId,
       isAuthorized: true,
     };
 
@@ -115,6 +161,7 @@ export async function POST(req: NextRequest) {
         name: user.name,
         role: user.role,
         departmentId: user.departmentId,
+        googleId: googleId || user.googleId || null,
       },
       redirectUrl: targetPortal,
     });

@@ -543,7 +543,7 @@ export default function CitizenComplaintDetailPage() {
                       <span className="font-bold ml-1">({complaint.feedback.rating}/5)</span>
                     </div>
                     {complaint.feedback.comment && (
-                      <p className="text-muted-foreground italic">"{complaint.feedback.comment}"</p>
+                      <p className="text-muted-foreground italic">&ldquo;{complaint.feedback.comment}&rdquo;</p>
                     )}
                     <span className="text-[10px] text-muted-foreground block pt-1">
                       Submitted on {new Date(complaint.feedback.createdAt).toLocaleDateString()}

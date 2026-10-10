@@ -545,6 +545,7 @@ function SidebarContent({
 interface AppShellProps {
   children: React.ReactNode;
   user: {
+    id?: string;
     name?: string;
     email?: string;
     role: UserRole;
@@ -649,7 +650,7 @@ export function AppShell({ children, user }: AppShellProps) {
     if (user.role === 'CITIZEN' && typeof window !== 'undefined') {
       try {
         const { getDrafts } = await import('@/lib/offline-queue');
-        const drafts = await getDrafts();
+        const drafts = await getDrafts(user.id);
         const pending = drafts.filter((d) => d.status === 'pending' || d.status === 'syncing');
         if (pending.length > 0) {
           const confirmLogout = window.confirm(

@@ -10,6 +10,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
+  Eye,
+  EyeOff,
   KeyRound,
   Plus,
   RefreshCw,
@@ -54,6 +56,7 @@ interface StaffMember {
   isAuthorized: boolean;
   lastLoginAt: string | null;
   loginId?: string | null;
+  hasPassword?: boolean;
   createdAt: string;
 }
 
@@ -135,6 +138,10 @@ export default function AdminStaffPage() {
   const [createRole, setCreateRole] = useState('DEPARTMENT_OFFICER');
   const [createDept, setCreateDept] = useState('');
   const [createAssignedOfficer, setCreateAssignedOfficer] = useState('');
+  const [createPassword, setCreatePassword] = useState('');
+  const [createConfirmPassword, setCreateConfirmPassword] = useState('');
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
+  const [showCreateConfirmPassword, setShowCreateConfirmPassword] = useState(false);
   const [deptOfficers, setDeptOfficers] = useState<{ id: string; name: string; email: string }[]>([]);
   const [loadingOfficers, setLoadingOfficers] = useState(false);
   const [createError, setCreateError] = useState('');
@@ -151,17 +158,15 @@ export default function AdminStaffPage() {
   const [deactivateTarget, setDeactivateTarget] = useState<StaffMember | null>(null);
   const [deactivating, setDeactivating] = useState(false);
 
-  // Credentials generation & reset state
-  const [credentialsTarget, setCredentialsTarget] = useState<StaffMember | null>(null);
+  // Password Management state (Set / Reset password)
+  const [passwordTarget, setPasswordTarget] = useState<StaffMember | null>(null);
   const [isResetMode, setIsResetMode] = useState(false);
-  const [credentialsGenerating, setCredentialsGenerating] = useState(false);
-  const [revealedCredentials, setRevealedCredentials] = useState<{
-    loginId: string;
-    password: string;
-    name: string;
-    isReset?: boolean;
-  } | null>(null);
-  const [copiedField, setCopiedField] = useState<'loginId' | 'password' | 'both' | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordModalError, setPasswordModalError] = useState('');
 
   // Delete (remove) confirmation & preflight
   const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null);
@@ -359,7 +364,9 @@ export default function AdminStaffPage() {
 
   function openCreate() {
     setCreateName(''); setCreateEmail(''); setCreateRole('DEPARTMENT_OFFICER');
-    setCreateDept(''); setCreateAssignedOfficer(''); setCreateError(''); setCreateOpen(true);
+    setCreateDept(''); setCreateAssignedOfficer(''); setCreatePassword(''); setCreateConfirmPassword('');
+    setShowCreatePassword(false); setShowCreateConfirmPassword(false);
+    setCreateError(''); setCreateOpen(true);
   }
 
   async function handleCreate() {
@@ -373,6 +380,14 @@ export default function AdminStaffPage() {
     if (createRole === 'FIELD_WORKER' && !createAssignedOfficer) {
       setCreateError('An assigned Department Officer is required for Field Workers.'); return;
     }
+    if (createPassword) {
+      if (createPassword.length < 8) {
+        setCreateError('Password must be at least 8 characters long.'); return;
+      }
+      if (createPassword !== createConfirmPassword) {
+        setCreateError('Passwords do not match.'); return;
+      }
+    }
     setCreating(true); setCreateError('');
     try {
       const res = await fetch('/api/admin/staff', {
@@ -382,6 +397,7 @@ export default function AdminStaffPage() {
           name: createName.trim(), email: createEmail.trim(),
           role: createRole, departmentId: needsDepartment ? (createDept || null) : null,
           assignedOfficerId: createRole === 'FIELD_WORKER' ? (createAssignedOfficer || null) : null,
+          password: createPassword || undefined,
         }),
       });
       const d = await res.json();
@@ -551,55 +567,55 @@ export default function AdminStaffPage() {
     if (res.ok) fetchStaff();
   }
 
-  // ── Credentials Management ───────────────────────────────────────────────────
+  // ── Password Management (Set / Reset) ───────────────────────────────────────
 
-  function openCredentialsDialog(staff: StaffMember) {
-    setCredentialsTarget(staff);
-    setIsResetMode(Boolean(staff.loginId));
+  function openPasswordModal(staff: StaffMember) {
+    setPasswordTarget(staff);
+    setIsResetMode(Boolean(staff.hasPassword || staff.loginId));
+    setNewPassword('');
+    setConfirmPassword('');
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+    setPasswordModalError('');
   }
 
-  function handleCopy(text: string, field: 'loginId' | 'password' | 'both') {
-    if (navigator?.clipboard?.writeText) {
-      navigator.clipboard.writeText(text);
+  async function handleSavePassword() {
+    if (!passwordTarget) return;
+    if (!newPassword) {
+      setPasswordModalError('Password is required.');
+      return;
     }
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2500);
-  }
-
-  async function handleGenerateCredentials() {
-    if (!credentialsTarget) return;
-    setCredentialsGenerating(true);
+    if (newPassword.length < 8) {
+      setPasswordModalError('Password must be at least 8 characters long.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordModalError('Passwords do not match.');
+      return;
+    }
+    setPasswordSaving(true);
+    setPasswordModalError('');
     try {
-      const res = await fetch(`/api/admin/staff/${credentialsTarget.id}/credentials`, {
+      const res = await fetch(`/api/admin/staff/${passwordTarget.id}/password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reset: isResetMode }),
+        body: JSON.stringify({ password: newPassword }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        showGlobalError({
-          title: 'Action Failed',
-          message: data?.message || 'Failed to generate staff credentials.',
-          statusCode: res.status,
-        });
+        setPasswordModalError(data?.message || 'Failed to update staff password.');
         return;
       }
-      setRevealedCredentials({
-        loginId: data.loginId,
-        password: data.password,
-        name: credentialsTarget.name,
-        isReset: isResetMode,
-      });
-      setCredentialsTarget(null);
-      fetchStaff();
-    } catch (err: any) {
+      setPasswordTarget(null);
       showGlobalError({
-        title: 'Action Failed',
-        message: err?.message || 'Network error occurred.',
-        statusCode: 500,
+        title: 'Password Updated',
+        message: data?.message || (isResetMode ? 'Staff password has been reset successfully.' : 'Staff password has been set successfully.'),
       });
+      fetchStaff();
+    } catch {
+      setPasswordModalError('Network error occurred. Please try again.');
     } finally {
-      setCredentialsGenerating(false);
+      setPasswordSaving(false);
     }
   }
 
@@ -763,12 +779,13 @@ export default function AdminStaffPage() {
                       <td className="px-4 py-3 min-w-0 max-w-[140px] sm:max-w-none">
                         <div className="font-semibold text-slate-900 text-sm truncate">{staff.name}</div>
                         <div className="text-xs text-slate-500 mt-0.5 truncate">{staff.email}</div>
-                        {staff.loginId && (
-                          <div className="text-[11px] font-mono text-slate-500 mt-0.5 truncate flex items-center gap-1">
-                            <span className="text-slate-400 font-sans">ID:</span>
-                            <span className="font-semibold text-slate-700 bg-slate-100 px-1 rounded">{staff.loginId}</span>
-                          </div>
-                        )}
+                        <div className="mt-1">
+                          {staff.hasPassword ? (
+                            <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded-md">Password Set</span>
+                          ) : (
+                            <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md">Google Only</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3">{roleBadge(staff.role)}</td>
                       <td className="px-4 py-3 hidden md:table-cell">
@@ -798,9 +815,9 @@ export default function AdminStaffPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                title={staff.loginId ? 'Reset Password' : 'Generate Credentials'}
+                                title={staff.hasPassword || staff.loginId ? 'Reset Password' : 'Set Password'}
                                 data-testid={`credentials-btn-${staff.id}`}
-                                onClick={() => openCredentialsDialog(staff)}
+                                onClick={() => openPasswordModal(staff)}
                               >
                                 <KeyRound className="w-4 h-4 text-amber-600" />
                               </Button>
@@ -931,6 +948,60 @@ export default function AdminStaffPage() {
                   </select>
                 </div>
               )}
+
+              <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-700 block">Password (Optional)</label>
+                  <span className="text-[11px] text-slate-500">leave empty for Google-only login</span>
+                </div>
+                <div className="relative">
+                  <Input
+                    id="create-staff-password"
+                    type={showCreatePassword ? 'text' : 'password'}
+                    placeholder="Admin-chosen password (min 8 characters)"
+                    value={createPassword}
+                    onChange={(e) => setCreatePassword(e.target.value)}
+                    className="pr-10"
+                    disabled={creating}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCreatePassword(!showCreatePassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showCreatePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Strength hint: Min 8 chars, max 72, not equal to name/email or common passwords.
+                </p>
+              </div>
+
+              {createPassword.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 block">
+                    Confirm Password <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Input
+                      id="create-staff-confirm-password"
+                      type={showCreateConfirmPassword ? 'text' : 'password'}
+                      placeholder="Confirm password"
+                      value={createConfirmPassword}
+                      onChange={(e) => setCreateConfirmPassword(e.target.value)}
+                      className="pr-10"
+                      disabled={creating}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateConfirmPassword(!showCreateConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showCreateConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
@@ -941,180 +1012,100 @@ export default function AdminStaffPage() {
           </DialogContent>
         </Dialog>
 
-        {/* ── Generate / Reset Credentials Confirm Dialog ────────────────────── */}
-        <Dialog open={!!credentialsTarget} onOpenChange={(o) => !o && setCredentialsTarget(null)}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-slate-900">
-                <KeyRound className="w-5 h-5 text-amber-600 shrink-0" />
-                {isResetMode ? 'Reset Staff Password' : 'Generate Staff Credentials'}
-              </DialogTitle>
-              <DialogDescription className="text-sm text-slate-600 leading-relaxed pt-1">
-                {isResetMode ? (
-                  <>
-                    Are you sure you want to reset the password for{' '}
-                    <strong className="text-slate-900">{credentialsTarget?.name}</strong>?
-                    Their existing password will be invalidated immediately.
-                  </>
-                ) : (
-                  <>
-                    Generate a unique Login ID and temporary 12-character password for{' '}
-                    <strong className="text-slate-900">{credentialsTarget?.name}</strong>?
-                  </>
-                )}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs leading-relaxed">
-              A temporary random 12-character password will be generated. It will only be revealed <strong>once</strong> on the next screen.
-            </div>
-
-            <DialogFooter className="mt-4 flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setCredentialsTarget(null)}
-                disabled={credentialsGenerating}
-              >
-                Cancel
-              </Button>
-              <Button
-                className="bg-amber-600 hover:bg-amber-700 text-white min-h-[44px]"
-                onClick={handleGenerateCredentials}
-                disabled={credentialsGenerating}
-              >
-                {credentialsGenerating ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin mr-1.5" />
-                    {isResetMode ? 'Resetting...' : 'Generating...'}
-                  </>
-                ) : (
-                  isResetMode ? 'Confirm Password Reset' : 'Confirm Generate'
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* ── One-Time Credentials Reveal Modal ───────────────────────────────── */}
-        <Dialog open={!!revealedCredentials} onOpenChange={(o) => { if (!o) setRevealedCredentials(null); }}>
-          <DialogContent className="max-w-md p-6">
+        {/* ── Set / Reset Staff Password Modal ──────────────────────────────── */}
+        <Dialog open={!!passwordTarget} onOpenChange={(o) => !o && setPasswordTarget(null)}>
+          <DialogContent className="max-w-md w-full p-6">
             <DialogHeader className="space-y-1">
               <DialogTitle className="flex items-center gap-2 text-slate-900 text-lg">
-                <KeyRound className="w-5 h-5 text-emerald-600 shrink-0" />
-                Credentials {revealedCredentials?.isReset ? 'Reset' : 'Generated'}
+                <KeyRound className="w-5 h-5 text-amber-600 shrink-0" />
+                {isResetMode ? 'Reset Staff Password' : 'Set Staff Password'}
               </DialogTitle>
               <DialogDescription className="text-xs text-slate-600">
-                Account: <strong className="text-slate-900">{revealedCredentials?.name}</strong>
+                {isResetMode ? 'Reset the login password for ' : 'Set an admin-chosen login password for '}
+                <strong className="text-slate-900">{passwordTarget?.name}</strong> ({passwordTarget?.email}).
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-2">
-              {/* Prominent Warning Banner */}
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-950 text-xs space-y-1">
-                <div className="font-bold flex items-center gap-1.5 text-rose-900 text-xs">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                  SHOWN ONLY ONCE
+              {passwordModalError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg">
+                  {passwordModalError}
                 </div>
-                <p className="text-xs leading-relaxed text-rose-900">
-                  This password will <strong>never be shown again</strong> and is stored as a secure one-way hash. Copy it now and securely provide it to the staff member.
+              )}
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700 block">
+                  New Password <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <Input
+                    type={showNewPassword ? 'text' : 'password'}
+                    placeholder="Enter password (min 8 characters)"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="pr-10"
+                    disabled={passwordSaving}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Min 8 characters, max 72. Cannot equal email/name or common passwords.
                 </p>
               </div>
 
-              {/* Login ID box */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 block">Login ID</label>
-                <div className="flex items-center gap-2">
-                  <div
-                    id="revealed-login-id"
-                    className="flex-1 font-mono text-sm bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg font-semibold text-slate-900 select-all"
-                  >
-                    {revealedCredentials?.loginId}
-                  </div>
-                  <Button
+                <label className="text-xs font-semibold text-slate-700 block">
+                  Confirm Password <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <Input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    placeholder="Confirm new password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="pr-10"
+                    disabled={passwordSaving}
+                  />
+                  <button
                     type="button"
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0 h-9 px-3 gap-1.5 min-h-[36px]"
-                    onClick={() => handleCopy(revealedCredentials?.loginId || '', 'loginId')}
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                   >
-                    {copiedField === 'loginId' ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
-                        <span className="text-xs text-emerald-700">Copied</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5 text-slate-600" />
-                        <span className="text-xs">Copy ID</span>
-                      </>
-                    )}
-                  </Button>
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
-
-              {/* Password box */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 block">Temporary Password (12 characters)</label>
-                <div className="flex items-center gap-2">
-                  <div
-                    id="revealed-password"
-                    className="flex-1 font-mono text-sm bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg font-semibold text-slate-900 tracking-wider select-all"
-                  >
-                    {revealedCredentials?.password}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0 h-9 px-3 gap-1.5 min-h-[36px]"
-                    onClick={() => handleCopy(revealedCredentials?.password || '', 'password')}
-                  >
-                    {copiedField === 'password' ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
-                        <span className="text-xs text-emerald-700">Copied</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5 text-slate-600" />
-                        <span className="text-xs">Copy Pass</span>
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-
-              {/* Copy All Button */}
-              <Button
-                type="button"
-                variant="secondary"
-                className="w-full text-xs font-semibold gap-2 border border-slate-200 min-h-[44px]"
-                onClick={() => {
-                  const text = `Staff Member: ${revealedCredentials?.name}\nLogin ID: ${revealedCredentials?.loginId}\nPassword: ${revealedCredentials?.password}`;
-                  handleCopy(text, 'both');
-                }}
-              >
-                {copiedField === 'both' ? (
-                  <>
-                    <Check className="w-4 h-4 text-emerald-600" />
-                    <span className="text-emerald-700">Copied All Credentials!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4 text-slate-600" />
-                    <span>Copy All (ID & Password)</span>
-                  </>
-                )}
-              </Button>
             </div>
 
-            <DialogFooter className="mt-2">
+            <DialogFooter className="mt-4 flex flex-col sm:flex-row gap-2">
               <Button
-                id="revealed-credentials-done-btn"
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white min-h-[44px]"
-                onClick={() => setRevealedCredentials(null)}
+                variant="outline"
+                onClick={() => setPasswordTarget(null)}
+                disabled={passwordSaving}
+                className="w-full sm:w-auto"
               >
-                I have securely saved these credentials
+                Cancel
+              </Button>
+              <Button
+                className="bg-amber-600 hover:bg-amber-700 text-white min-h-[44px] w-full sm:w-auto"
+                onClick={handleSavePassword}
+                disabled={passwordSaving}
+                id="save-staff-password-btn"
+              >
+                {passwordSaving ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin mr-1.5" />
+                    {isResetMode ? 'Resetting...' : 'Saving...'}
+                  </>
+                ) : (
+                  isResetMode ? 'Reset Password' : 'Set Password'
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>

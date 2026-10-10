@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 
 export interface PhotoVerificationResult {
@@ -961,6 +963,28 @@ export async function verifyComplaintPhoto(
   complaintDescription: string,
   category: string,
 ): Promise<PhotoVerificationResult> {
+  const mockFile = path.join(process.cwd(), '.gemini-mock.json');
+  if (fs.existsSync(mockFile)) {
+    try {
+      const mockRaw = fs.readFileSync(mockFile, 'utf8');
+      const mock = JSON.parse(mockRaw);
+      if (mock.mode === 'fail') {
+        return {
+          verified: false,
+          confidence: 0.0,
+          reasoning: 'unverified — AI unavailable — fallback used',
+        };
+      }
+      if (mock.mode === 'success') {
+        return {
+          verified: true,
+          confidence: 0.95,
+          reasoning: 'Photo verified successfully against complaint description (mocked)',
+        };
+      }
+    } catch {}
+  }
+
   const primaryProvider = getActiveAiProvider();
 
   if (primaryProvider === 'groq') {
@@ -1013,6 +1037,39 @@ export async function classifyComplaintRouting(
   imageUrlOrBase64?: string | null,
 ): Promise<ComplaintRoutingResult> {
   const fallback = fallbackKeywordRouting(complaintTitle, complaintDescription, hintLang);
+
+  // Check for test mock config (.gemini-mock.json)
+  const mockFile = path.join(process.cwd(), '.gemini-mock.json');
+  if (fs.existsSync(mockFile)) {
+    try {
+      const mockRaw = fs.readFileSync(mockFile, 'utf8');
+      const mock = JSON.parse(mockRaw);
+      if (mock.mode === 'fail') {
+        return {
+          ...fallback,
+          reasoning: 'AI unavailable — fallback used (mocked Gemini failure)',
+          fallbackTriggered: true,
+          provider: 'fallback',
+        };
+      }
+      if (mock.mode === 'success') {
+        return {
+          category: mock.category || 'cat-roads',
+          priority: (mock.priority || 'MEDIUM') as any,
+          confidence: 0.95,
+          reasoning: 'Classified via mock for test suite',
+          language: mock.language || 'en',
+          titleEn: mock.titleEn !== undefined ? mock.titleEn : null,
+          descriptionEn: mock.descriptionEn !== undefined ? mock.descriptionEn : null,
+          fallbackTriggered: false,
+          provider: 'gemini',
+        };
+      }
+    } catch {
+      // Ignore mock read error and continue to real AI
+    }
+  }
+
   const primaryProvider = getActiveAiProvider();
 
   if (primaryProvider === 'groq') {

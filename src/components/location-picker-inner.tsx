@@ -143,7 +143,7 @@ export default function LocationPickerInner({
             <span>Captured Coordinates: {latitude!.toFixed(5)}, {longitude!.toFixed(5)}</span>
           </div>
         ) : (
-          <div className="text-xs text-slate-500 italic">No GPS coordinates captured yet. Click "Use My Location" above.</div>
+          <div className="text-xs text-slate-500 italic">No GPS coordinates captured yet. Click &ldquo;Use My Location&rdquo; above.</div>
         )}
       </div>
     );

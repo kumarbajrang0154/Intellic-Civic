@@ -34,6 +34,8 @@ playwright-report/
 e2e/audit/
 e2e/screens/
 scratch/
+demo-credentials.local.txt
+*.local.txt
 
 
 .vercel

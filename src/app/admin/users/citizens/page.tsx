@@ -697,7 +697,7 @@ export default function CitizensListPage() {
             </div>
 
             <p className="text-xs text-slate-600 leading-relaxed">
-              This will suspend the citizen's access to the IntelliCivic Citizen Portal. They will not be able to log in or submit new complaints until reactivated.
+              This will suspend the citizen&apos;s access to the IntelliCivic Citizen Portal. They will not be able to log in or submit new complaints until reactivated.
             </p>
 
             <div>

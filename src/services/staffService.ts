@@ -4,6 +4,8 @@
  */
 
 import prisma from '@/lib/prisma';
+import bcrypt from 'bcryptjs';
+import { validatePasswordPolicy } from '@/lib/password-policy';
 import { addAuditLog, listAuditLogs } from '@/lib/audit-store';
 import {
   addUser,
@@ -62,6 +64,7 @@ export interface StaffSummary {
   isAuthorized: boolean;
   lastLoginAt: string | null;
   loginId?: string | null;
+  hasPassword?: boolean;
   createdAt: string;
 }
 
@@ -71,6 +74,7 @@ export interface CreateStaffInput {
   role: StaffRole;
   departmentId?: string | null;
   assignedOfficerId?: string | null;
+  password?: string | null;
 }
 
 export interface ReassignInput {
@@ -124,6 +128,7 @@ async function userToSummary(u: UserItem): Promise<StaffSummary> {
     isAuthorized: u.isAuthorized,
     lastLoginAt: u.lastLoginAt ?? null,
     loginId: u.loginId ?? null,
+    hasPassword: Boolean(u.hasPassword),
     createdAt: u.createdAt,
   };
 }
@@ -212,6 +217,19 @@ export async function createStaff(
   }
 
   const cleanEmail = input.email.trim().toLowerCase();
+
+  let passwordHash: string | null = null;
+  if (input.password) {
+    const policy = validatePasswordPolicy(input.password, {
+      email: cleanEmail,
+      name: input.name,
+    });
+    if (!policy.valid) {
+      return { ok: false, status: 400, message: policy.error || 'Password does not meet security requirements.' };
+    }
+    passwordHash = await bcrypt.hash(input.password, 10);
+  }
+
   const existing = await getUserByEmail(cleanEmail);
   if (existing) {
     const dept = existing.departmentId ? await getDepartment(existing.departmentId) : undefined;
@@ -288,6 +306,7 @@ export async function createStaff(
     departmentId: requiresDepartment(input.role) ? (input.departmentId ?? null) : null,
     assignedOfficerId: input.role === 'FIELD_WORKER' ? (input.assignedOfficerId ?? null) : null,
     isAuthorized: true,
+    passwordHash,
   });
 
   await addAuditLog({

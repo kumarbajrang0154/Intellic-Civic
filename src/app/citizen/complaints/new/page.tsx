@@ -546,9 +546,14 @@ export default function NewComplaintPage() {
         let blob: Blob;
         if (url.startsWith('data:')) {
           blob = dataUrlToBlob(url);
+        } else if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          blob = new Blob(['photo-evidence'], { type: 'image/jpeg' });
         } else {
           try {
-            const res = await fetch(url);
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 2000);
+            const res = await fetch(url, { signal: controller.signal });
+            clearTimeout(timeoutId);
             blob = await res.blob();
           } catch {
             blob = new Blob(['photo-evidence'], { type: 'image/jpeg' });
@@ -689,9 +694,24 @@ export default function NewComplaintPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateForm()) return;
+
+    const newErrors: { title?: string; description?: string; photos?: string } = {};
+    if (!title.trim() || title.trim().length < 5 || title.trim().length > 200) {
+      newErrors.title = 'Title must be between 5 and 200 characters.';
+    }
+    if (!description.trim() || description.trim().length < 20) {
+      newErrors.description = 'Description must be at least 20 characters long.';
+    }
+    if (newErrors.title || newErrors.description) {
+      setErrors(newErrors);
+      return;
+    }
 
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      if (evidenceUrls.length === 0) {
+        setErrors({ photos: 'At least 1 photo evidence is required to submit a complaint.' });
+        return;
+      }
       await saveOfflineDraft();
       return;
     }
@@ -724,6 +744,11 @@ export default function NewComplaintPage() {
       } finally {
         setCheckingDuplicates(false);
       }
+    }
+
+    if (evidenceUrls.length === 0) {
+      setErrors({ photos: 'At least 1 photo evidence is required to submit a complaint.' });
+      return;
     }
 
     await executeFinalSubmit();
@@ -836,7 +861,7 @@ export default function NewComplaintPage() {
             </Button>
           </Link>
           <div>
-            <h1 className="hidden md:block text-2xl font-bold tracking-tight text-slate-900">File a New Complaint</h1>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">File a New Complaint</h1>
             <p className="text-xs text-slate-500 mt-0.5">
               Report municipal issues via text typing or Voice Assistant for automated AI triage.
             </p>
