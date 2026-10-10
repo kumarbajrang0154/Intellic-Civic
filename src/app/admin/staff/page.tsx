@@ -5,7 +5,10 @@ import Link from 'next/link';
 import {
   Activity,
   AlertCircle,
+  AlertTriangle,
+  Archive,
   BarChart3,
+  Building,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -16,6 +19,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  ShieldAlert,
   Trash2,
   UserCheck,
   UserX,
@@ -174,23 +178,47 @@ export default function AdminStaffPage() {
   const [preflightLoading, setPreflightLoading] = useState(false);
   const [preflightData, setPreflightData] = useState<{
     canHardDelete: boolean;
+    canForceDelete?: boolean;
     isSelf: boolean;
     isProtected: boolean;
+    isSuperAdmin?: boolean;
     isLastAdmin: boolean;
     blockers: {
       openAssignedComplaints: number;
       resolvedComplaintsHandled: number;
+      resolvedHandledCount?: number;
       citizenComplaints: number;
       feedbacks: number;
+      feedback?: number;
       assignedWorkers: number;
       auditRows: number;
       evidence: number;
       notifications: number;
       statusHistory: number;
       pendingApprovals: number;
+      assignments?: number;
     };
+    openComplaints?: Array<{
+      id: string;
+      ticketId: string;
+      title: string;
+      status: string;
+      priority: string | null;
+    }>;
     reasons: string[];
   } | null>(null);
+  const [deleteStep, setDeleteStep] = useState<1 | 2 | 3>(1);
+  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
+  const [openComplaintsAction, setOpenComplaintsAction] = useState<'reassign' | 'unassign'>('unassign');
+  const [reassignToStaffId, setReassignToStaffId] = useState('');
+  const [permanentDeleting, setPermanentDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  // Bulk Permanent Delete Modal State
+  const [bulkDeleteStep, setBulkDeleteStep] = useState<1 | 2 | 3>(1);
+  const [bulkOpenComplaintsAction, setBulkOpenComplaintsAction] = useState<'reassign' | 'unassign'>('unassign');
+  const [bulkReassignToStaffId, setBulkReassignToStaffId] = useState('');
+  const [bulkDeleteConfirmText, setBulkDeleteConfirmText] = useState('');
   const [archiving, setArchiving] = useState(false);
   const [showReassignComplaintsModal, setShowReassignComplaintsModal] = useState(false);
   const [targetStaffIdForComplaints, setTargetStaffIdForComplaints] = useState('');
@@ -423,6 +451,11 @@ export default function AdminStaffPage() {
 
   function openDelete(staff: StaffMember) {
     setDeleteTarget(staff);
+    setDeleteStep(1);
+    setDeleteConfirmEmail('');
+    setOpenComplaintsAction('unassign');
+    setReassignToStaffId('');
+    setDeleteError('');
     fetchPreflight(staff.id);
   }
 
@@ -439,6 +472,57 @@ export default function AdminStaffPage() {
       console.error('Error fetching delete preflight:', err);
     } finally {
       setPreflightLoading(false);
+    }
+  }
+
+  async function handlePermanentDelete() {
+    if (!deleteTarget) return;
+    setPermanentDeleting(true);
+    setDeleteError('');
+    try {
+      const res = await fetch(`/api/admin/staff/${deleteTarget.id}/permanent-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          confirmEmail: deleteConfirmEmail,
+          openComplaintsAction,
+          reassignToId: openComplaintsAction === 'reassign' ? reassignToStaffId : undefined,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) {
+        setDeleteError(d.message || 'Failed to permanently delete staff member.');
+        showGlobalError({
+          title: 'Permanent Delete Failed',
+          message: d.message || 'Cannot delete staff member.',
+          statusCode: res.status,
+        });
+        return;
+      }
+
+      setDeleteTarget(null);
+      setPreflightData(null);
+      fetchStaff();
+
+      const details: string[] = [];
+      if (d.reassignedCount > 0) details.push(`${d.reassignedCount} complaint(s) reassigned`);
+      if (d.unassignedCount > 0) details.push(`${d.unassignedCount} complaint(s) unassigned & returned to triage pool`);
+      if (d.detachedWorkersCount > 0) details.push(`${d.detachedWorkersCount} field worker(s) detached`);
+      if (d.evidencePreservedCount > 0) details.push(`${d.evidencePreservedCount} evidence record(s) snapshotted`);
+
+      showGlobalError({
+        title: 'Staff Permanently Deleted',
+        message: `Account for ${d.targetName} (${d.targetEmail}) has been permanently deleted from the database. Email is now free to be reused.`,
+        hint: details.length > 0 ? `Actions completed:\n• ${details.join('\n• ')}` : 'Zero active blockers existed.',
+      });
+    } catch (err: any) {
+      setDeleteError(err.message || 'Network error occurred.');
+      showGlobalError({
+        title: 'Network Error',
+        message: err.message || 'Failed to delete staff member.',
+      });
+    } finally {
+      setPermanentDeleting(false);
     }
   }
 
@@ -838,6 +922,7 @@ export default function AdminStaffPage() {
                                 variant="ghost"
                                 size="sm"
                                 title="Delete Staff"
+                                data-testid={`delete-staff-${staff.id}`}
                                 onClick={() => openDelete(staff)}
                               >
                                 <Trash2 className="w-4 h-4 text-rose-500" />
@@ -1130,131 +1215,305 @@ export default function AdminStaffPage() {
           </DialogContent>
         </Dialog>
 
-        {/* ── Delete Preflight & Safe Alternatives Modal ──────────────────── */}
-        <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setPreflightData(null); } }}>
-          <DialogContent className="max-w-lg">
+        {/* ── 3-Step Permanent Delete Staff Dialog ────────────────────────── */}
+        <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setPreflightData(null); setDeleteStep(1); } }}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="text-rose-600 flex items-center gap-2">
-                <Trash2 className="w-5 h-5 text-rose-600 shrink-0" />
-                Delete Staff Member: {deleteTarget?.name}
-              </DialogTitle>
-              <DialogDescription>
-                Account: <strong className="text-slate-900">{deleteTarget?.email}</strong>
-              </DialogDescription>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+                    <Trash2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-base font-bold text-slate-900">
+                      Delete Staff Member: {deleteTarget?.name}
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-slate-500">
+                      {deleteTarget?.role} · <span className="font-mono text-slate-700">{deleteTarget?.email}</span>
+                    </DialogDescription>
+                  </div>
+                </div>
+                {/* Stepper badges */}
+                <div className="flex items-center gap-1 text-[11px] font-semibold">
+                  <span className={`px-2 py-0.5 rounded-full ${deleteStep === 1 ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>1. Impact</span>
+                  <span className="text-slate-300">›</span>
+                  <span className={`px-2 py-0.5 rounded-full ${deleteStep === 2 ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>2. Choose</span>
+                  <span className="text-slate-300">›</span>
+                  <span className={`px-2 py-0.5 rounded-full ${deleteStep === 3 ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-600'}`}>3. Confirm</span>
+                </div>
+              </div>
             </DialogHeader>
 
-            <div className="space-y-4 py-2">
+            <div className="py-2 space-y-4">
               {preflightLoading ? (
-                <div className="p-6 text-center text-slate-500">
+                <div className="p-8 text-center text-slate-500">
                   <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-600" />
-                  <p className="text-xs font-medium">Checking active complaints and database constraints...</p>
+                  <p className="text-xs font-medium">Analyzing account activity, assigned complaints, and database constraints...</p>
                 </div>
               ) : preflightData ? (
                 <>
-                  {!preflightData.canHardDelete ? (
+                  {/* ────────────────── STEP 1: IMPACT ────────────────── */}
+                  {deleteStep === 1 && (
                     <div className="space-y-3">
-                      <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs">
-                        <div className="font-bold flex items-center gap-1.5 mb-1 text-rose-900">
-                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                          Hard Delete Blocked
+                      {/* Protection Guard Warning (if blocked from deletion) */}
+                      {(preflightData.isSelf || preflightData.isSuperAdmin || preflightData.isLastAdmin) && (
+                        <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs">
+                          <div className="font-bold flex items-center gap-1.5 mb-1 text-rose-900">
+                            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                            Permanent Deletion Forbidden
+                          </div>
+                          <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-rose-800">
+                            {preflightData.isSelf && <li>You cannot delete your own account while logged in.</li>}
+                            {preflightData.isSuperAdmin && <li>Super Admin accounts are permanently protected and cannot be deleted.</li>}
+                            {preflightData.isLastAdmin && <li>Cannot delete the last remaining Administrator account.</li>}
+                          </ul>
                         </div>
-                        <p className="text-xs leading-relaxed mb-2">
-                          Direct deletion is blocked to prevent data loss and broken complaint records.
-                        </p>
-                        <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-rose-800">
-                          {preflightData.reasons.map((r, idx) => (
-                            <li key={idx}>{r}</li>
-                          ))}
-                        </ul>
-                      </div>
+                      )}
 
-                      {/* Blocker breakdown badges */}
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="p-2.5 bg-slate-50 border rounded-md">
-                          <div className="text-slate-500 text-[11px]">Open Assigned Complaints</div>
+                      {/* Blocker Breakdown Grid */}
+                      <div className="text-xs font-semibold text-slate-700">Account Impact & Linked Data:</div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                        <div className="p-2 bg-slate-50 border rounded-md">
+                          <div className="text-slate-500 text-[10px]">Open Complaints</div>
                           <div className="text-base font-bold text-slate-900">{preflightData.blockers.openAssignedComplaints}</div>
                         </div>
-                        <div className="p-2.5 bg-slate-50 border rounded-md">
-                          <div className="text-slate-500 text-[11px]">Resolved Complaints Handled</div>
-                          <div className="text-base font-bold text-slate-900">{preflightData.blockers.resolvedComplaintsHandled}</div>
+                        <div className="p-2 bg-slate-50 border rounded-md">
+                          <div className="text-slate-500 text-[10px]">Resolved Handled</div>
+                          <div className="text-base font-bold text-slate-900">{preflightData.blockers.resolvedHandledCount || preflightData.blockers.resolvedComplaintsHandled}</div>
                         </div>
-                        <div className="p-2.5 bg-slate-50 border rounded-md">
-                          <div className="text-slate-500 text-[11px]">Audit Log Records</div>
+                        <div className="p-2 bg-slate-50 border rounded-md">
+                          <div className="text-slate-500 text-[10px]">Supervised Workers</div>
+                          <div className="text-base font-bold text-slate-900">{preflightData.blockers.assignedWorkers}</div>
+                        </div>
+                        <div className="p-2 bg-slate-50 border rounded-md">
+                          <div className="text-slate-500 text-[10px]">Uploaded Evidence</div>
+                          <div className="text-base font-bold text-slate-900">{preflightData.blockers.evidence}</div>
+                        </div>
+                        <div className="p-2 bg-slate-50 border rounded-md">
+                          <div className="text-slate-500 text-[10px]">Audit Trail Rows</div>
                           <div className="text-base font-bold text-slate-900">{preflightData.blockers.auditRows}</div>
                         </div>
-                        <div className="p-2.5 bg-slate-50 border rounded-md">
-                          <div className="text-slate-500 text-[11px]">Uploaded Evidence</div>
-                          <div className="text-base font-bold text-slate-900">{preflightData.blockers.evidence}</div>
+                        <div className="p-2 bg-slate-50 border rounded-md">
+                          <div className="text-slate-500 text-[10px]">Notifications</div>
+                          <div className="text-base font-bold text-slate-900">{preflightData.blockers.notifications}</div>
                         </div>
                       </div>
 
-                      {/* Safe Alternatives */}
-                      <div className="pt-2 border-t">
-                        <div className="text-xs font-bold text-slate-800 mb-2">Recommended Safe Alternatives:</div>
-                        <div className="space-y-2">
-                          {preflightData.blockers.openAssignedComplaints > 0 && (
-                            <div className="flex items-center justify-between p-2.5 bg-blue-50 border border-blue-200 rounded-lg">
-                              <div>
-                                <div className="text-xs font-semibold text-blue-900">1. Reassign Open Complaints</div>
-                                <div className="text-[11px] text-blue-700">Move open tasks to another staff member to allow retry</div>
+                      {/* Open complaints list (up to 20) */}
+                      {preflightData.openComplaints && preflightData.openComplaints.length > 0 && (
+                        <div className="border rounded-lg p-2.5 bg-slate-50/50 space-y-1.5">
+                          <div className="text-xs font-semibold text-slate-800 flex justify-between">
+                            <span>Open Assigned Complaints ({preflightData.openComplaints.length})</span>
+                            <span className="text-[10px] text-slate-500 font-normal">Max 20 displayed</span>
+                          </div>
+                          <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                            {preflightData.openComplaints.map((c) => (
+                              <div key={c.id} className="text-[11px] p-1.5 bg-white border rounded flex items-center justify-between">
+                                <div className="truncate mr-2">
+                                  <span className="font-mono font-semibold text-blue-700 mr-1.5">{c.ticketId}</span>
+                                  <span className="text-slate-700">{c.title}</span>
+                                </div>
+                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-700 font-medium shrink-0">
+                                  {c.status}
+                                </span>
                               </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="bg-white hover:bg-blue-100 text-blue-700 border-blue-300 text-xs shrink-0"
-                                onClick={() => {
-                                  setTargetStaffIdForComplaints('');
-                                  setShowReassignComplaintsModal(true);
-                                }}
-                              >
-                                Reassign
-                              </Button>
-                            </div>
-                          )}
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
-                          <div className="flex items-center justify-between p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                      <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-blue-900 text-xs">
+                        <p className="leading-relaxed">
+                          Permanent deletion permanently removes the staff member from the database while keeping historical evidence and audit trails intact. In Step 3, any open complaints can be reassigned or unassigned back to triage.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ────────────────── STEP 2: CHOOSE ────────────────── */}
+                  {deleteStep === 2 && (
+                    <div className="space-y-3">
+                      <div className="text-xs font-semibold text-slate-800">
+                        Select Action or Review Safe Alternatives:
+                      </div>
+
+                      <div className="space-y-2">
+                        {/* Alternative 1: Reassign Complaints */}
+                        {preflightData.blockers.openAssignedComplaints > 0 && (
+                          <div className="p-3 border rounded-lg hover:border-blue-300 bg-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                             <div>
-                              <div className="text-xs font-semibold text-amber-900">2. Deactivate Account</div>
-                              <div className="text-[11px] text-amber-700">Blocks login access while keeping audit history safe</div>
+                              <div className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                                <Users className="w-3.5 h-3.5 text-blue-600" /> 1. Reassign Open Complaints
+                              </div>
+                              <p className="text-[11px] text-slate-600 mt-0.5">
+                                Transfer open complaints to another active staff member without deleting this account yet.
+                              </p>
                             </div>
                             <Button
                               size="sm"
                               variant="outline"
-                              className="bg-white hover:bg-amber-100 text-amber-800 border-amber-300 text-xs shrink-0"
+                              className="text-xs shrink-0 border-blue-300 text-blue-700 hover:bg-blue-50"
                               onClick={() => {
-                                const target = deleteTarget;
-                                setDeleteTarget(null);
-                                setDeactivateTarget(target);
+                                setTargetStaffIdForComplaints('');
+                                setShowReassignComplaintsModal(true);
                               }}
                             >
-                              Deactivate
+                              Reassign Only
                             </Button>
                           </div>
+                        )}
 
-                          <div className="flex items-center justify-between p-2.5 bg-purple-50 border border-purple-200 rounded-lg">
-                            <div>
-                              <div className="text-xs font-semibold text-purple-900">3. Archive &amp; Anonymize</div>
-                              <div className="text-[11px] text-purple-700">Soft-deletes, keeps evidence snapshot, and frees the email</div>
+                        {/* Alternative 2: Deactivate */}
+                        <div className="p-3 border rounded-lg hover:border-amber-300 bg-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <div>
+                            <div className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                              <UserX className="w-3.5 h-3.5 text-amber-600" /> 2. Deactivate Account
                             </div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={archiving}
-                              className="bg-white hover:bg-purple-100 text-purple-800 border-purple-300 text-xs shrink-0"
-                              onClick={() => { if (deleteTarget) handleArchive(deleteTarget.id); }}
-                            >
-                              {archiving ? 'Archiving...' : 'Archive Account'}
-                            </Button>
+                            <p className="text-[11px] text-slate-600 mt-0.5">
+                              Blocks login access immediately while preserving all complaint history and assignments.
+                            </p>
                           </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-xs shrink-0 border-amber-300 text-amber-800 hover:bg-amber-50"
+                            onClick={() => {
+                              const target = deleteTarget;
+                              setDeleteTarget(null);
+                              setDeactivateTarget(target);
+                            }}
+                          >
+                            Deactivate Instead
+                          </Button>
+                        </div>
+
+                        {/* Alternative 3: Archive & Anonymize */}
+                        <div className="p-3 border rounded-lg hover:border-purple-300 bg-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <div>
+                            <div className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+                              <Archive className="w-3.5 h-3.5 text-purple-600" /> 3. Archive &amp; Anonymize
+                            </div>
+                            <p className="text-[11px] text-slate-600 mt-0.5">
+                              Soft-deletes the user, freezes history, and frees the work email address for reuse.
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={archiving}
+                            className="text-xs shrink-0 border-purple-300 text-purple-800 hover:bg-purple-50"
+                            onClick={() => { if (deleteTarget) handleArchive(deleteTarget.id); }}
+                          >
+                            {archiving ? 'Archiving...' : 'Archive Account'}
+                          </Button>
+                        </div>
+
+                        {/* Option 4: Delete permanently anyway */}
+                        <div className="p-3 border border-rose-300 rounded-lg bg-rose-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <div>
+                            <div className="text-xs font-bold text-rose-900 flex items-center gap-1.5">
+                              <Trash2 className="w-3.5 h-3.5 text-rose-600" /> 4. Delete Permanently Anyway
+                            </div>
+                            <p className="text-[11px] text-rose-800 mt-0.5">
+                              Permanently removes the account from PostgreSQL. Reassigns or unassigns complaints and frees email.
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            className="text-xs shrink-0 bg-rose-600 hover:bg-rose-700 text-white"
+                            data-testid="proceed-permanent-delete-btn"
+                            disabled={!preflightData.canForceDelete}
+                            title={!preflightData.canForceDelete ? 'Protected accounts cannot be deleted' : undefined}
+                            onClick={() => setDeleteStep(3)}
+                          >
+                            Delete permanently anyway
+                          </Button>
                         </div>
                       </div>
                     </div>
-                  ) : (
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-xs flex items-center gap-2">
-                      <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <div>
-                        <div className="font-bold text-emerald-900">Zero Blockers Found</div>
-                        <div>This account has no linked complaints or audit history. Hard delete is safe.</div>
+                  )}
+
+                  {/* ────────────────── STEP 3: CONFIRM ────────────────── */}
+                  {deleteStep === 3 && (
+                    <div className="space-y-4">
+                      {deleteError && (
+                        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-md">
+                          {deleteError}
+                        </div>
+                      )}
+
+                      {/* Open complaints resolution choice */}
+                      {preflightData.blockers.openAssignedComplaints > 0 && (
+                        <div className="p-3 bg-slate-50 border rounded-lg space-y-2">
+                          <label className="text-xs font-bold text-slate-800 block">
+                            Action for {preflightData.blockers.openAssignedComplaints} Open Complaint(s) <span className="text-rose-500">*</span>:
+                          </label>
+                          <div className="space-y-2 text-xs">
+                            <label className="flex items-start gap-2 cursor-pointer">
+                              <input
+                                type="radio"
+                                name="openAction"
+                                checked={openComplaintsAction === 'reassign'}
+                                onChange={() => setOpenComplaintsAction('reassign')}
+                                className="mt-0.5"
+                              />
+                              <div>
+                                <span className="font-semibold text-slate-900">Reassign open complaints to another active staff member</span>
+                                <p className="text-[11px] text-slate-500">Transfers open workload to another active team member in the municipality.</p>
+                              </div>
+                            </label>
+
+                            {openComplaintsAction === 'reassign' && (
+                              <div className="ml-5 mt-1.5">
+                                <select
+                                  value={reassignToStaffId}
+                                  onChange={(e) => setReassignToStaffId(e.target.value)}
+                                  className="flex h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                  <option value="">— Select Target Staff Member —</option>
+                                  {data?.items
+                                    ?.filter((s) => s.id !== deleteTarget?.id && s.isActive && s.role !== 'CITIZEN')
+                                    ?.map((s) => (
+                                      <option key={s.id} value={s.id}>
+                                        {s.name} ({s.role} · {s.departmentName || 'General'})
+                                      </option>
+                                    ))}
+                                </select>
+                              </div>
+                            )}
+
+                            <label className="flex items-start gap-2 cursor-pointer pt-1">
+                              <input
+                                type="radio"
+                                name="openAction"
+                                checked={openComplaintsAction === 'unassign'}
+                                onChange={() => setOpenComplaintsAction('unassign')}
+                                className="mt-0.5"
+                              />
+                              <div>
+                                <span className="font-semibold text-slate-900">Unassign and return to triage pool</span>
+                                <p className="text-[11px] text-slate-500">
+                                  Complaints are not deleted. Assignee is cleared and status is reset to PENDING_DEPT_REVIEW for re-triage.
+                                </p>
+                              </div>
+                            </label>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Confirmation Email Input */}
+                      <div className="p-3 bg-rose-50/70 border border-rose-200 rounded-lg space-y-2">
+                        <label className="text-xs font-semibold text-rose-950 block">
+                          To confirm permanent deletion, please type the staff email:
+                          <span className="block font-mono font-bold text-rose-700 mt-0.5">{deleteTarget?.email}</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={deleteConfirmEmail}
+                          onChange={(e) => setDeleteConfirmEmail(e.target.value)}
+                          placeholder={deleteTarget?.email || ''}
+                          className="flex h-9 w-full rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                        />
                       </div>
                     </div>
                   )}
@@ -1262,18 +1521,63 @@ export default function AdminStaffPage() {
               ) : null}
             </div>
 
-            <DialogFooter className="mt-2 flex flex-col sm:flex-row gap-2">
-              <Button variant="outline" onClick={() => { setDeleteTarget(null); setPreflightData(null); }}>
-                Close
-              </Button>
+            <DialogFooter className="mt-2 flex flex-col sm:flex-row gap-2 border-t pt-3">
               <Button
-                className="bg-rose-600 hover:bg-rose-700 text-white"
-                onClick={handleDelete}
-                disabled={deleting || preflightLoading || !preflightData?.canHardDelete}
-                title={!preflightData?.canHardDelete ? 'Hard delete is disabled because blockers exist' : undefined}
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setDeleteTarget(null);
+                  setPreflightData(null);
+                  setDeleteStep(1);
+                }}
               >
-                {deleting ? 'Deleting...' : 'Permanently Delete'}
+                Cancel
               </Button>
+
+              {deleteStep === 1 && (
+                <Button
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={preflightLoading || !preflightData || preflightData.isSelf || preflightData.isSuperAdmin || preflightData.isLastAdmin}
+                  onClick={() => setDeleteStep(2)}
+                >
+                  Next: Review Options & Alternatives ›
+                </Button>
+              )}
+
+              {deleteStep === 2 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDeleteStep(1)}
+                >
+                  ‹ Back to Impact
+                </Button>
+              )}
+
+              {deleteStep === 3 && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDeleteStep(2)}
+                  >
+                    ‹ Back to Options
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-rose-600 hover:bg-rose-700 text-white"
+                    disabled={
+                      permanentDeleting ||
+                      deleteConfirmEmail.trim().toLowerCase() !== (deleteTarget?.email || '').trim().toLowerCase() ||
+                      ((preflightData?.blockers.openAssignedComplaints ?? 0) > 0 && openComplaintsAction === 'reassign' && !reassignToStaffId)
+                    }
+                    onClick={handlePermanentDelete}
+                  >
+                    {permanentDeleting ? 'Deleting Permanently...' : 'Delete Permanently'}
+                  </Button>
+                </>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -1549,30 +1853,251 @@ export default function AdminStaffPage() {
           </DialogContent>
         </Dialog>
 
-        {/* ── Bulk Delete Confirm Dialog ──────────────────────────────────── */}
+        {/* ── Bulk Delete 3-Step Dialog ───────────────────────────────────── */}
         <Dialog open={showBulkDeleteConfirm} onOpenChange={setShowBulkDeleteConfirm}>
-          <DialogContent>
+          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
             <DialogHeader>
-              <DialogTitle>Confirm Bulk Deletion</DialogTitle>
-              <DialogDescription>
-                Are you sure you want to permanently delete <strong className="text-slate-900">{selectedIds.length}</strong> staff member(s)? This action cannot be undone.
+              <div className="flex items-center gap-2 mb-1">
+                <span className="inline-flex items-center justify-center rounded-full bg-rose-100 text-rose-700 w-6 h-6 text-xs font-bold">
+                  {bulkDeleteStep}
+                </span>
+                <span className="text-xs font-semibold tracking-wider text-rose-600 uppercase">
+                  Bulk Permanent Deletion • Step {bulkDeleteStep} of 3
+                </span>
+              </div>
+              <DialogTitle className="text-lg sm:text-xl font-bold text-slate-900">
+                {bulkDeleteStep === 1 && 'Impact Assessment'}
+                {bulkDeleteStep === 2 && 'Review Safer Alternatives'}
+                {bulkDeleteStep === 3 && 'Confirm Permanent Deletion'}
+              </DialogTitle>
+              <DialogDescription className="text-xs sm:text-sm text-slate-600">
+                {bulkDeleteStep === 1 && `Review the impact of permanently removing ${selectedIds.length} staff member(s).`}
+                {bulkDeleteStep === 2 && 'Consider safer operational options before permanent removal.'}
+                {bulkDeleteStep === 3 && `Final confirmation for permanently deleting ${selectedIds.length} staff accounts.`}
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowBulkDeleteConfirm(false)}>
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={bulkSubmitting}
-                onClick={() => {
-                  setShowBulkDeleteConfirm(false);
-                  handleBulkAction('DELETE');
-                }}
-              >
-                {bulkSubmitting ? 'Deleting...' : `Delete ${selectedIds.length} Staff`}
-              </Button>
-            </DialogFooter>
+
+            {/* STEP 1: IMPACT */}
+            {bulkDeleteStep === 1 && (
+              <div className="space-y-4 py-2">
+                <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3.5 text-xs text-amber-900 space-y-2">
+                  <div className="flex items-center gap-2 font-semibold text-amber-950">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Bulk Deletion Rules & Safeguards</span>
+                  </div>
+                  <ul className="list-disc pl-5 space-y-1 text-amber-800">
+                    <li><strong className="text-amber-950">{selectedIds.length} staff member(s)</strong> selected for permanent deletion.</li>
+                    <li>Protected accounts (your own account, Super Admins, last remaining Admin) will be automatically skipped.</li>
+                    <li>All audit trails are preserved with actor snapshots; uploaded evidence is kept intact.</li>
+                    <li>Open complaints must be unassigned back to triage or reassigned to an active staff member.</li>
+                  </ul>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-1 text-xs text-slate-700">
+                  <p className="font-semibold text-slate-900">What happens on permanent delete?</p>
+                  <p>User credentials and accounts will be deleted completely. Their email addresses will immediately become available for new registrations.</p>
+                </div>
+
+                <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
+                  <Button variant="outline" onClick={() => setShowBulkDeleteConfirm(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={() => setBulkDeleteStep(2)}
+                  >
+                    Next: Review Alternatives
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
+
+            {/* STEP 2: ALTERNATIVES */}
+            {bulkDeleteStep === 2 && (
+              <div className="space-y-3 py-2">
+                <div className="text-xs text-slate-600 mb-1">
+                  Choose an alternative below, or proceed with permanent deletion:
+                </div>
+
+                {/* Alt 1: Deactivate */}
+                <div className="rounded-lg border border-slate-200 p-3.5 hover:border-blue-300 hover:bg-blue-50/30 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 font-semibold text-xs sm:text-sm text-slate-900">
+                      <UserX className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>Deactivate Accounts (Recommended)</span>
+                    </div>
+                    <p className="text-xs text-slate-600">
+                      Revokes login immediately. Keeps complete assignment history and audit logs intact.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0 text-xs border-amber-300 text-amber-800 hover:bg-amber-100"
+                    onClick={() => {
+                      setShowBulkDeleteConfirm(false);
+                      handleBulkAction('DEACTIVATE');
+                    }}
+                  >
+                    Deactivate
+                  </Button>
+                </div>
+
+                {/* Alt 2: Reassign Dept */}
+                <div className="rounded-lg border border-slate-200 p-3.5 hover:border-blue-300 hover:bg-blue-50/30 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 font-semibold text-xs sm:text-sm text-slate-900">
+                      <Building className="w-4 h-4 text-blue-600 shrink-0" />
+                      <span>Reassign Department</span>
+                    </div>
+                    <p className="text-xs text-slate-600">
+                      Transfer staff members to another department rather than deleting them.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0 text-xs border-blue-300 text-blue-800 hover:bg-blue-100"
+                    onClick={() => {
+                      setShowBulkDeleteConfirm(false);
+                      setShowBulkReassignModal(true);
+                    }}
+                  >
+                    Reassign Dept
+                  </Button>
+                </div>
+
+                {/* Danger Card: Permanent Delete */}
+                <div className="rounded-lg border border-rose-200 bg-rose-50/40 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 font-semibold text-xs sm:text-sm text-rose-900">
+                      <Trash2 className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span>Delete Permanently Anyway</span>
+                    </div>
+                    <p className="text-xs text-rose-700">
+                      Irrevocably deletes accounts from database. Frees emails for reuse.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="shrink-0 bg-rose-600 hover:bg-rose-700 text-white text-xs"
+                    onClick={() => setBulkDeleteStep(3)}
+                  >
+                    Proceed to Delete
+                  </Button>
+                </div>
+
+                <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
+                  <Button variant="outline" onClick={() => setBulkDeleteStep(1)}>
+                    Back
+                  </Button>
+                  <Button variant="ghost" onClick={() => setShowBulkDeleteConfirm(false)}>
+                    Cancel
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
+
+            {/* STEP 3: EXECUTION */}
+            {bulkDeleteStep === 3 && (
+              <div className="space-y-4 py-2">
+                <div className="rounded-lg border border-rose-200 bg-rose-50 p-3.5 space-y-2 text-xs">
+                  <p className="font-semibold text-rose-950 flex items-center gap-1.5">
+                    <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+                    Handle Open Complaints across selected staff
+                  </p>
+                  <div className="space-y-2 pt-1 text-slate-800">
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="bulkOpenComplaintsAction"
+                        value="unassign"
+                        checked={bulkOpenComplaintsAction === 'unassign'}
+                        onChange={() => setBulkOpenComplaintsAction('unassign')}
+                        className="mt-0.5 text-rose-600 focus:ring-rose-500"
+                      />
+                      <span>
+                        <strong className="block text-slate-900">Return to Unassigned Triage Pool (Recommended)</strong>
+                        <span className="text-slate-600">Clears current assignees and resets status to department review so other officers can triage.</span>
+                      </span>
+                    </label>
+
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="bulkOpenComplaintsAction"
+                        value="reassign"
+                        checked={bulkOpenComplaintsAction === 'reassign'}
+                        onChange={() => setBulkOpenComplaintsAction('reassign')}
+                        className="mt-0.5 text-rose-600 focus:ring-rose-500"
+                      />
+                      <span>
+                        <strong className="block text-slate-900">Reassign to another active staff member</strong>
+                        <span className="text-slate-600">Transfers open complaints to a selected active staff member.</span>
+                      </span>
+                    </label>
+                  </div>
+
+                  {bulkOpenComplaintsAction === 'reassign' && (
+                    <div className="mt-2 pt-2 border-t border-rose-200">
+                      <label className="text-xs font-semibold text-slate-900 block mb-1">
+                        Select Target Staff Member:
+                      </label>
+                      <select
+                        value={bulkReassignToStaffId}
+                        onChange={(e) => setBulkReassignToStaffId(e.target.value)}
+                        className="flex h-9 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                      >
+                        <option value="">— Select Active Staff Member —</option>
+                        {data?.items
+                          ?.filter((s) => !selectedIds.includes(s.id) && s.isActive && s.role !== 'CITIZEN')
+                          .map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name} ({(s.role || 'STAFF').replace(/_/g, ' ')}) — {s.email}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 block">
+                    Type <span className="font-mono text-rose-600 font-bold">DELETE</span> to confirm bulk permanent deletion:
+                  </label>
+                  <Input
+                    value={bulkDeleteConfirmText}
+                    onChange={(e) => setBulkDeleteConfirmText(e.target.value)}
+                    placeholder="Type DELETE"
+                    className="font-mono text-xs"
+                    autoFocus
+                  />
+                </div>
+
+                <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
+                  <Button variant="outline" onClick={() => setBulkDeleteStep(2)}>
+                    Back
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    disabled={
+                      bulkDeleteConfirmText.trim().toUpperCase() !== 'DELETE' ||
+                      (bulkOpenComplaintsAction === 'reassign' && !bulkReassignToStaffId) ||
+                      bulkSubmitting
+                    }
+                    onClick={() => {
+                      setShowBulkDeleteConfirm(false);
+                      handleBulkAction('PERMANENT_DELETE', {
+                        openComplaintsAction: bulkOpenComplaintsAction,
+                        reassignToId: bulkOpenComplaintsAction === 'reassign' ? bulkReassignToStaffId : undefined,
+                      });
+                    }}
+                  >
+                    {bulkSubmitting ? 'Deleting...' : `Permanently Delete ${selectedIds.length} Staff`}
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
 
@@ -1656,7 +2181,13 @@ export default function AdminStaffPage() {
               variant="destructive"
               className="text-xs"
               disabled={bulkSubmitting}
-              onClick={() => setShowBulkDeleteConfirm(true)}
+              onClick={() => {
+                setBulkDeleteStep(1);
+                setBulkDeleteConfirmText('');
+                setBulkOpenComplaintsAction('unassign');
+                setBulkReassignToStaffId('');
+                setShowBulkDeleteConfirm(true);
+              }}
             >
               Delete
             </Button>

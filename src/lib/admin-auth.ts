@@ -14,6 +14,7 @@ export interface AdminPayload {
   name: string;
   email: string;
   role: string;
+  municipalityId?: string | null;
 }
 
 type RequireAdminResult =
@@ -72,6 +73,7 @@ export async function requireAdmin(): Promise<RequireAdminResult> {
       name: storeUser?.name ?? payload.name ?? 'Admin',
       email: storeUser?.email ?? payload.email,
       role: effectiveRole,
+      municipalityId: storeUser?.municipalityId ?? payload.municipalityId ?? null,
     },
   };
 }
@@ -127,6 +129,7 @@ export async function requireSuperAdmin(): Promise<RequireAdminResult> {
       name: storeUser?.name ?? payload.name ?? 'Super Admin',
       email: storeUser?.email ?? payload.email,
       role: 'SUPER_ADMIN',
+      municipalityId: storeUser?.municipalityId ?? payload.municipalityId ?? null,
     },
   };
 }

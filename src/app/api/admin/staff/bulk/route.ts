@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
 import prisma from '@/lib/prisma';
 import { isSuperAdminTarget } from '@/lib/staff-dept-store';
-import { deactivateStaff, reactivateStaff, reassignStaff, removeStaff } from '@/services/staffService';
+import { deactivateStaff, reactivateStaff, reassignStaff, removeStaff, permanentlyDeleteStaff } from '@/services/staffService';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,9 +12,9 @@ export async function POST(req: NextRequest) {
     if (!auth.authorized) return auth.response;
 
     const body = await req.json().catch(() => ({}));
-    const { action, ids, departmentId } = body;
+    const { action, ids, departmentId, openComplaintsAction, reassignToId, confirmEmail } = body;
 
-    if (!action || !['DEACTIVATE', 'SUSPEND', 'REACTIVATE', 'DELETE', 'REASSIGN_DEPT'].includes(action)) {
+    if (!action || !['DEACTIVATE', 'SUSPEND', 'REACTIVATE', 'DELETE', 'PERMANENT_DELETE', 'REASSIGN_DEPT'].includes(action)) {
       return NextResponse.json({ message: 'Invalid or missing action' }, { status: 400 });
     }
 
@@ -84,6 +84,21 @@ export async function POST(req: NextRequest) {
           const res = await reactivateStaff(id, auth.admin);
           if (res.ok) {
             results.push({ id, ok: true, message: 'Reactivated successfully' });
+          } else {
+            results.push({ id, ok: false, error: res.message });
+          }
+        } else if (action === 'PERMANENT_DELETE' || (action === 'DELETE' && openComplaintsAction)) {
+          const res = await permanentlyDeleteStaff(
+            id,
+            {
+              confirmEmail: confirmEmail || target.email || '',
+              openComplaintsAction: openComplaintsAction || 'unassign',
+              reassignToId,
+            },
+            auth.admin,
+          );
+          if (res.ok) {
+            results.push({ id, ok: true, message: 'Permanently deleted successfully' });
           } else {
             results.push({ id, ok: false, error: res.message });
           }

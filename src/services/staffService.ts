@@ -18,10 +18,13 @@ import {
   isSuperAdminTarget,
   listDepartments,
   listUsers,
+  permanentlyDeleteUser,
   reassignUserComplaints,
   suspendUser,
   updateUser,
   type DeletePreflightResult,
+  type PermanentDeleteInput,
+  type PermanentDeleteResult,
   type UserItem,
 } from '@/lib/staff-dept-store';
 
@@ -625,7 +628,31 @@ export async function convertUserToStaff(
   return { ok: true, data: await userToSummary(updated) };
 }
 
-export { getDeletePreflight, archiveUser, reassignUserComplaints };
+export async function permanentlyDeleteStaff(
+  targetId: string,
+  input: PermanentDeleteInput,
+  actor: { id: string; name: string; role?: string; municipalityId?: string | null },
+): Promise<ServiceResult<{
+  deleted: boolean;
+  message: string;
+  targetId: string;
+  targetEmail: string;
+  targetName: string;
+  openComplaintsAction: string;
+  reassignedCount: number;
+  unassignedCount: number;
+  detachedWorkersCount: number;
+  evidencePreservedCount: number;
+}>> {
+  const res = await permanentlyDeleteUser(targetId, input, actor);
+  if (!res.ok) {
+    return { ok: false, status: res.status, message: res.message };
+  }
+  return { ok: true, data: res.data! };
+}
+
+export { getDeletePreflight, archiveUser, reassignUserComplaints, permanentlyDeleteUser };
+export type { PermanentDeleteInput, PermanentDeleteResult };
 
 // ---------------------------------------------------------------------------
 // Activity Log for a specific staff member

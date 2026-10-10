@@ -79,11 +79,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const rawEmail = typeof body.email === 'string'
-      ? body.email.trim().toLowerCase()
-      : typeof body.loginId === 'string'
-      ? body.loginId.trim().toLowerCase()
-      : '';
+    const rawEmail = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     const rawPassword = typeof body.password === 'string' ? body.password : '';
 
     if (!rawEmail || !rawPassword) {

@@ -391,8 +391,10 @@ export async function suspendUser(id: string, isSuspended: boolean): Promise<Use
 
 export interface DeletePreflightResult {
   canHardDelete: boolean;
+  canForceDelete: boolean;
   isSelf: boolean;
   isProtected: boolean;
+  isSuperAdmin: boolean;
   isLastAdmin: boolean;
   user: {
     id: string;
@@ -405,15 +407,25 @@ export interface DeletePreflightResult {
   blockers: {
     openAssignedComplaints: number;
     resolvedComplaintsHandled: number;
+    resolvedHandledCount: number;
     citizenComplaints: number;
     feedbacks: number;
+    feedback: number;
     assignedWorkers: number;
     auditRows: number;
     evidence: number;
     notifications: number;
     statusHistory: number;
     pendingApprovals: number;
+    assignments: number;
   };
+  openComplaints: Array<{
+    id: string;
+    ticketId: string;
+    title: string;
+    status: string;
+    priority: string | null;
+  }>;
   reasons: string[];
 }
 
@@ -428,6 +440,7 @@ export async function getDeletePreflight(targetId: string, actorId?: string): Pr
 
   const isSelf = actorId ? actorId === targetId : false;
   const isProtected = isSuperAdminTarget(user);
+  const isSuperAdmin = isProtected;
 
   let isLastAdmin = false;
   if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
@@ -451,6 +464,8 @@ export async function getDeletePreflight(targetId: string, actorId?: string): Pr
     evidence,
     notifications,
     statusHistory,
+    assignmentsCount,
+    openComplaintsList,
   ] = await Promise.all([
     prisma.complaint.count({
       where: {
@@ -491,6 +506,31 @@ export async function getDeletePreflight(targetId: string, actorId?: string): Pr
     prisma.statusHistory.count({
       where: { changedByUserId: targetId },
     }),
+    prisma.assignment.count({
+      where: {
+        OR: [
+          { departmentOfficerId: targetId },
+          { assignedByUserId: targetId },
+        ],
+      },
+    }),
+    prisma.complaint.findMany({
+      where: {
+        status: { notIn: ['RESOLVED', 'CLOSED', 'REJECTED', 'DUPLICATE'] },
+        OR: [
+          { assignedFieldWorkerId: targetId },
+          { assignment: { departmentOfficerId: targetId } },
+        ],
+      },
+      take: 20,
+      select: {
+        id: true,
+        ticketId: true,
+        title: true,
+        status: true,
+        priority: true,
+      },
+    }),
   ]);
 
   const pendingApprovals = !user.isAuthorized ? 1 : 0;
@@ -521,14 +561,17 @@ export async function getDeletePreflight(targetId: string, actorId?: string): Pr
   const blockers = {
     openAssignedComplaints,
     resolvedComplaintsHandled,
+    resolvedHandledCount: resolvedComplaintsHandled,
     citizenComplaints,
     feedbacks,
+    feedback: feedbacks,
     assignedWorkers,
     auditRows,
     evidence,
     notifications,
     statusHistory,
     pendingApprovals,
+    assignments: assignmentsCount,
   };
 
   const totalBlockers =
@@ -538,11 +581,14 @@ export async function getDeletePreflight(targetId: string, actorId?: string): Pr
     assignedWorkers;
 
   const canHardDelete = !isSelf && !isProtected && !isLastAdmin && totalBlockers === 0;
+  const canForceDelete = !isSelf && !isProtected && !isLastAdmin && user.role !== 'CITIZEN';
 
   return {
     canHardDelete,
+    canForceDelete,
     isSelf,
     isProtected,
+    isSuperAdmin,
     isLastAdmin,
     user: {
       id: user.id,
@@ -553,6 +599,7 @@ export async function getDeletePreflight(targetId: string, actorId?: string): Pr
       deletedAt: user.deletedAt ? user.deletedAt.toISOString() : null,
     },
     blockers,
+    openComplaints: openComplaintsList,
     reasons,
   };
 }
@@ -902,3 +949,351 @@ export async function updateLastLogin(id: string): Promise<UserItem | null> {
     return null;
   }
 }
+
+export interface PermanentDeleteInput {
+  confirmEmail?: string;
+  openComplaintsAction?: 'reassign' | 'unassign';
+  reassignToId?: string;
+  forceRollbackForTest?: boolean;
+}
+
+export interface PermanentDeleteResult {
+  ok: boolean;
+  status: number;
+  message: string;
+  data?: {
+    deleted: boolean;
+    message: string;
+    targetId: string;
+    targetEmail: string;
+    targetName: string;
+    openComplaintsAction: string;
+    reassignedCount: number;
+    unassignedCount: number;
+    detachedWorkersCount: number;
+    evidencePreservedCount: number;
+  };
+}
+
+export async function permanentlyDeleteUser(
+  targetId: string,
+  input: PermanentDeleteInput,
+  actor: { id: string; name: string; role?: string; municipalityId?: string | null },
+): Promise<PermanentDeleteResult> {
+  const targetUser = await prisma.user.findUnique({
+    where: { id: targetId },
+    include: { department: true, municipality: true },
+  });
+
+  if (!targetUser) {
+    return { ok: false, status: 404, message: 'Staff member not found.' };
+  }
+
+  // 1. Self delete protection
+  if (targetId === actor.id) {
+    return { ok: false, status: 400, message: 'You cannot delete your own account.' };
+  }
+
+  // 2. Super Admin protection (protected platform-wide)
+  if (targetUser.role === 'SUPER_ADMIN' || isSuperAdminTarget(targetUser)) {
+    return { ok: false, status: 403, message: 'Super Admin accounts are permanently protected and cannot be deleted.' };
+  }
+
+  // 3. Last admin protection
+  if (targetUser.role === 'ADMIN') {
+    const adminCount = await prisma.user.count({
+      where: {
+        role: { in: ['ADMIN', 'SUPER_ADMIN'] },
+        isSuspended: false,
+        deletedAt: null,
+      },
+    });
+    if (adminCount <= 1) {
+      return { ok: false, status: 403, message: 'Cannot delete the last remaining Administrator account.' };
+    }
+  }
+
+  // 4. Same municipality check
+  let actorMunicipalityId = actor.municipalityId;
+  if (!actorMunicipalityId) {
+    const actorRecord = await prisma.user.findUnique({
+      where: { id: actor.id },
+      select: { municipalityId: true },
+    });
+    actorMunicipalityId = actorRecord?.municipalityId || null;
+  }
+  if (actorMunicipalityId && targetUser.municipalityId && actorMunicipalityId !== targetUser.municipalityId) {
+    return { ok: false, status: 403, message: 'Forbidden: Staff member belongs to a different municipality.' };
+  }
+
+  // 5. Staff check (block CITIZEN)
+  if (targetUser.role === 'CITIZEN') {
+    return { ok: false, status: 400, message: 'Target user is a citizen, not a staff member.' };
+  }
+
+  // 6. Email confirmation check (case-insensitive)
+  const normalizedTargetEmail = (targetUser.email || '').trim().toLowerCase();
+  const normalizedConfirmEmail = (input.confirmEmail || '').trim().toLowerCase();
+  if (!normalizedConfirmEmail || normalizedConfirmEmail !== normalizedTargetEmail) {
+    return {
+      ok: false,
+      status: 400,
+      message: 'Confirmation email does not match staff email. You must type the staff email to confirm.',
+    };
+  }
+
+  // 7. Find open complaints assigned to this staff member
+  const openComplaints = await prisma.complaint.findMany({
+    where: {
+      status: { notIn: ['RESOLVED', 'CLOSED', 'REJECTED', 'DUPLICATE'] },
+      OR: [
+        { assignedFieldWorkerId: targetId },
+        { assignment: { departmentOfficerId: targetId } },
+      ],
+    },
+    select: {
+      id: true,
+      ticketId: true,
+      title: true,
+      status: true,
+      assignedFieldWorkerId: true,
+      departmentId: true,
+    },
+  });
+
+  if (openComplaints.length > 0) {
+    if (!input.openComplaintsAction || !['reassign', 'unassign'].includes(input.openComplaintsAction)) {
+      return {
+        ok: false,
+        status: 400,
+        message: 'openComplaintsAction ("reassign" or "unassign") is required when staff has open complaints.',
+      };
+    }
+
+    if (input.openComplaintsAction === 'reassign') {
+      if (!input.reassignToId) {
+        return { ok: false, status: 400, message: 'reassignToId is required when openComplaintsAction is "reassign".' };
+      }
+      if (input.reassignToId === targetId) {
+        return { ok: false, status: 400, message: 'Cannot reassign complaints to the staff member being deleted.' };
+      }
+      const targetStaff = await prisma.user.findUnique({
+        where: { id: input.reassignToId },
+      });
+      if (!targetStaff || targetStaff.isSuspended || targetStaff.deletedAt) {
+        return { ok: false, status: 400, message: 'Selected reassign target staff member is inactive or not found.' };
+      }
+      if (targetStaff.role === 'CITIZEN') {
+        return { ok: false, status: 400, message: 'Cannot reassign complaints to a citizen.' };
+      }
+      if (actor.municipalityId && targetStaff.municipalityId && actor.municipalityId !== targetStaff.municipalityId) {
+        return { ok: false, status: 400, message: 'Target staff member must belong to the same municipality.' };
+      }
+    }
+  }
+
+  try {
+    let reassignedCount = 0;
+    let unassignedCount = 0;
+    let detachedWorkersCount = 0;
+    let evidencePreservedCount = 0;
+
+    await prisma.$transaction(async (tx) => {
+      // a. Open complaints handling
+      if (openComplaints.length > 0) {
+        if (input.openComplaintsAction === 'reassign' && input.reassignToId) {
+          // Reassign open worker assignments
+          await tx.complaint.updateMany({
+            where: {
+              assignedFieldWorkerId: targetId,
+              status: { notIn: ['RESOLVED', 'CLOSED', 'REJECTED', 'DUPLICATE'] },
+            },
+            data: { assignedFieldWorkerId: input.reassignToId },
+          });
+
+          // Reassign open officer assignments
+          await tx.assignment.updateMany({
+            where: {
+              departmentOfficerId: targetId,
+              complaint: { status: { notIn: ['RESOLVED', 'CLOSED', 'REJECTED', 'DUPLICATE'] } },
+            },
+            data: { departmentOfficerId: input.reassignToId },
+          });
+
+          reassignedCount = openComplaints.length;
+
+          // Status history notes
+          for (const c of openComplaints) {
+            await tx.statusHistory.create({
+              data: {
+                complaintId: c.id,
+                fromStatus: c.status,
+                toStatus: c.status,
+                notes: `Reassigned from deleted staff ${targetUser.name} to target staff.`,
+                changedByUserId: actor.id,
+              },
+            });
+          }
+        } else if (input.openComplaintsAction === 'unassign') {
+          // Unassign open worker assignments
+          await tx.complaint.updateMany({
+            where: {
+              assignedFieldWorkerId: targetId,
+              status: { notIn: ['RESOLVED', 'CLOSED', 'REJECTED', 'DUPLICATE'] },
+            },
+            data: {
+              assignedFieldWorkerId: null,
+              status: 'PENDING_DEPT_REVIEW',
+            },
+          });
+
+          // Delete open officer assignments
+          await tx.assignment.deleteMany({
+            where: {
+              departmentOfficerId: targetId,
+              complaint: { status: { notIn: ['RESOLVED', 'CLOSED', 'REJECTED', 'DUPLICATE'] } },
+            },
+          });
+
+          // Set status back to triage-able state PENDING_DEPT_REVIEW
+          await tx.complaint.updateMany({
+            where: {
+              id: { in: openComplaints.map((c) => c.id) },
+              status: { in: ['ASSIGNED', 'IN_PROGRESS'] },
+            },
+            data: { status: 'PENDING_DEPT_REVIEW' },
+          });
+
+          unassignedCount = openComplaints.length;
+
+          // Status history notes
+          for (const c of openComplaints) {
+            await tx.statusHistory.create({
+              data: {
+                complaintId: c.id,
+                fromStatus: c.status,
+                toStatus: 'PENDING_DEPT_REVIEW',
+                notes: `Staff unassigned due to permanent account deletion. Returned to triage pool.`,
+                changedByUserId: actor.id,
+              },
+            });
+          }
+        }
+      }
+
+      // b. Any remaining assignments (closed/resolved complaints or assignments created by user)
+      await tx.assignment.deleteMany({
+        where: { departmentOfficerId: targetId },
+      });
+      await tx.assignment.updateMany({
+        where: { assignedByUserId: targetId },
+        data: { assignedByUserId: actor.id },
+      });
+
+      // c. Detach field workers under this officer
+      const detachedWorkers = await tx.user.updateMany({
+        where: { assignedOfficerId: targetId },
+        data: { assignedOfficerId: null },
+      });
+      detachedWorkersCount = detachedWorkers.count;
+
+      // d. Evidence Option A: snapshot uploader name, null FK
+      const staffNameSnapshot = targetUser.name || 'Staff Member';
+      const evidenceRes = await tx.evidence.updateMany({
+        where: { uploadedByUserId: targetId },
+        data: {
+          uploadedByName: staffNameSnapshot,
+          uploadedByUserId: null,
+        },
+      });
+      evidencePreservedCount = evidenceRes.count;
+
+      // e. Delete notifications & refresh tokens
+      await tx.notification.deleteMany({ where: { recipientUserId: targetId } });
+      await tx.refreshToken.deleteMany({ where: { userId: targetId } });
+
+      // f. Null status history changedByUserId
+      await tx.statusHistory.updateMany({
+        where: { changedByUserId: targetId },
+        data: { changedByUserId: null },
+      });
+
+      // g. Audit rows: snapshot actor name and email into metadata, set userId = null
+      const actorNameStr = targetUser.name || targetUser.email || 'Deleted Staff';
+      const actorEmailStr = targetUser.email || '';
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE audit_logs
+        SET metadata = CASE
+          WHEN metadata IS NULL THEN jsonb_build_object('actorName', ${actorNameStr}::text, 'actorEmail', ${actorEmailStr}::text)::json
+          ELSE (to_jsonb(metadata) || jsonb_build_object(
+            'actorName', COALESCE(to_jsonb(metadata)->>'actorName', ${actorNameStr}::text),
+            'actorEmail', COALESCE(to_jsonb(metadata)->>'actorEmail', ${actorEmailStr}::text)
+          ))::json
+        END,
+        "userId" = NULL
+        WHERE "userId" = ${targetId}
+      `);
+
+      // h. Feedback refs
+      await tx.feedback.deleteMany({ where: { citizenId: targetId } });
+
+      // i. Forced rollback hook for rollback testing
+      if (input.forceRollbackForTest) {
+        throw new Error('FORCED_TRANSACTION_ROLLBACK_TEST');
+      }
+
+      // j. Delete user row permanently
+      await tx.user.delete({ where: { id: targetId } });
+
+      // k. Create one permanent deletion audit log row (actor.id is userId, surviving user delete)
+      await tx.auditLog.create({
+        data: {
+          userId: actor.id,
+          action: 'STAFF_PERMANENTLY_DELETED',
+          entityType: 'User',
+          entityId: targetId,
+          metadata: {
+            targetName: targetUser.name,
+            targetEmail: targetUser.email,
+            targetRole: targetUser.role,
+            targetDepartmentName: targetUser.department?.name || null,
+            targetDepartmentId: targetUser.departmentId || null,
+            deletedBy: actor.name,
+            deletedById: actor.id,
+            openComplaintsAction: input.openComplaintsAction || 'none',
+            reassignedCount,
+            unassignedCount,
+            detachedWorkersCount,
+            evidencePreservedCount,
+          },
+        },
+      });
+    }, { timeout: 30000 });
+
+    return {
+      ok: true,
+      status: 200,
+      message: 'Staff member permanently deleted.',
+      data: {
+        deleted: true,
+        message: 'Staff member permanently deleted.',
+        targetId,
+        targetEmail: targetUser.email || '',
+        targetName: targetUser.name,
+        openComplaintsAction: input.openComplaintsAction || 'none',
+        reassignedCount,
+        unassignedCount,
+        detachedWorkersCount,
+        evidencePreservedCount,
+      },
+    };
+  } catch (error: any) {
+    console.error(`Error permanently deleting staff ${targetId}:`, error);
+    return {
+      ok: false,
+      status: 500,
+      message: error?.message || 'Failed to permanently delete staff member due to an internal error.',
+    };
+  }
+}
+

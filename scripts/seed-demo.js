@@ -576,12 +576,12 @@ async function seed() {
   console.log('DEMO ACCOUNTS SEEDED SUCCESSFULLY (Idempotent)');
   console.log('Database Host: ' + ALLOWED_TEST_HOST);
   console.log('======================================================');
-  console.log('ROLE                 | EMAIL                              | LOGIN ID');
-  console.log('---------------------+------------------------------------+----------');
+  console.log('ROLE                 | EMAIL                              | AUTH METHOD');
+  console.log('---------------------+------------------------------------+----------------');
   for (const c of credentialsLog) {
-    console.log(`${c.role.padEnd(20)} | ${c.email.padEnd(34)} | ${c.loginId}`);
+    console.log(`${c.role.padEnd(20)} | ${c.email.padEnd(34)} | Password / Google`);
   }
-  console.log(`${'CITIZEN'.padEnd(20)} | ${'demo.citizen@smartcity.gov.in'.padEnd(34)} | (OTP/Mobile: 9876543210)`);
+  console.log(`${'CITIZEN'.padEnd(20)} | ${'demo.citizen@smartcity.gov.in'.padEnd(34)} | Mobile OTP (9876543210)`);
   console.log('======================================================');
   console.log(`[PASSWORDS] Generated passwords written to git-ignored: demo-credentials.local.txt`);
   console.log(`[COMPLAINTS] Seeded complaints across all 9 statuses: SUBMITTED, AI_PROCESSING, PENDING_DEPT_REVIEW, ASSIGNED, IN_PROGRESS, RESOLVED, CLOSED, REJECTED, DUPLICATE.`);
