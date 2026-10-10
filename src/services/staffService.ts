@@ -61,6 +61,7 @@ export interface StaffSummary {
   isActive: boolean;
   isAuthorized: boolean;
   lastLoginAt: string | null;
+  loginId?: string | null;
   createdAt: string;
 }
 
@@ -122,6 +123,7 @@ async function userToSummary(u: UserItem): Promise<StaffSummary> {
     isActive: !u.isSuspended,
     isAuthorized: u.isAuthorized,
     lastLoginAt: u.lastLoginAt ?? null,
+    loginId: u.loginId ?? null,
     createdAt: u.createdAt,
   };
 }

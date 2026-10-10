@@ -24,6 +24,7 @@ export interface UserItem {
   isSuspended: boolean;
   deletedAt: string | null;
   lastLoginAt: string | null;
+  loginId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -84,6 +85,7 @@ function formatUserItem(user: any): UserItem {
     isSuspended: Boolean(user.isSuspended),
     deletedAt: user.deletedAt ? (user.deletedAt instanceof Date ? user.deletedAt.toISOString() : new Date(user.deletedAt).toISOString()) : null,
     lastLoginAt: user.lastLoginAt ? (user.lastLoginAt instanceof Date ? user.lastLoginAt.toISOString() : new Date(user.lastLoginAt).toISOString()) : null,
+    loginId: user.loginId || null,
     createdAt: user.createdAt instanceof Date ? user.createdAt.toISOString() : new Date(user.createdAt || Date.now()).toISOString(),
     updatedAt: user.updatedAt instanceof Date ? user.updatedAt.toISOString() : new Date(user.updatedAt || Date.now()).toISOString(),
   };

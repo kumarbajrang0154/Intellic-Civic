@@ -6,8 +6,11 @@ import {
   Activity,
   AlertCircle,
   BarChart3,
+  Check,
   ChevronLeft,
   ChevronRight,
+  Copy,
+  KeyRound,
   Plus,
   RefreshCw,
   Search,
@@ -50,6 +53,7 @@ interface StaffMember {
   isActive: boolean;
   isAuthorized: boolean;
   lastLoginAt: string | null;
+  loginId?: string | null;
   createdAt: string;
 }
 
@@ -146,6 +150,18 @@ export default function AdminStaffPage() {
   // Deactivate confirmation
   const [deactivateTarget, setDeactivateTarget] = useState<StaffMember | null>(null);
   const [deactivating, setDeactivating] = useState(false);
+
+  // Credentials generation & reset state
+  const [credentialsTarget, setCredentialsTarget] = useState<StaffMember | null>(null);
+  const [isResetMode, setIsResetMode] = useState(false);
+  const [credentialsGenerating, setCredentialsGenerating] = useState(false);
+  const [revealedCredentials, setRevealedCredentials] = useState<{
+    loginId: string;
+    password: string;
+    name: string;
+    isReset?: boolean;
+  } | null>(null);
+  const [copiedField, setCopiedField] = useState<'loginId' | 'password' | 'both' | null>(null);
 
   // Delete (remove) confirmation & preflight
   const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null);
@@ -535,6 +551,58 @@ export default function AdminStaffPage() {
     if (res.ok) fetchStaff();
   }
 
+  // ── Credentials Management ───────────────────────────────────────────────────
+
+  function openCredentialsDialog(staff: StaffMember) {
+    setCredentialsTarget(staff);
+    setIsResetMode(Boolean(staff.loginId));
+  }
+
+  function handleCopy(text: string, field: 'loginId' | 'password' | 'both') {
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(text);
+    }
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2500);
+  }
+
+  async function handleGenerateCredentials() {
+    if (!credentialsTarget) return;
+    setCredentialsGenerating(true);
+    try {
+      const res = await fetch(`/api/admin/staff/${credentialsTarget.id}/credentials`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reset: isResetMode }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showGlobalError({
+          title: 'Action Failed',
+          message: data?.message || 'Failed to generate staff credentials.',
+          statusCode: res.status,
+        });
+        return;
+      }
+      setRevealedCredentials({
+        loginId: data.loginId,
+        password: data.password,
+        name: credentialsTarget.name,
+        isReset: isResetMode,
+      });
+      setCredentialsTarget(null);
+      fetchStaff();
+    } catch (err: any) {
+      showGlobalError({
+        title: 'Action Failed',
+        message: err?.message || 'Network error occurred.',
+        statusCode: 500,
+      });
+    } finally {
+      setCredentialsGenerating(false);
+    }
+  }
+
   // ── Reassign ─────────────────────────────────────────────────────────────────
 
   function openReassign(staff: StaffMember) {
@@ -695,6 +763,12 @@ export default function AdminStaffPage() {
                       <td className="px-4 py-3 min-w-0 max-w-[140px] sm:max-w-none">
                         <div className="font-semibold text-slate-900 text-sm truncate">{staff.name}</div>
                         <div className="text-xs text-slate-500 mt-0.5 truncate">{staff.email}</div>
+                        {staff.loginId && (
+                          <div className="text-[11px] font-mono text-slate-500 mt-0.5 truncate flex items-center gap-1">
+                            <span className="text-slate-400 font-sans">ID:</span>
+                            <span className="font-semibold text-slate-700 bg-slate-100 px-1 rounded">{staff.loginId}</span>
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3">{roleBadge(staff.role)}</td>
                       <td className="px-4 py-3 hidden md:table-cell">
@@ -721,6 +795,15 @@ export default function AdminStaffPage() {
                           </Link>
                           {staff.role !== 'SUPER_ADMIN' && staff.email !== 'kumarbajrang325@gmail.com' && staff.email !== 'kumarbajrang0154@gmail.com' ? (
                             <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title={staff.loginId ? 'Reset Password' : 'Generate Credentials'}
+                                data-testid={`credentials-btn-${staff.id}`}
+                                onClick={() => openCredentialsDialog(staff)}
+                              >
+                                <KeyRound className="w-4 h-4 text-amber-600" />
+                              </Button>
                               <Button variant="ghost" size="sm" title="Reassign" onClick={() => openReassign(staff)}>
                                 <Users className="w-4 h-4 text-blue-600" />
                               </Button>
@@ -853,6 +936,185 @@ export default function AdminStaffPage() {
               <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
               <Button className="bg-gradient-to-r from-[#2563EB] to-[#0891B2] text-white hover:opacity-95 shadow-sm" onClick={handleCreate} disabled={creating}>
                 {creating ? 'Creating...' : 'Create Staff'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Generate / Reset Credentials Confirm Dialog ────────────────────── */}
+        <Dialog open={!!credentialsTarget} onOpenChange={(o) => !o && setCredentialsTarget(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-slate-900">
+                <KeyRound className="w-5 h-5 text-amber-600 shrink-0" />
+                {isResetMode ? 'Reset Staff Password' : 'Generate Staff Credentials'}
+              </DialogTitle>
+              <DialogDescription className="text-sm text-slate-600 leading-relaxed pt-1">
+                {isResetMode ? (
+                  <>
+                    Are you sure you want to reset the password for{' '}
+                    <strong className="text-slate-900">{credentialsTarget?.name}</strong>?
+                    Their existing password will be invalidated immediately.
+                  </>
+                ) : (
+                  <>
+                    Generate a unique Login ID and temporary 12-character password for{' '}
+                    <strong className="text-slate-900">{credentialsTarget?.name}</strong>?
+                  </>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs leading-relaxed">
+              A temporary random 12-character password will be generated. It will only be revealed <strong>once</strong> on the next screen.
+            </div>
+
+            <DialogFooter className="mt-4 flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setCredentialsTarget(null)}
+                disabled={credentialsGenerating}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="bg-amber-600 hover:bg-amber-700 text-white min-h-[44px]"
+                onClick={handleGenerateCredentials}
+                disabled={credentialsGenerating}
+              >
+                {credentialsGenerating ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin mr-1.5" />
+                    {isResetMode ? 'Resetting...' : 'Generating...'}
+                  </>
+                ) : (
+                  isResetMode ? 'Confirm Password Reset' : 'Confirm Generate'
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── One-Time Credentials Reveal Modal ───────────────────────────────── */}
+        <Dialog open={!!revealedCredentials} onOpenChange={(o) => { if (!o) setRevealedCredentials(null); }}>
+          <DialogContent className="max-w-md p-6">
+            <DialogHeader className="space-y-1">
+              <DialogTitle className="flex items-center gap-2 text-slate-900 text-lg">
+                <KeyRound className="w-5 h-5 text-emerald-600 shrink-0" />
+                Credentials {revealedCredentials?.isReset ? 'Reset' : 'Generated'}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-600">
+                Account: <strong className="text-slate-900">{revealedCredentials?.name}</strong>
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              {/* Prominent Warning Banner */}
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-950 text-xs space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-rose-900 text-xs">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  SHOWN ONLY ONCE
+                </div>
+                <p className="text-xs leading-relaxed text-rose-900">
+                  This password will <strong>never be shown again</strong> and is stored as a secure one-way hash. Copy it now and securely provide it to the staff member.
+                </p>
+              </div>
+
+              {/* Login ID box */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 block">Login ID</label>
+                <div className="flex items-center gap-2">
+                  <div
+                    id="revealed-login-id"
+                    className="flex-1 font-mono text-sm bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg font-semibold text-slate-900 select-all"
+                  >
+                    {revealedCredentials?.loginId}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 h-9 px-3 gap-1.5 min-h-[36px]"
+                    onClick={() => handleCopy(revealedCredentials?.loginId || '', 'loginId')}
+                  >
+                    {copiedField === 'loginId' ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-xs text-emerald-700">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 text-slate-600" />
+                        <span className="text-xs">Copy ID</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Password box */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 block">Temporary Password (12 characters)</label>
+                <div className="flex items-center gap-2">
+                  <div
+                    id="revealed-password"
+                    className="flex-1 font-mono text-sm bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg font-semibold text-slate-900 tracking-wider select-all"
+                  >
+                    {revealedCredentials?.password}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 h-9 px-3 gap-1.5 min-h-[36px]"
+                    onClick={() => handleCopy(revealedCredentials?.password || '', 'password')}
+                  >
+                    {copiedField === 'password' ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-xs text-emerald-700">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 text-slate-600" />
+                        <span className="text-xs">Copy Pass</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Copy All Button */}
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full text-xs font-semibold gap-2 border border-slate-200 min-h-[44px]"
+                onClick={() => {
+                  const text = `Staff Member: ${revealedCredentials?.name}\nLogin ID: ${revealedCredentials?.loginId}\nPassword: ${revealedCredentials?.password}`;
+                  handleCopy(text, 'both');
+                }}
+              >
+                {copiedField === 'both' ? (
+                  <>
+                    <Check className="w-4 h-4 text-emerald-600" />
+                    <span className="text-emerald-700">Copied All Credentials!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4 text-slate-600" />
+                    <span>Copy All (ID & Password)</span>
+                  </>
+                )}
+              </Button>
+            </div>
+
+            <DialogFooter className="mt-2">
+              <Button
+                id="revealed-credentials-done-btn"
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white min-h-[44px]"
+                onClick={() => setRevealedCredentials(null)}
+              >
+                I have securely saved these credentials
               </Button>
             </DialogFooter>
           </DialogContent>

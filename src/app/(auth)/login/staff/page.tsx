@@ -1,10 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Building2, ShieldAlert } from 'lucide-react';
+import { Building2, ShieldAlert, KeyRound, Eye, EyeOff, Lock, User, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { showGlobalError } from '@/lib/api-client';
 
 const ERROR_MESSAGES: Record<string, string> = {
   google_cancelled: 'Google sign-in was cancelled. Please try again.',
@@ -18,7 +20,60 @@ const ERROR_MESSAGES: Record<string, string> = {
 function StaffLoginContent() {
   const searchParams = useSearchParams();
   const errorKey = searchParams.get('error');
-  const errorMessage = errorKey ? (ERROR_MESSAGES[errorKey] || 'An error occurred during Google sign-in.') : null;
+  const googleErrorMessage = errorKey ? (ERROR_MESSAGES[errorKey] || 'An error occurred during Google sign-in.') : null;
+
+  const [loginId, setLoginId] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  const handleCredentialsLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError(null);
+
+    const cleanLoginId = loginId.trim();
+    if (!cleanLoginId || !password) {
+      setLoginError('Both Login ID and Password are required.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/auth/staff-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loginId: cleanLoginId, password }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        const errorMsg = data?.message || 'Invalid login ID or password.';
+        setLoginError(errorMsg);
+        showGlobalError({
+          title: 'Authentication Failed',
+          message: errorMsg,
+          statusCode: res.status,
+          hint: 'Please check your Login ID and password or contact your municipal administrator.',
+        });
+        return;
+      }
+
+      // Successful staff login: navigate to assigned portal route
+      window.location.href = data.redirectUrl || '/admin';
+    } catch (err: any) {
+      const msg = err?.message || 'A network error occurred. Please try again.';
+      setLoginError(msg);
+      showGlobalError({
+        title: 'Authentication Error',
+        message: msg,
+        statusCode: 500,
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#F2EFE6] flex items-center justify-center p-4 sm:p-6 lg:p-12 font-sans">
@@ -73,24 +128,113 @@ function StaffLoginContent() {
                   Staff & Admin Access
                 </h2>
                 <p className="text-xs sm:text-sm text-[#6E6B64] leading-relaxed">
-                  Department Officers, Department Heads, Field Workers, and Super Admin sign in
-                  using their authorized Google account
+                  Sign in using your assigned Login ID & password, or your authorized Google account.
                 </p>
               </div>
 
-              {/* Error Banner */}
-              {errorMessage && (
+              {/* Error Banners */}
+              {googleErrorMessage && (
                 <div className="p-3 bg-rose-50 border border-rose-200 text-rose-950 text-xs font-semibold rounded-2xl text-left">
-                  {errorMessage}
+                  {googleErrorMessage}
                 </div>
               )}
 
-              {/* Google Sign In Button */}
-              <a href="/api/auth/google" className="block w-full">
+              {loginError && (
+                <div
+                  id="staff-login-error"
+                  className="p-3 bg-rose-50 border border-rose-200 text-rose-950 text-xs font-semibold rounded-2xl text-left"
+                >
+                  {loginError}
+                </div>
+              )}
+
+              {/* Form: Login ID & Password */}
+              <form onSubmit={handleCredentialsLogin} className="space-y-4" id="staff-credentials-form">
+                <div className="space-y-1.5 text-left">
+                  <label htmlFor="staff-login-id" className="text-xs font-bold text-[#131E20] block">
+                    Staff Login ID <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <Input
+                      id="staff-login-id"
+                      type="text"
+                      placeholder="e.g. DHD123456 or OFF987654"
+                      value={loginId}
+                      onChange={(e) => setLoginId(e.target.value)}
+                      disabled={submitting}
+                      className="pl-10 h-11 text-sm rounded-xl border-[#E5E2D9] focus:border-[#3468A1] focus:ring-[#3468A1]"
+                      autoComplete="username"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 text-left">
+                  <label htmlFor="staff-password" className="text-xs font-bold text-[#131E20] block">
+                    Password <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <Input
+                      id="staff-password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={submitting}
+                      className="pl-10 pr-10 h-11 text-sm rounded-xl border-[#E5E2D9] focus:border-[#3468A1] focus:ring-[#3468A1]"
+                      autoComplete="current-password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none p-1"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
                 <Button
+                  id="staff-login-submit"
+                  type="submit"
+                  size="lg"
+                  disabled={submitting}
+                  className="w-full h-11 flex items-center justify-center gap-2 bg-[#131E20] text-white hover:bg-[#131E20]/90 shadow-xs font-semibold text-sm rounded-full transition-colors min-h-[44px]"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Signing in...</span>
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound className="w-4 h-4" />
+                      <span>Sign In with Login ID</span>
+                    </>
+                  )}
+                </Button>
+              </form>
+
+              {/* Divider */}
+              <div className="relative flex items-center justify-center">
+                <div className="border-t border-[#E5E2D9] w-full" />
+                <span className="bg-white px-3 text-[11px] font-bold text-[#6E6B64] uppercase tracking-wider absolute">
+                  OR
+                </span>
+              </div>
+
+              {/* Google Sign In Button */}
+              <a href="/api/auth/google" className="block w-full" id="google-login-button">
+                <Button
+                  type="button"
                   variant="outline"
                   size="lg"
-                  className="w-full h-11 flex items-center justify-center gap-3 bg-white text-[#131E20] border border-[#E5E2D9] hover:bg-[#F2EFE6] shadow-xs font-semibold text-sm rounded-full transition-colors"
+                  className="w-full h-11 flex items-center justify-center gap-3 bg-white text-[#131E20] border border-[#E5E2D9] hover:bg-[#F2EFE6] shadow-xs font-semibold text-sm rounded-full transition-colors min-h-[44px]"
                 >
                   <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24">
                     <path
@@ -121,7 +265,7 @@ function StaffLoginContent() {
                   <span>Secure Staff Access</span>
                 </div>
                 <p className="text-xs text-[#6E6B64] leading-relaxed">
-                  When you sign in with Google, we verify your account email against authorized staff records before access is granted. Unregistered accounts are placed in a pending approval queue.
+                  Staff credentials and Google sign-ins are verified against authorized municipal records. Account lockout activates after 5 consecutive failed attempts.
                 </p>
               </div>
 

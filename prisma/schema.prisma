@@ -98,6 +98,11 @@ model User {
   suspendedAt       DateTime?
   deletedAt         DateTime?
   lastLoginAt       DateTime?
+  loginId            String?      @unique
+  passwordHash       String?
+  mustChangePassword Boolean      @default(false)
+  failedLoginCount   Int          @default(0)
+  lockedUntil        DateTime?
   departmentId      String?
   municipalityId    String?
   assignedOfficerId String?
