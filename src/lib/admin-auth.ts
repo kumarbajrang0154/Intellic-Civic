@@ -17,7 +17,7 @@ export interface AdminPayload {
   municipalityId?: string | null;
   isAuthorized?: boolean;
   isSuspended?: boolean;
-  deletedAt?: Date | null;
+  deletedAt?: string | Date | null;
 }
 
 type RequireAdminResult =
@@ -159,6 +159,9 @@ export async function requireSuperAdmin(): Promise<RequireAdminResult> {
       email: storeUser?.email ?? payload.email,
       role: 'SUPER_ADMIN',
       municipalityId: storeUser?.municipalityId ?? payload.municipalityId ?? null,
+      isAuthorized,
+      isSuspended: storeUser?.isSuspended ?? false,
+      deletedAt: storeUser?.deletedAt ?? null,
     },
   };
 }
