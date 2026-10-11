@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import prisma from '@/lib/prisma';
 import { requireAdmin } from '@/lib/admin-auth';
-import { isSuperAdminTarget } from '@/lib/staff-dept-store';
+import { isSuperAdminTarget, assertCanManageStaff, logPrivilegedStaffAction } from '@/lib/staff-dept-store';
 import { addAuditLog } from '@/lib/audit-store';
 import { validatePasswordPolicy } from '@/lib/password-policy';
 
@@ -41,14 +41,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   });
 
   if (!target) {
-    return NextResponse.json({ message: 'Staff member not found.' }, { status: 404 });
+    return NextResponse.json({ message: 'Staff member not found or has already been removed.' }, { status: 404 });
   }
 
-  // Super Admin protection guard: never allow modifying Super Admin target
-  if (target.role === 'SUPER_ADMIN' || isSuperAdminTarget(target)) {
+  // Unified manage check (self, super admin, last admin, and municipality isolation)
+  const manageCheck = await assertCanManageStaff(auth.admin, target, 'password');
+  if (!manageCheck.allowed) {
     return NextResponse.json(
-      { message: 'Forbidden: Super Admin accounts are protected.' },
-      { status: 403 },
+      { message: manageCheck.message || 'Forbidden: Cannot manage password for this staff member.' },
+      { status: manageCheck.status },
     );
   }
 
@@ -58,16 +59,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       { message: 'Forbidden: Passwords can only be managed for eligible staff accounts.' },
       { status: 403 },
     );
-  }
-
-  // Municipality isolation check (ADMIN, same municipality only)
-  if (auth.admin.role === 'ADMIN' || actor?.role === 'ADMIN') {
-    if (actor?.municipalityId && target.municipalityId !== actor.municipalityId) {
-      return NextResponse.json(
-        { message: 'Forbidden: Cannot manage password for staff in a different municipality.' },
-        { status: 403 },
-      );
-    }
   }
 
   let body: { password?: string } = {};
@@ -110,13 +101,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   });
 
   // Audit row with NO password and NO hash in metadata
-  await addAuditLog({
-    actorId: auth.admin.id,
-    actorName: auth.admin.name,
+  await logPrivilegedStaffAction({
+    actor: auth.admin,
+    target,
     action: isReset ? 'STAFF_PASSWORD_RESET' : 'STAFF_PASSWORD_SET',
-    entityType: 'User',
-    targetId: target.id,
-    targetName: target.name,
     metadata: {
       role: target.role,
       isReset,

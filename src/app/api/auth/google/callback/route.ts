@@ -106,7 +106,7 @@ export async function GET(req: NextRequest) {
           data: { googleId },
         });
       }
-      const res = NextResponse.redirect(new URL('/pending-approval', frontendUrl));
+      const res = NextResponse.redirect(new URL('/login/staff?error=pending_approval', frontendUrl));
       res.cookies.delete('ic_access_token');
       res.cookies.delete('ic_refresh_token');
       return res;
@@ -122,14 +122,14 @@ export async function GET(req: NextRequest) {
 
     // Step 5: Check archive & suspension
     if (staffUser.deletedAt) {
-      const res = NextResponse.redirect(new URL('/denied', frontendUrl));
+      const res = NextResponse.redirect(new URL('/login/staff?error=account_deactivated', frontendUrl));
       res.cookies.delete('ic_access_token');
       res.cookies.delete('ic_refresh_token');
       return res;
     }
 
     if (staffUser.isSuspended) {
-      const res = NextResponse.redirect(new URL('/denied', frontendUrl));
+      const res = NextResponse.redirect(new URL('/login/staff?error=account_suspended', frontendUrl));
       res.cookies.delete('ic_access_token');
       res.cookies.delete('ic_refresh_token');
       return res;
@@ -137,7 +137,7 @@ export async function GET(req: NextRequest) {
 
     // Step 6: Check authorization
     if (!staffUser.isAuthorized) {
-      const res = NextResponse.redirect(new URL('/pending-approval', frontendUrl));
+      const res = NextResponse.redirect(new URL('/login/staff?error=pending_approval', frontendUrl));
       res.cookies.delete('ic_access_token');
       res.cookies.delete('ic_refresh_token');
       return res;

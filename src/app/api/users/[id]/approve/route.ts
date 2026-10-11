@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
-import { approveUser } from '@/lib/staff-dept-store';
+import { approveUser, assertCanManageStaff, getUser, logPrivilegedStaffAction } from '@/lib/staff-dept-store';
 
 export async function PATCH(
   req: NextRequest,
@@ -9,6 +9,17 @@ export async function PATCH(
   try {
     const auth = await requireAdmin();
     if (!auth.authorized) return auth.response;
+
+    const target = await getUser(params.id);
+    if (!target) {
+      return NextResponse.json({ message: 'User not found' }, { status: 404 });
+    }
+
+    const manageCheck = await assertCanManageStaff(auth.admin, target, 'approve');
+    if (!manageCheck.allowed) {
+      return NextResponse.json({ message: manageCheck.message || 'Cannot approve this user.' }, { status: manageCheck.status });
+    }
+
     const body = await req.json().catch(() => ({}));
     const { role, departmentId } = body;
 
@@ -19,14 +30,10 @@ export async function PATCH(
       return NextResponse.json({ message: 'User not found' }, { status: 404 });
     }
 
-    const { addAuditLog } = await import('@/lib/audit-store');
-    await addAuditLog({
-      actorId: auth.admin.id,
-      actorName: auth.admin.name,
+    await logPrivilegedStaffAction({
+      actor: auth.admin,
+      target: approved,
       action: 'USER_APPROVED',
-      entityType: 'User',
-      targetId: approved.id,
-      targetName: approved.name,
       metadata: { role: approved.role, departmentId: approved.departmentId },
     });
 

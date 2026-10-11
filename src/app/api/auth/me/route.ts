@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { decodeJwtToken } from '@/lib/auth-jwt';
 import { getOrCreateCitizenProfile } from '@/lib/user-store';
+import { isRootAdmin } from '@/lib/staff-dept-store';
 
 function formatAvatarUrl(userId: string, rawUrl?: string | null): string | null {
   if (!rawUrl || typeof rawUrl !== 'string') return null;
@@ -111,6 +112,7 @@ export async function GET() {
           municipalityId: staffUser.municipalityId,
           isAuthorized: staffUser.isAuthorized,
           isSuspended: staffUser.isSuspended,
+          isRootAdmin: isRootAdmin(staffUser),
           avatarUrl: formatAvatarUrl(staffUser.id, staffUser.avatarUrl),
         },
       });

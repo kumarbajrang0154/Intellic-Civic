@@ -652,23 +652,21 @@ export default function NewComplaintPage() {
       setCreatedComplaintId(complaintId);
       setCreatedTicketId(ticketId);
 
-      if (evidenceUrls.length > 0) {
-        let uploadFailedCount = 0;
-
-        for (const imageUrl of evidenceUrls) {
-          try {
-            const evRes = await fetch(`/api/complaints/${complaintId}/evidence`, {
+      const extraImages = evidenceUrls.slice(1);
+      if (extraImages.length > 0) {
+        const results = await Promise.allSettled(
+          extraImages.map(imageUrl =>
+            fetch(`/api/complaints/${complaintId}/evidence`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ imageUrl, stage: 'BEFORE' }),
-            });
+            }).then(r => {
+              if (!r.ok) throw new Error('Upload failed');
+            })
+          )
+        );
 
-            if (!evRes.ok) uploadFailedCount++;
-          } catch (evErr) {
-            uploadFailedCount++;
-          }
-        }
-
+        const uploadFailedCount = results.filter(r => r.status === 'rejected').length;
         if (uploadFailedCount > 0) {
           setEvidenceWarning(
             `Complaint created successfully, but ${uploadFailedCount} photo(s) failed to attach. You can upload additional photos on the detail page.`,

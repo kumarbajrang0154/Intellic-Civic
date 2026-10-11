@@ -178,6 +178,15 @@ const DEFAULT_INCLUDE = {
   aiPrediction: true,
 };
 
+const CREATE_INCLUDE = {
+  citizen: true,
+  category: true,
+  department: true,
+  location: true,
+  images: true,
+  aiPrediction: true,
+};
+
 function formatComplaint(raw: any): Complaint {
   const evidenceList: ComplaintEvidence[] = [];
 
@@ -426,13 +435,11 @@ export async function createComplaint(data: {
   mockAiProvider?: string;
 }): Promise<Complaint> {
   const ticketId = generateTicketId();
-  const mun = await getDefaultMunicipality();
+  const [mun, dbCategories] = await Promise.all([
+    data.municipalityId ? Promise.resolve({ id: data.municipalityId }) : getDefaultMunicipality(),
+    prisma.category.findMany({ include: { department: true } }),
+  ]);
   const targetMunicipalityId = data.municipalityId || mun.id;
-
-  // Load available categories from DB (including department) or fallback to defaults
-  const dbCategories = await prisma.category.findMany({
-    include: { department: true },
-  });
   const availableCategories: CategoryInfo[] = dbCategories.length > 0
     ? dbCategories.map((c) => ({
         id: c.id,
@@ -449,27 +456,37 @@ export async function createComplaint(data: {
         departmentId: c.departmentId,
       }));
 
-  // AI Complaint Routing Classification (using Gemini with fallback, vision and language detection/translation)
-  const routingResult: ComplaintRoutingResult = data.mockAiProvider === 'fallback'
-    ? {
+  const initialCategory = data.categoryId ? dbCategories.find((c) => c.id === data.categoryId) : null;
+  const routingPromise = data.mockAiProvider === 'fallback'
+    ? Promise.resolve({
         category: null,
         confidence: 0,
-        priority: 'MEDIUM',
+        priority: 'MEDIUM' as const,
         language: 'en',
         titleEn: null,
         descriptionEn: null,
         reasoning: 'Fallback provider used for manual triage',
         needsManualTriage: true,
-        provider: 'fallback',
+        provider: 'fallback' as const,
         fallbackTriggered: true,
-      }
-    : await classifyComplaintRouting(
+      } as ComplaintRoutingResult)
+    : classifyComplaintRouting(
         data.description,
         data.title,
         availableCategories,
         data.language,
-        data.imageUrl,
+        data.categoryId ? null : data.imageUrl,
       );
+
+  const photoVerificationPromise = data.imageUrl
+    ? verifyComplaintPhoto(
+        data.imageUrl,
+        data.description,
+        initialCategory?.name || 'General',
+      )
+    : Promise.resolve(null);
+
+  const [routingResult, photoVerification] = await Promise.all([routingPromise, photoVerificationPromise]);
 
   // Fallback honesty & low confidence check
   const isFallbackOrLowConfidence =
@@ -496,16 +513,6 @@ export async function createComplaint(data: {
   const finalPriority = (!isFallbackOrLowConfidence && routingResult.priority)
     ? (routingResult.priority as PriorityLevel)
     : (data.categoryId ? PriorityLevel.MEDIUM : null);
-
-  // Photo Evidence Verification (using Gemini Vision API with fallback)
-  let photoVerification: PhotoVerificationResult | null = null;
-  if (data.imageUrl) {
-    photoVerification = await verifyComplaintPhoto(
-      data.imageUrl,
-      data.description,
-      targetCategory?.name || 'General',
-    );
-  }
 
   // Ensure citizen user exists
   let citizen = await prisma.user.findUnique({ where: { id: data.citizenId } });
@@ -599,10 +606,48 @@ export async function createComplaint(data: {
         },
       },
     },
-    include: DEFAULT_INCLUDE,
   });
 
-  return formatComplaint(created);
+  return formatComplaint({
+    ...created,
+    citizen,
+    category: targetCategory,
+    department: targetCategory?.department,
+    location: data.location,
+    images: data.imageUrl ? [{ id: 'img-initial', imageUrl: data.imageUrl, uploadedAt: created.createdAt }] : [],
+    aiPrediction: {
+      suggestedCategoryId: targetCategory?.id || (routingResult.category || undefined),
+      suggestedDepartmentId: targetCategory?.departmentId || undefined,
+      suggestedPriority: (finalPriority || (routingResult.priority as PriorityLevel)) || undefined,
+      confidenceScore: routingResult.confidence ?? (photoVerification ? photoVerification.confidence : 0.92),
+      rawResponse: {
+        needsManualTriage: isFallbackOrLowConfidence,
+        provider: routingResult.provider,
+        recommendation: isFallbackOrLowConfidence
+          ? 'Low confidence or AI fallback: flagged for manual triage and review by staff.'
+          : (photoVerification
+            ? `AI Triage & Photo Verification completed. Photo Verified: ${photoVerification.verified}.`
+            : `AI routed to ${targetCategory?.name || 'Category'} (${targetCategory?.department?.name || 'Department'}).`),
+        statusMessage: isFallbackOrLowConfidence
+          ? 'Complaint will be reviewed by staff'
+          : 'AI triage classified and assigned to department',
+        aiRouting: {
+          category: routingResult.category,
+          priority: routingResult.priority,
+          confidence: routingResult.confidence,
+          reasoning: routingResult.reasoning,
+          provider: routingResult.provider,
+        },
+        photoVerification: photoVerification
+          ? {
+              verified: photoVerification.verified,
+              confidence: photoVerification.confidence,
+              reasoning: photoVerification.reasoning,
+            }
+          : null,
+      },
+    },
+  });
 }
 
 export async function getComplaintById(id: string): Promise<Complaint | null> {

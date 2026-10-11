@@ -42,3 +42,31 @@
   - Implemented 3-step modal on Admin Staff UI (`src/app/admin/staff/page.tsx`) with impact assessment, alternatives, and explicit confirmation typing.
   - In `e2e/staff-permanent-delete.spec.ts`, split Desktop (1280px) and Mobile (375px) tests into dedicated blocks with 90s timeouts to ensure resilient end-to-end execution.
 
+### 7. Super Admin Protection Hierarchy & Root Admin RBAC Resolution
+- **Issue**: Non-root Super Admins were able to deactivate or soft-delete other Super Admins in certain code paths, while Root Admin was blocked from permanently deleting other Super Admins as required by governance specifications.
+- **Root Cause**: `assertCanManageStaff` evaluated generic Super Admin protection rules before evaluating Root Admin privileges, and did not distinguish between permanent deletion (which Root Admin is allowed to perform on peer Super Admins) versus deactivation and soft deletion (which are permanently prohibited for all Super Admins, including by Root Admin).
+- **Resolution**:
+  - Restructured `assertCanManageStaff` in `src/lib/staff-dept-store.ts`:
+    - Strict protection block: `action === 'deactivate' || action === 'delete' || action === 'archive'` against `SUPER_ADMIN` targets is rejected with 403 for everyone.
+    - Root Admin check: grants Root Admin authority to manage all other accounts, including permanent deletion of other Super Admins.
+    - Peer protection block: blocks non-root administrators from permanently deleting other Super Admin targets with 403.
+  - Verified across both `e2e/staff-permanent-delete.spec.ts` (all 12 tests passing) and `e2e/sweep/admin-rbac-edge-outcome.spec.ts` (all 10 tests passing).
+
+### 8. Prisma Interactive Transaction Query Optimization over Remote Neon Pooler
+- **Issue**: `permanentlyDeleteUser` previously executed 13+ sequential queries across Prisma's interactive transaction connection, resulting in 10-14s latency per deletion over remote Neon poolers and causing assertion timeouts in UI tests (such as test 8a in `staff-permanent-delete.spec.ts`).
+- **Root Cause**: Redundant queries were executed explicitly inside the interactive transaction for foreign keys that are already natively handled by PostgreSQL schema constraints (`ON DELETE CASCADE` for `notifications` and `refresh_tokens`, and `ON DELETE SET NULL` for `status_histories`).
+- **Resolution**:
+  - Pruned redundant queries in `src/lib/staff-dept-store.ts` (`permanentlyDeleteUser`), letting Postgres handle foreign key cascading automatically at zero roundtrip overhead.
+  - Pipelined independent updates (`evidence`, `assignedOfficerId`, `assignments`) concurrently within `Promise.all`.
+  - Added authorization flags (`isAuthorized`, `isSuspended`, `deletedAt`) directly into `AdminPayload` in `src/lib/admin-auth.ts`, eliminating secondary `prisma.user.findUnique` lookups on every admin request.
+  - Total transaction time dropped from ~12s to ~1.2s, with all 12 tests in `staff-permanent-delete.spec.ts` completing in 3.3 minutes down from over 8.3 minutes.
+
+### 9. Citizen V2 Triage & Duplicate Demonstration Seeds
+- **Issue**: Citizen V2 screenshot captures and regression sweeps required pre-existing complaints in `REJECTED` and duplicate candidates with official resolution notes to test resolution note rendering, reopen buttons, and duplicate detection cards.
+- **Root Cause**: Fresh or test databases lacked seeded complaints matching exact duplicate text and rejected resolution notes with original category tracking.
+- **Resolution**:
+  - Seeded `cmp-rejected-demo` in `scripts/seed-demo.js` with `status: 'REJECTED'`, `resolutionNotes`, `originalCategoryId`, and category override tracking.
+  - Seeded `cmp-pothole-dup-target` with exact duplicate title and description for test 2 duplicate check.
+  - Seeded un-suspended active state for `superadmin.test@smartcity.gov.in`.
+
+

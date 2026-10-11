@@ -7,7 +7,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { decodeJwtToken } from '@/lib/auth-jwt';
-import { getUserByEmail, isSuperAdminTarget } from '@/lib/staff-dept-store';
+import { getUser, getUserByEmail, isSuperAdminTarget } from '@/lib/staff-dept-store';
 
 export interface AdminPayload {
   id: string;
@@ -15,6 +15,9 @@ export interface AdminPayload {
   email: string;
   role: string;
   municipalityId?: string | null;
+  isAuthorized?: boolean;
+  isSuspended?: boolean;
+  deletedAt?: Date | null;
 }
 
 type RequireAdminResult =
@@ -40,8 +43,20 @@ export async function requireAdmin(): Promise<RequireAdminResult> {
     };
   }
 
-  // Re-verify from store in case role was changed
-  const storeUser = payload.email ? await getUserByEmail(payload.email) : null;
+  // Reject non-admin tokens immediately
+  if (payload.role && payload.role !== 'ADMIN' && payload.role !== 'SUPER_ADMIN') {
+    return {
+      authorized: false,
+      response: NextResponse.json({ message: 'Forbidden: Admin access required.' }, { status: 403 }),
+    };
+  }
+
+  // Re-verify from store by ID (or email fallback) in case role was changed
+  const storeUser = payload.sub
+    ? await getUser(payload.sub)
+    : payload.email
+    ? await getUserByEmail(payload.email)
+    : null;
   const effectiveRole = storeUser?.role ?? payload.role;
   const isAuthorized = storeUser?.isAuthorized ?? payload.isAuthorized ?? false;
 
@@ -74,6 +89,9 @@ export async function requireAdmin(): Promise<RequireAdminResult> {
       email: storeUser?.email ?? payload.email,
       role: effectiveRole,
       municipalityId: storeUser?.municipalityId ?? payload.municipalityId ?? null,
+      isAuthorized,
+      isSuspended: storeUser?.isSuspended ?? false,
+      deletedAt: storeUser?.deletedAt ?? null,
     },
   };
 }
@@ -97,7 +115,18 @@ export async function requireSuperAdmin(): Promise<RequireAdminResult> {
     };
   }
 
-  const storeUser = payload.email ? await getUserByEmail(payload.email) : null;
+  if (payload.role && payload.role !== 'SUPER_ADMIN') {
+    return {
+      authorized: false,
+      response: NextResponse.json({ message: 'Forbidden: Super Admin access required.' }, { status: 403 }),
+    };
+  }
+
+  const storeUser = payload.sub
+    ? await getUser(payload.sub)
+    : payload.email
+    ? await getUserByEmail(payload.email)
+    : null;
   const effectiveRole = storeUser?.role ?? payload.role;
   const isAuthorized = storeUser?.isAuthorized ?? payload.isAuthorized ?? false;
 

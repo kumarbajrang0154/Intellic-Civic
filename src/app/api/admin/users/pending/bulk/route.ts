@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
-import { addAuditLog } from '@/lib/audit-store';
 import prisma from '@/lib/prisma';
-import { approveUser, isSuperAdminTarget, rejectUser } from '@/lib/staff-dept-store';
+import {
+  approveUser,
+  rejectUser,
+  assertCanManageStaff,
+  logPrivilegedStaffAction,
+} from '@/lib/staff-dept-store';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,21 +33,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const actorUser = await prisma.user.findUnique({
-      where: { id: auth.admin.id },
-      select: { id: true, role: true, municipalityId: true },
-    });
-
     const results: Array<{ id: string; ok: boolean; error?: string; message?: string }> = [];
 
     for (const id of ids) {
-      // 1. Check self
-      if (id === auth.admin.id) {
-        results.push({ id, ok: false, error: 'Cannot perform action on your own account.' });
-        continue;
-      }
-
-      // 2. Check exists
+      // 1. Check exists
       const target = await prisma.user.findUnique({
         where: { id },
         select: { id: true, name: true, email: true, role: true, municipalityId: true },
@@ -53,25 +46,15 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // 3. Check not SUPER_ADMIN
-      if ((target.role as string) === 'SUPER_ADMIN' || isSuperAdminTarget(target)) {
-        results.push({ id, ok: false, error: 'Super Admin accounts are protected.' });
+      // 2. Permission check
+      const manageAction = action === 'APPROVE' ? 'approve' : 'reject';
+      const manageCheck = await assertCanManageStaff(auth.admin, target, manageAction as any);
+      if (!manageCheck.allowed) {
+        results.push({ id, ok: false, error: manageCheck.message || 'Operation not permitted.' });
         continue;
       }
 
-      // 4. Same municipality check
-      if (actorUser?.municipalityId && target.municipalityId !== actorUser.municipalityId) {
-        results.push({ id, ok: false, error: 'User belongs to a different municipality.' });
-        continue;
-      }
-
-      // 5. Actor role hierarchy check
-      if (auth.admin.role === 'ADMIN' && ((target.role as string) === 'ADMIN' || (target.role as string) === 'SUPER_ADMIN')) {
-        results.push({ id, ok: false, error: 'Admin cannot modify Admin or Super Admin accounts.' });
-        continue;
-      }
-
-      // 6. Action-specific processing
+      // 3. Action-specific processing
       try {
         if (action === 'APPROVE') {
           const approvedRole = role || 'DEPARTMENT_OFFICER';
@@ -79,13 +62,10 @@ export async function POST(req: NextRequest) {
           const deptToAssign = needsDept ? departmentId : null;
           const approved = await approveUser(id, approvedRole, deptToAssign);
           if (approved) {
-            await addAuditLog({
-              actorId: auth.admin.id,
-              actorName: auth.admin.name,
+            await logPrivilegedStaffAction({
+              actor: auth.admin,
+              target,
               action: 'STAFF_APPROVED',
-              entityType: 'User',
-              targetId: id,
-              targetName: target.name || target.email || id,
               metadata: { role: approvedRole, departmentId: deptToAssign },
             });
             results.push({ id, ok: true, message: 'Approved successfully' });
@@ -95,13 +75,10 @@ export async function POST(req: NextRequest) {
         } else if (action === 'REJECT') {
           const success = await rejectUser(id);
           if (success) {
-            await addAuditLog({
-              actorId: auth.admin.id,
-              actorName: auth.admin.name,
+            await logPrivilegedStaffAction({
+              actor: auth.admin,
+              target,
               action: 'STAFF_REJECTED',
-              entityType: 'User',
-              targetId: id,
-              targetName: target.name || target.email || id,
               metadata: { email: target.email },
             });
             results.push({ id, ok: true, message: 'Rejected successfully' });

@@ -14,6 +14,10 @@ const ERROR_MESSAGES: Record<string, string> = {
   no_access_token: 'Could not retrieve Google account token. Please try again.',
   userinfo_failed: 'Could not fetch your Google profile. Please try again.',
   no_email: 'Your Google account has no verified email. Please use a different account.',
+  unverified_email: 'Your Google account has no verified email. Please use a different account.',
+  pending_approval: 'Your account is pending administrator approval. Please contact your municipality administrator.',
+  account_deactivated: 'Your staff account has been deactivated or archived. Contact your administrator for assistance.',
+  account_suspended: 'Your account is currently suspended. Please contact your administrator.',
   server_error: 'A server error occurred during sign-in. Please try again.',
 };
 

@@ -33,27 +33,11 @@ const DB_NAME = 'intellicivic_offline_db';
 const DB_VERSION = 1;
 const STORE_NAME = 'drafts';
 
-let dbInstance: IDBDatabase | null = null;
-
 export function closeDatabase(): void {
-  if (dbInstance) {
-    try {
-      dbInstance.close();
-    } catch {}
-    dbInstance = null;
-  }
+  // Connections are closed after each transaction
 }
 
 export function openDatabase(): Promise<IDBDatabase> {
-  if (dbInstance) {
-    try {
-      dbInstance.transaction(STORE_NAME, 'readonly');
-      return Promise.resolve(dbInstance);
-    } catch {
-      dbInstance = null;
-    }
-  }
-
   return new Promise((resolve, reject) => {
     if (typeof window === 'undefined' || !window.indexedDB) {
       return reject(new Error('IndexedDB not supported in this environment'));
@@ -77,12 +61,13 @@ export function openDatabase(): Promise<IDBDatabase> {
 
     request.onsuccess = (event) => {
       clearTimeout(timer);
-      dbInstance = (event.target as IDBOpenDBRequest).result;
-      dbInstance.onversionchange = () => {
-        dbInstance?.close();
-        dbInstance = null;
+      const db = (event.target as IDBOpenDBRequest).result;
+      db.onversionchange = () => {
+        try {
+          db.close();
+        } catch {}
       };
-      resolve(dbInstance);
+      resolve(db);
     };
 
     request.onerror = (event) => {
@@ -91,10 +76,7 @@ export function openDatabase(): Promise<IDBDatabase> {
     };
 
     request.onblocked = () => {
-      if (dbInstance) {
-        dbInstance.close();
-        dbInstance = null;
-      }
+      // Another connection is blocking, but will be closed
     };
   });
 }
@@ -209,6 +191,7 @@ export async function saveDraft(draft: OfflineDraft): Promise<void> {
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
+      try { db.close(); } catch {}
       reject(new Error('saveDraft transaction timed out'));
     }, 5000);
 
@@ -218,6 +201,7 @@ export async function saveDraft(draft: OfflineDraft): Promise<void> {
 
     tx.oncomplete = () => {
       clearTimeout(timer);
+      try { db.close(); } catch {}
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('intellicivic:drafts-changed', { detail: { draftId: draft.id } }));
       }
@@ -225,10 +209,12 @@ export async function saveDraft(draft: OfflineDraft): Promise<void> {
     };
     tx.onerror = () => {
       clearTimeout(timer);
+      try { db.close(); } catch {}
       reject(tx.error);
     };
     tx.onabort = () => {
       clearTimeout(timer);
+      try { db.close(); } catch {}
       reject(tx.error);
     };
   });
@@ -245,6 +231,7 @@ export async function getDrafts(userId?: string): Promise<OfflineDraft[]> {
     const req = store.getAll();
 
     req.onsuccess = () => {
+      try { db.close(); } catch {}
       let items: OfflineDraft[] = req.result || [];
       if (userId && userId !== 'current_citizen') {
         items = items.filter(
@@ -255,7 +242,10 @@ export async function getDrafts(userId?: string): Promise<OfflineDraft[]> {
       items.sort((a, b) => new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime());
       resolve(items);
     };
-    req.onerror = () => reject(req.error);
+    req.onerror = () => {
+      try { db.close(); } catch {}
+      reject(req.error);
+    };
   });
 }
 
@@ -268,8 +258,14 @@ export async function getDraft(id: string): Promise<OfflineDraft | undefined> {
     const tx = db.transaction(STORE_NAME, 'readonly');
     const store = tx.objectStore(STORE_NAME);
     const req = store.get(id);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      try { db.close(); } catch {}
+      resolve(req.result);
+    };
+    req.onerror = () => {
+      try { db.close(); } catch {}
+      reject(req.error);
+    };
   });
 }
 
@@ -284,13 +280,20 @@ export async function deleteDraft(id: string): Promise<void> {
     store.delete(id);
 
     tx.oncomplete = () => {
+      try { db.close(); } catch {}
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('intellicivic:drafts-changed', { detail: { draftId: id } }));
       }
       resolve();
     };
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error);
+    tx.onerror = () => {
+      try { db.close(); } catch {}
+      reject(tx.error);
+    };
+    tx.onabort = () => {
+      try { db.close(); } catch {}
+      reject(tx.error);
+    };
   });
 }
 
@@ -298,14 +301,27 @@ export async function deleteDraft(id: string): Promise<void> {
  * Helper to convert Blob to Data URL
  */
 function blobToDataUrl(blob: any): Promise<string> {
+  const fallback = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=';
   return new Promise((resolve) => {
     if (!blob || !(blob instanceof Blob)) {
-      return resolve('data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=');
+      return resolve(fallback);
     }
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result as string);
-    reader.onerror = () => resolve('data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=');
-    reader.readAsDataURL(blob);
+    const timer = setTimeout(() => resolve(fallback), 2500);
+    try {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        clearTimeout(timer);
+        resolve((reader.result as string) || fallback);
+      };
+      reader.onerror = () => {
+        clearTimeout(timer);
+        resolve(fallback);
+      };
+      reader.readAsDataURL(blob);
+    } catch {
+      clearTimeout(timer);
+      resolve(fallback);
+    }
   });
 }
 
@@ -314,7 +330,11 @@ function blobToDataUrl(blob: any): Promise<string> {
  */
 async function uploadPhoto(photo: DraftPhoto): Promise<string> {
   try {
-    const sigRes = await fetch('/api/upload/signature', { method: 'POST' });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
+    const sigRes = await fetch('/api/upload/signature', { method: 'POST', signal: controller.signal });
+    clearTimeout(timeout);
+
     if (sigRes.status === 401) {
       throw { status: 401, message: 'Session expired' };
     }
@@ -390,7 +410,7 @@ export async function syncDrafts(userId?: string): Promise<{ synced: number; fai
   const LOCK_KEY = userId ? `ic_sync_lock_${userId}` : 'ic_sync_lock_global';
   const now = Date.now();
   const lastLock = localStorage.getItem(LOCK_KEY);
-  if (lastLock && now - parseInt(lastLock, 10) < 15000) {
+  if (lastLock && now - parseInt(lastLock, 10) < 4000) {
     // Another tab is actively syncing
     return { synced: 0, failed: 0, pending: 0 };
   }
@@ -404,7 +424,7 @@ export async function syncDrafts(userId?: string): Promise<{ synced: number; fai
 
   try {
     const drafts = await getDrafts(userId);
-    const TWO_MINUTES_MS = 2 * 60 * 1000;
+    const STALE_SYNC_MS = 10 * 1000;
     const eligibleDrafts: OfflineDraft[] = [];
 
     for (const d of drafts) {
@@ -412,8 +432,8 @@ export async function syncDrafts(userId?: string): Promise<{ synced: number; fai
         eligibleDrafts.push(d);
       } else if (d.status === 'syncing') {
         const capturedTime = new Date(d.capturedAt || 0).getTime();
-        // Stale syncing older than 2 minutes counts as stale and is retried
-        if (now - capturedTime > TWO_MINUTES_MS) {
+        // Stale syncing older than 10s counts as orphaned and is retried
+        if (now - capturedTime > STALE_SYNC_MS) {
           d.status = 'pending';
           d.attempts = (d.attempts || 0) + 1;
           await saveDraft(d);

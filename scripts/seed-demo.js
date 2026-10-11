@@ -262,6 +262,26 @@ async function seed() {
 
   // Ensure test accounts for suite compatibility
   await prisma.user.upsert({
+    where: { email: 'superadmin.test@smartcity.gov.in' },
+    update: {
+      role: UserRole.SUPER_ADMIN,
+      isAuthorized: true,
+      isSuspended: false,
+      deletedAt: null,
+      municipalityId: municipality.id,
+    },
+    create: {
+      email: 'superadmin.test@smartcity.gov.in',
+      name: 'Test Super Admin',
+      role: UserRole.SUPER_ADMIN,
+      authProvider: AuthProvider.GOOGLE,
+      isAuthorized: true,
+      isSuspended: false,
+      municipalityId: municipality.id,
+    },
+  });
+
+  await prisma.user.upsert({
     where: { email: 'officer.roads@smartcity.gov.in' },
     update: {
       role: UserRole.DEPARTMENT_OFFICER,
@@ -507,11 +527,39 @@ async function seed() {
       readyForReview: false,
       resolutionNotes: 'Merged with active ticket DEMO-SUBMITTED-01.',
     },
+    {
+      id: 'cmp-rejected-demo',
+      ticketId: 'INC-2026-0901-2002',
+      title: 'Private Society Yard Cleaning Request',
+      description: 'Garbage accumulation inside private residential society quadrangle.',
+      status: ComplaintStatus.REJECTED,
+      priority: PriorityLevel.LOW,
+      departmentId: sanitationDept.id,
+      categoryId: roadPotholeCat.id,
+      originalCategoryId: 'cat-sanitation',
+      assignedFieldWorkerId: null,
+      readyForReview: false,
+      resolutionNotes: 'Official Municipal Note: Issue is outside municipal jurisdiction. Municipal sanitation services only cover public corridors.',
+    },
+    {
+      id: 'cmp-pothole-dup-target',
+      ticketId: 'DEMO-DUP-TARGET-01',
+      title: 'Severe pothole causing traffic congestion near Central Metro',
+      description: 'A deep 2-foot pothole has opened up on Main Arterial Road near Metro Gate 3 causing hazards.',
+      status: ComplaintStatus.PENDING_DEPT_REVIEW,
+      priority: PriorityLevel.HIGH,
+      departmentId: roadsDept.id,
+      categoryId: roadPotholeCat.id,
+      assignedFieldWorkerId: null,
+      readyForReview: false,
+      resolutionNotes: null,
+    },
   ];
 
   for (const bp of complaintBlueprints) {
+    const whereClause = bp.id ? { id: bp.id } : { ticketId: bp.ticketId };
     await prisma.complaint.upsert({
-      where: { ticketId: bp.ticketId },
+      where: whereClause,
       update: {
         title: bp.title,
         description: bp.description,
@@ -519,6 +567,7 @@ async function seed() {
         priority: bp.priority,
         departmentId: bp.departmentId,
         categoryId: bp.categoryId,
+        originalCategoryId: bp.originalCategoryId || null,
         assignedFieldWorkerId: bp.assignedFieldWorkerId,
         readyForReview: bp.readyForReview,
         fieldWorkerRemarks: bp.fieldWorkerRemarks || null,
@@ -527,6 +576,7 @@ async function seed() {
         closedAt: bp.closedAt || null,
       },
       create: {
+        ...(bp.id ? { id: bp.id } : {}),
         ticketId: bp.ticketId,
         citizenId: citizen.id,
         municipalityId: municipality.id,
@@ -536,6 +586,7 @@ async function seed() {
         priority: bp.priority,
         departmentId: bp.departmentId,
         categoryId: bp.categoryId,
+        originalCategoryId: bp.originalCategoryId || null,
         assignedFieldWorkerId: bp.assignedFieldWorkerId,
         readyForReview: bp.readyForReview,
         fieldWorkerRemarks: bp.fieldWorkerRemarks || null,
@@ -560,7 +611,6 @@ async function seed() {
   for (const c of credentialsLog) {
     fileLines.push(`Role:     ${c.role}`);
     fileLines.push(`Email:    ${c.email}`);
-    fileLines.push(`Login ID: ${c.loginId}`);
     fileLines.push(`Password: ${c.password}`);
     fileLines.push('----------------------------------------------------');
   }
@@ -571,7 +621,7 @@ async function seed() {
 
   fs.writeFileSync(credsFilePath, fileLines.join('\n'), { encoding: 'utf-8', mode: 0o600 });
 
-  // 8. Output summary to console (PRINT LOGIN IDs ONLY, NEVER PASSWORDS)
+  // 8. Output summary to console (PRINT EMAILS ONLY, NEVER PASSWORDS)
   console.log('\n======================================================');
   console.log('DEMO ACCOUNTS SEEDED SUCCESSFULLY (Idempotent)');
   console.log('Database Host: ' + ALLOWED_TEST_HOST);

@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
 import prisma from '@/lib/prisma';
-import { isSuperAdminTarget } from '@/lib/staff-dept-store';
-import { deactivateStaff, reactivateStaff, reassignStaff, removeStaff, permanentlyDeleteStaff } from '@/services/staffService';
+import {
+  deactivateStaff,
+  reactivateStaff,
+  reassignStaff,
+  removeStaff,
+  permanentlyDeleteStaff,
+  assertCanManageStaff,
+} from '@/services/staffService';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,45 +35,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const actorUser = await prisma.user.findUnique({
-      where: { id: auth.admin.id },
-      select: { id: true, role: true, municipalityId: true },
-    });
-
     const results: Array<{ id: string; ok: boolean; error?: string; message?: string }> = [];
 
     for (const id of ids) {
-      // 1. Check self
-      if (id === auth.admin.id) {
-        results.push({ id, ok: false, error: 'Cannot perform action on your own account.' });
-        continue;
-      }
-
-      // 2. Check exists
+      // 1. Check exists
       const target = await prisma.user.findUnique({
         where: { id },
         select: { id: true, role: true, email: true, municipalityId: true },
       });
       if (!target) {
-        results.push({ id, ok: false, error: 'Staff member not found.' });
+        results.push({ id, ok: false, error: 'Staff member not found or has already been removed.' });
         continue;
       }
 
-      // 3. Check not SUPER_ADMIN
-      if ((target.role as string) === 'SUPER_ADMIN' || isSuperAdminTarget(target)) {
-        results.push({ id, ok: false, error: 'Super Admin accounts are protected.' });
-        continue;
-      }
+      // 2. Unified manage check (self, super admin, last admin, and municipality isolation)
+      const manageAction =
+        action === 'PERMANENT_DELETE'
+          ? 'permanent_delete'
+          : action === 'DEACTIVATE' || action === 'SUSPEND'
+          ? 'deactivate'
+          : action === 'REACTIVATE'
+          ? 'reactivate'
+          : action === 'REASSIGN_DEPT'
+          ? 'reassign_dept'
+          : 'delete';
 
-      // 4. Same municipality check
-      if (actorUser?.municipalityId && target.municipalityId !== actorUser.municipalityId) {
-        results.push({ id, ok: false, error: 'User belongs to a different municipality.' });
-        continue;
-      }
-
-      // 5. Actor role hierarchy check
-      if (auth.admin.role === 'ADMIN' && ((target.role as string) === 'ADMIN' || (target.role as string) === 'SUPER_ADMIN')) {
-        results.push({ id, ok: false, error: 'Admin cannot modify Admin or Super Admin accounts.' });
+      const manageCheck = await assertCanManageStaff(auth.admin, target, manageAction as any);
+      if (!manageCheck.allowed) {
+        results.push({ id, ok: false, error: manageCheck.message || 'Operation not permitted.' });
         continue;
       }
 

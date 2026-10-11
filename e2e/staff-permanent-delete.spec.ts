@@ -1,44 +1,59 @@
 import { test, expect, APIRequestContext } from '@playwright/test';
 import prisma from '@/lib/prisma';
 import { getDefaultMunicipality, ensureSuperAdminUser } from '@/lib/staff-dept-store';
+import { createJwtToken } from '@/lib/auth-jwt';
 
 const BASE = 'http://localhost:3000';
 
 async function getAdminContext(request: APIRequestContext): Promise<string> {
-  const res = await request.post(`${BASE}/api/auth/dev-login`, {
-    data: { email: 'kumarbajrang325@gmail.com', role: 'ADMIN' },
+  let sa = await prisma.user.findFirst({
+    where: { email: 'superadmin.test@smartcity.gov.in' },
   });
-  if (!res.ok()) {
-    throw new Error(`dev-login failed (${res.status()}): ${await res.text()}`);
+  if (!sa) {
+    const mun = await getDefaultMunicipality();
+    sa = await prisma.user.create({
+      data: {
+        email: 'superadmin.test@smartcity.gov.in',
+        name: 'Test Super Admin',
+        role: 'SUPER_ADMIN',
+        authProvider: 'GOOGLE',
+        municipalityId: mun.id,
+        isAuthorized: true,
+      },
+    });
   }
-  const setCookies = res.headersArray().filter(h => h.name.toLowerCase() === 'set-cookie').map(h => h.value);
-  for (const c of setCookies) {
-    const match = c.match(/ic_access_token=([^;]+)/);
-    if (match) return `ic_access_token=${match[1]}`;
-  }
-  const fallback = res.headers()['set-cookie'] ?? '';
-  const match = fallback.match(/ic_access_token=([^;]+)/);
-  if (!match) {
-    throw new Error(`No ic_access_token found. dev-login: ${res.status()}`);
-  }
-  return `ic_access_token=${match[1]}`;
+  const token = await createJwtToken({
+    sub: sa.id,
+    email: sa.email,
+    role: sa.role as any,
+    municipalityId: sa.municipalityId || undefined,
+  }, '7d');
+  return `ic_access_token=${token}`;
 }
 
 async function getNonAdminContext(request: APIRequestContext): Promise<string> {
-  const res = await request.post(`${BASE}/api/auth/dev-login`, {
-    data: { email: 'officer.roads@smartcity.gov.in', role: 'DEPARTMENT_OFFICER' },
+  let officer = await prisma.user.findFirst({
+    where: { email: 'officer.roads@smartcity.gov.in' },
   });
-  if (!res.ok()) {
-    throw new Error(`non-admin dev-login failed (${res.status()}): ${await res.text()}`);
+  if (!officer) {
+    const mun = await getDefaultMunicipality();
+    officer = await prisma.user.create({
+      data: {
+        email: 'officer.roads@smartcity.gov.in',
+        name: 'Officer Roads',
+        role: 'DEPARTMENT_OFFICER',
+        municipalityId: mun.id,
+        isAuthorized: true,
+      },
+    });
   }
-  const setCookies = res.headersArray().filter(h => h.name.toLowerCase() === 'set-cookie').map(h => h.value);
-  for (const c of setCookies) {
-    const match = c.match(/ic_access_token=([^;]+)/);
-    if (match) return `ic_access_token=${match[1]}`;
-  }
-  const fallback = res.headers()['set-cookie'] ?? '';
-  const match = fallback.match(/ic_access_token=([^;]+)/);
-  return match ? `ic_access_token=${match[1]}` : '';
+  const token = await createJwtToken({
+    sub: officer.id,
+    email: officer.email,
+    role: officer.role as any,
+    municipalityId: officer.municipalityId || undefined,
+  }, '7d');
+  return `ic_access_token=${token}`;
 }
 
 test.describe('Admin Permanent Staff Deletion Suite', () => {
@@ -441,7 +456,7 @@ test.describe('Admin Permanent Staff Deletion Suite', () => {
 
     // 5b. Self delete -> 400
     const adminUser = await prisma.user.findFirst({
-      where: { email: 'kumarbajrang325@gmail.com' },
+      where: { email: 'superadmin.test@smartcity.gov.in' },
     });
     if (adminUser) {
       const selfRes = await request.post(`${BASE}/api/admin/staff/${adminUser.id}/permanent-delete`, {
@@ -453,21 +468,43 @@ test.describe('Admin Permanent Staff Deletion Suite', () => {
       expect(selfBody.message).toMatch(/cannot delete your own account/i);
     }
 
-    // 5c. Super Admin delete -> 403
+    // Create Municipal Admin context for testing unauthorized privilege escalation
+    const munAdminEmail = `mun_admin_${Date.now()}@testmun.gov.in`;
+    const munAdminUser = await prisma.user.create({
+      data: {
+        name: 'Municipal Admin Tester',
+        email: munAdminEmail,
+        role: 'ADMIN',
+        authProvider: 'GOOGLE',
+        isAuthorized: true,
+        municipalityId: defaultMun.id,
+      },
+    });
+    const munAdminToken = await createJwtToken({
+      sub: munAdminUser.id,
+      email: munAdminUser.email,
+      name: munAdminUser.name,
+      role: 'ADMIN',
+      isAuthorized: true,
+      municipalityId: defaultMun.id,
+    }, '7d');
+    const munAdminCookie = `ic_access_token=${munAdminToken}`;
+
+    // 5c. Super Admin target blocked for municipal admin -> 403
     const superAdmin = await prisma.user.findFirst({
       where: { role: 'SUPER_ADMIN' },
     });
     if (superAdmin) {
       const saRes = await request.post(`${BASE}/api/admin/staff/${superAdmin.id}/permanent-delete`, {
-        headers: { cookie: adminCookie, 'Content-Type': 'application/json' },
+        headers: { cookie: munAdminCookie, 'Content-Type': 'application/json' },
         data: { confirmEmail: superAdmin.email },
       });
       expect(saRes.status()).toBe(403);
       const saBody = await saRes.json();
-      expect(saBody.message).toMatch(/super admin.*cannot be deleted/i);
+      expect(saBody.message).toMatch(/protected/i);
     }
 
-    // 5d. Other municipality target -> 403
+    // 5d. Municipal ADMIN on other municipality target -> 403
     const otherMun = await prisma.municipality.create({
       data: {
         name: `Other Mun ${Date.now()}`,
@@ -488,15 +525,16 @@ test.describe('Admin Permanent Staff Deletion Suite', () => {
     });
 
     const otherMunRes = await request.post(`${BASE}/api/admin/staff/${otherMunStaff.id}/permanent-delete`, {
-      headers: { cookie: adminCookie, 'Content-Type': 'application/json' },
+      headers: { cookie: munAdminCookie, 'Content-Type': 'application/json' },
       data: { confirmEmail: otherMunStaff.email },
     });
     expect(otherMunRes.status()).toBe(403);
-    expect((await otherMunRes.json()).message).toMatch(/different municipality/i);
+    expect((await otherMunRes.json()).message).toMatch(/only manage staff of your own municipality/i);
 
-    // Cleanup other mun
+    // Cleanup other mun and test admin
     await prisma.user.delete({ where: { id: otherMunStaff.id } });
     await prisma.municipality.delete({ where: { id: otherMun.id } });
+    await prisma.user.delete({ where: { id: munAdminUser.id } });
   });
 
   test('6. Officer with field workers under them: workers detached cleanly', async ({ request }) => {
@@ -813,4 +851,488 @@ test.describe('Admin Permanent Staff Deletion Suite', () => {
     expect(stringifiedAudit).not.toContain('passwordHash');
     expect(stringifiedAudit).not.toContain('password');
   });
+
+  test('10. Cross-Municipality Management: SUPER_ADMIN succeeds (unassign & reassign), Municipal ADMIN blocked with 403', async ({ request }) => {
+    const superAdminCookie = await getAdminContext(request);
+    const ts = Date.now();
+
+    // 1. Create a distinct municipality with its own department
+    const munB = await prisma.municipality.create({
+      data: {
+        name: `Mun B Test ${ts}`,
+        code: `MB-${ts}`,
+        city: 'City B',
+        state: 'State B',
+      },
+    });
+
+    const deptB = await prisma.department.create({
+      data: {
+        name: `Department B ${ts}`,
+        description: 'Dept B Description',
+        municipalityId: munB.id,
+      },
+    });
+
+    // Create a municipal ADMIN for Mun A (defaultMun)
+    const munAAdminEmail = `mun_a_admin_${ts}@smartcity.gov.in`;
+    const munAAdmin = await prisma.user.create({
+      data: {
+        name: `Mun A Admin ${ts}`,
+        email: munAAdminEmail,
+        role: 'ADMIN',
+        authProvider: 'GOOGLE',
+        isAuthorized: true,
+        municipalityId: defaultMun.id,
+      },
+    });
+    const munAToken = await createJwtToken({
+      sub: munAAdmin.id,
+      email: munAAdmin.email,
+      name: munAAdmin.name,
+      role: 'ADMIN',
+      isAuthorized: true,
+      municipalityId: defaultMun.id,
+    }, '7d');
+    const munAAdminCookie = `ic_access_token=${munAToken}`;
+
+    // Create staff member 1 in Mun B
+    const staffB1 = await prisma.user.create({
+      data: {
+        name: `Staff B1 ${ts}`,
+        email: `staff_b1_${ts}@munb.gov.in`,
+        role: 'FIELD_WORKER',
+        authProvider: 'GOOGLE',
+        isAuthorized: true,
+        departmentId: deptB.id,
+        municipalityId: munB.id,
+      },
+    });
+
+    // Create staff member 2 in Mun B
+    const staffB2 = await prisma.user.create({
+      data: {
+        name: `Staff B2 ${ts}`,
+        email: `staff_b2_${ts}@munb.gov.in`,
+        role: 'FIELD_WORKER',
+        authProvider: 'GOOGLE',
+        isAuthorized: true,
+        departmentId: deptB.id,
+        municipalityId: munB.id,
+      },
+    });
+
+    // Create complaint assigned to staffB1 in Mun B
+    const complaintB = await prisma.complaint.create({
+      data: {
+        ticketId: `TKT-B-${ts}`,
+        citizenId: testCitizen.id,
+        title: `Complaint in Mun B ${ts}`,
+        description: 'Complaint in Municipality B',
+        status: 'ASSIGNED',
+        priority: 'MEDIUM',
+        departmentId: deptB.id,
+        municipalityId: munB.id,
+        assignedFieldWorkerId: staffB1.id,
+      },
+    });
+
+    // ── Check 1: Municipal ADMIN from Mun A targeting Mun B staff -> 403 on ALL routes ──
+    const del403 = await request.post(`${BASE}/api/admin/staff/${staffB1.id}/permanent-delete`, {
+      headers: { cookie: munAAdminCookie, 'Content-Type': 'application/json' },
+      data: { confirmEmail: staffB1.email, openComplaintsAction: 'unassign' },
+    });
+    expect(del403.status()).toBe(403);
+    expect((await del403.json()).message).toMatch(/only manage staff of your own municipality/i);
+
+    const reassign403 = await request.post(`${BASE}/api/admin/users/${staffB1.id}/reassign-complaints`, {
+      headers: { cookie: munAAdminCookie, 'Content-Type': 'application/json' },
+      data: { targetStaffId: staffB2.id },
+    });
+    expect(reassign403.status()).toBe(403);
+    expect((await reassign403.json()).message).toMatch(/only manage staff of your own municipality/i);
+
+    const preflight403 = await request.get(`${BASE}/api/admin/users/${staffB1.id}/delete-preflight`, {
+      headers: { cookie: munAAdminCookie },
+    });
+    expect(preflight403.status()).toBe(403);
+    expect((await preflight403.json()).message).toMatch(/only manage staff of your own municipality/i);
+
+    const archive403 = await request.post(`${BASE}/api/admin/users/${staffB1.id}/archive`, {
+      headers: { cookie: munAAdminCookie },
+    });
+    expect(archive403.status()).toBe(403);
+    expect((await archive403.json()).message).toMatch(/only manage staff of your own municipality/i);
+
+    const deact403 = await request.patch(`${BASE}/api/admin/staff/${staffB1.id}/deactivate`, {
+      headers: { cookie: munAAdminCookie },
+    });
+    expect(deact403.status()).toBe(403);
+    expect((await deact403.json()).message).toMatch(/only manage staff of your own municipality/i);
+
+    const pwd403 = await request.post(`${BASE}/api/admin/staff/${staffB1.id}/password`, {
+      headers: { cookie: munAAdminCookie, 'Content-Type': 'application/json' },
+      data: { password: 'ValidPassword123!', confirmPassword: 'ValidPassword123!' },
+    });
+    expect(pwd403.status()).toBe(403);
+    expect((await pwd403.json()).message).toMatch(/only manage staff of your own municipality/i);
+
+    // Verify staffB1 is completely unchanged in DB
+    const unchangedStaff = await prisma.user.findUnique({ where: { id: staffB1.id } });
+    expect(unchangedStaff).not.toBeNull();
+    expect(unchangedStaff?.isSuspended).toBe(false);
+
+    // ── Check 2: Cross-municipality complaint leakage prevention ──
+    // Target staff in another municipality (defaultMun) must be rejected with 400
+    const leakRes = await request.post(`${BASE}/api/admin/users/${staffB1.id}/reassign-complaints`, {
+      headers: { cookie: superAdminCookie, 'Content-Type': 'application/json' },
+      data: { targetStaffId: munAAdmin.id },
+    });
+    expect(leakRes.status()).toBe(400);
+    expect((await leakRes.json()).message).toMatch(/same municipality/i);
+
+    // ── Check 3: SUPER_ADMIN reassign-complaints within Mun B works ──
+    const reassignOk = await request.post(`${BASE}/api/admin/users/${staffB1.id}/reassign-complaints`, {
+      headers: { cookie: superAdminCookie, 'Content-Type': 'application/json' },
+      data: { targetStaffId: staffB2.id },
+    });
+    expect(reassignOk.status()).toBe(200);
+    const reassignData = await reassignOk.json();
+    expect(reassignData.reassignedCount).toBe(1);
+
+    // Verify complaint in DB is now assigned to staffB2
+    const complaintAfterReassign = await prisma.complaint.findUnique({ where: { id: complaintB.id } });
+    expect(complaintAfterReassign?.assignedFieldWorkerId).toBe(staffB2.id);
+
+    // ── Check 4: SUPER_ADMIN permanently deletes staffB2 with "reassign" back to staffB1 ──
+    const delReassignOk = await request.post(`${BASE}/api/admin/staff/${staffB2.id}/permanent-delete`, {
+      headers: { cookie: superAdminCookie, 'Content-Type': 'application/json' },
+      data: {
+        confirmEmail: staffB2.email,
+        openComplaintsAction: 'reassign',
+        reassignToId: staffB1.id,
+      },
+    });
+    expect(delReassignOk.status()).toBe(200);
+    expect((await delReassignOk.json()).deleted).toBe(true);
+
+    // Assert staffB2 is permanently deleted from DB, complaint kept and reassigned to staffB1
+    const staffB2Db = await prisma.user.findUnique({ where: { id: staffB2.id } });
+    expect(staffB2Db).toBeNull();
+    const complaintAfterDelReassign = await prisma.complaint.findUnique({ where: { id: complaintB.id } });
+    expect(complaintAfterDelReassign?.assignedFieldWorkerId).toBe(staffB1.id);
+
+    // ── Check 5: SUPER_ADMIN permanently deletes staffB1 with "unassign" ──
+    const delUnassignOk = await request.post(`${BASE}/api/admin/staff/${staffB1.id}/permanent-delete`, {
+      headers: { cookie: superAdminCookie, 'Content-Type': 'application/json' },
+      data: {
+        confirmEmail: staffB1.email,
+        openComplaintsAction: 'unassign',
+      },
+    });
+    expect(delUnassignOk.status()).toBe(200);
+    expect((await delUnassignOk.json()).deleted).toBe(true);
+
+    // Assert staffB1 is permanently deleted from DB, complaint kept & returned to triage pool
+    const staffB1Db = await prisma.user.findUnique({ where: { id: staffB1.id } });
+    expect(staffB1Db).toBeNull();
+    const complaintAfterDelUnassign = await prisma.complaint.findUnique({ where: { id: complaintB.id } });
+    expect(complaintAfterDelUnassign).not.toBeNull();
+    expect(complaintAfterDelUnassign?.assignedFieldWorkerId).toBeNull();
+    expect(complaintAfterDelUnassign?.status).toBe('PENDING_DEPT_REVIEW');
+
+    // ── Cleanup ──
+    await prisma.complaint.delete({ where: { id: complaintB.id } }).catch(() => {});
+    await prisma.department.delete({ where: { id: deptB.id } }).catch(() => {});
+    await prisma.user.delete({ where: { id: munAAdmin.id } }).catch(() => {});
+    await prisma.municipality.delete({ where: { id: munB.id } }).catch(() => {});
+  });
+
+  test('12. Root Admin privileges, non-root Super Admin restrictions, Root Admin protection, spoof prevention, and audit crossMunicipality flags', async ({ request }) => {
+    const rootAdminUser = await ensureSuperAdminUser();
+    const rootAdminToken = await createJwtToken({
+      sub: rootAdminUser.id,
+      email: rootAdminUser.email,
+      name: rootAdminUser.name,
+      role: 'SUPER_ADMIN',
+      isAuthorized: true,
+      municipalityId: rootAdminUser.municipalityId || undefined,
+    }, '7d');
+    const rootAdminCookie = `ic_access_token=${rootAdminToken}`;
+    expect(rootAdminUser).not.toBeNull();
+
+    const ts = Date.now();
+
+    // 1. Root admin permanently deletes staff of another municipality (reassign and unassign variants)
+    const munZ = await prisma.municipality.create({
+      data: { name: `Mun Z ${ts}`, code: `MZ-${ts}`, city: 'City Z', state: 'State Z' },
+    });
+    const deptZ = await prisma.department.create({
+      data: { name: `Dept Z ${ts}`, description: 'Test Dept Z', municipalityId: munZ.id },
+    });
+    const staffZ1 = await prisma.user.create({
+      data: {
+        name: `Staff Z1 ${ts}`,
+        email: `staff_z1_${ts}@munz.gov.in`,
+        role: 'FIELD_WORKER',
+        authProvider: 'GOOGLE',
+        isAuthorized: true,
+        departmentId: deptZ.id,
+        municipalityId: munZ.id,
+      },
+    });
+    const staffZ2 = await prisma.user.create({
+      data: {
+        name: `Staff Z2 ${ts}`,
+        email: `staff_z2_${ts}@munz.gov.in`,
+        role: 'FIELD_WORKER',
+        authProvider: 'GOOGLE',
+        isAuthorized: true,
+        departmentId: deptZ.id,
+        municipalityId: munZ.id,
+      },
+    });
+    const complaintZ = await prisma.complaint.create({
+      data: {
+        ticketId: `TKT-Z-${ts}`,
+        citizenId: testCitizen.id,
+        title: `Complaint in Mun Z ${ts}`,
+        description: 'Test complaint',
+        status: 'ASSIGNED',
+        departmentId: deptZ.id,
+        municipalityId: munZ.id,
+        assignedFieldWorkerId: staffZ1.id,
+      },
+    });
+
+    // Root admin reassigns complaints cross-municipality within Mun Z -> works
+    const rootReassignRes = await request.post(`${BASE}/api/admin/users/${staffZ1.id}/reassign-complaints`, {
+      headers: { cookie: rootAdminCookie, 'Content-Type': 'application/json' },
+      data: { targetStaffId: staffZ2.id },
+    });
+    expect(rootReassignRes.status()).toBe(200);
+
+    // Root admin deletes staffZ2 with unassign -> works, complaint kept
+    const rootDelZ2 = await request.post(`${BASE}/api/admin/staff/${staffZ2.id}/permanent-delete`, {
+      headers: { cookie: rootAdminCookie, 'Content-Type': 'application/json' },
+      data: { confirmEmail: staffZ2.email, openComplaintsAction: 'unassign' },
+    });
+    expect(rootDelZ2.status()).toBe(200);
+    expect(await prisma.user.findUnique({ where: { id: staffZ2.id } })).toBeNull();
+    const complaintAfterDel = await prisma.complaint.findUnique({ where: { id: complaintZ.id } });
+    expect(complaintAfterDel).not.toBeNull();
+    expect(complaintAfterDel?.status).toBe('PENDING_DEPT_REVIEW');
+
+    // 2. Root admin deletes another municipal ADMIN -> 200, user gone!
+    const targetAdmin = await prisma.user.create({
+      data: {
+        name: `Target Admin ${ts}`,
+        email: `target_admin_${ts}@test.gov.in`,
+        role: 'ADMIN',
+        authProvider: 'GOOGLE',
+        isAuthorized: true,
+        municipalityId: munZ.id,
+      },
+    });
+    const rootDelAdmin = await request.post(`${BASE}/api/admin/staff/${targetAdmin.id}/permanent-delete`, {
+      headers: { cookie: rootAdminCookie, 'Content-Type': 'application/json' },
+      data: { confirmEmail: targetAdmin.email, openComplaintsAction: 'unassign' },
+    });
+    expect(rootDelAdmin.status()).toBe(200);
+    expect(await prisma.user.findUnique({ where: { id: targetAdmin.id } })).toBeNull();
+
+    // 3. Root admin deletes another SUPER_ADMIN -> 200, user gone!
+    const targetSuperAdmin = await prisma.user.create({
+      data: {
+        name: `Target Super Admin ${ts}`,
+        email: `target_sa_${ts}@platform.gov.in`,
+        role: 'SUPER_ADMIN',
+        authProvider: 'GOOGLE',
+        isAuthorized: true,
+        municipalityId: defaultMun.id,
+      },
+    });
+    const rootDelSa = await request.post(`${BASE}/api/admin/staff/${targetSuperAdmin.id}/permanent-delete`, {
+      headers: { cookie: rootAdminCookie, 'Content-Type': 'application/json' },
+      data: { confirmEmail: targetSuperAdmin.email, openComplaintsAction: 'unassign' },
+    });
+    expect(rootDelSa.status()).toBe(200);
+    expect(await prisma.user.findUnique({ where: { id: targetSuperAdmin.id } })).toBeNull();
+
+    // 4. Non-root SUPER_ADMIN:
+    const nonRootSa = await prisma.user.create({
+      data: {
+        name: `Non-Root SA ${ts}`,
+        email: `non_root_sa_${ts}@platform.gov.in`,
+        role: 'SUPER_ADMIN',
+        authProvider: 'GOOGLE',
+        isAuthorized: true,
+        municipalityId: defaultMun.id,
+      },
+    });
+    const nonRootSaToken = await createJwtToken({
+      sub: nonRootSa.id,
+      email: nonRootSa.email,
+      name: nonRootSa.name,
+      role: 'SUPER_ADMIN',
+      isAuthorized: true,
+      municipalityId: defaultMun.id,
+    }, '7d');
+    const nonRootSaCookie = `ic_access_token=${nonRootSaToken}`;
+
+    // Non-root SA manages other-municipality staff and ADMINs -> 200 allowed
+    const otherMunAdmin = await prisma.user.create({
+      data: {
+        name: `Other Mun Admin ${ts}`,
+        email: `other_admin_${ts}@munz.gov.in`,
+        role: 'ADMIN',
+        authProvider: 'GOOGLE',
+        isAuthorized: true,
+        municipalityId: munZ.id,
+      },
+    });
+    const nonRootDelOtherAdmin = await request.post(`${BASE}/api/admin/staff/${otherMunAdmin.id}/permanent-delete`, {
+      headers: { cookie: nonRootSaCookie, 'Content-Type': 'application/json' },
+      data: { confirmEmail: otherMunAdmin.email, openComplaintsAction: 'unassign' },
+    });
+    expect(nonRootDelOtherAdmin.status()).toBe(200);
+
+    // Non-root SA blocked on other SUPER_ADMIN -> 403
+    const peerSa = await prisma.user.create({
+      data: {
+        name: `Peer SA ${ts}`,
+        email: `peer_sa_${ts}@platform.gov.in`,
+        role: 'SUPER_ADMIN',
+        authProvider: 'GOOGLE',
+        isAuthorized: true,
+        municipalityId: defaultMun.id,
+      },
+    });
+    const nonRootDelPeerSa = await request.post(`${BASE}/api/admin/staff/${peerSa.id}/permanent-delete`, {
+      headers: { cookie: nonRootSaCookie, 'Content-Type': 'application/json' },
+      data: { confirmEmail: peerSa.email, openComplaintsAction: 'unassign' },
+    });
+    expect(nonRootDelPeerSa.status()).toBe(403);
+    expect((await nonRootDelPeerSa.json()).message).toMatch(/Super Admin accounts are permanently protected/i);
+
+    // Non-root SA blocked on Root Admin -> 403 ("Root admin account is protected.")
+    const nonRootDelRoot = await request.post(`${BASE}/api/admin/staff/${rootAdminUser!.id}/permanent-delete`, {
+      headers: { cookie: nonRootSaCookie, 'Content-Type': 'application/json' },
+      data: { confirmEmail: rootAdminUser!.email, openComplaintsAction: 'unassign' },
+    });
+    expect(nonRootDelRoot.status()).toBe(403);
+    expect((await nonRootDelRoot.json()).message).toMatch(/Root admin account is protected/i);
+
+    // 5. Root Admin Protected across all other privileged routes:
+    // Archive
+    const rootArchRes = await request.post(`${BASE}/api/admin/users/${rootAdminUser!.id}/archive`, {
+      headers: { cookie: nonRootSaCookie },
+    });
+    expect(rootArchRes.status()).toBe(403);
+    expect((await rootArchRes.json()).message).toMatch(/Root admin account is protected/i);
+
+    // Deactivate / suspend
+    const rootDeactRes = await request.patch(`${BASE}/api/admin/staff/${rootAdminUser!.id}/deactivate`, {
+      headers: { cookie: nonRootSaCookie },
+    });
+    expect(rootDeactRes.status()).toBe(403);
+    expect((await rootDeactRes.json()).message).toMatch(/Root admin account is protected/i);
+
+    // Password reset
+    const rootPwdRes = await request.post(`${BASE}/api/admin/staff/${rootAdminUser!.id}/password`, {
+      headers: { cookie: nonRootSaCookie, 'Content-Type': 'application/json' },
+      data: { password: 'NewSecurePassword123!', confirmPassword: 'NewSecurePassword123!' },
+    });
+    expect(rootPwdRes.status()).toBe(403);
+    expect((await rootPwdRes.json()).message).toMatch(/Root admin account is protected/i);
+
+    // Role reassign
+    const rootReassignRes2 = await request.patch(`${BASE}/api/admin/staff/${rootAdminUser!.id}/reassign`, {
+      headers: { cookie: nonRootSaCookie, 'Content-Type': 'application/json' },
+      data: { newRole: 'FIELD_WORKER' },
+    });
+    expect(rootReassignRes2.status()).toBe(403);
+    expect((await rootReassignRes2.json()).message).toMatch(/Root admin account is protected/i);
+
+    // Bulk delete touching root admin
+    const rootBulkRes = await request.post(`${BASE}/api/admin/staff/bulk`, {
+      headers: { cookie: nonRootSaCookie, 'Content-Type': 'application/json' },
+      data: { action: 'PERMANENT_DELETE', ids: [rootAdminUser!.id] },
+    });
+    const bulkData = await rootBulkRes.json();
+    const rootResult = bulkData.results?.find((r: any) => r.id === rootAdminUser!.id);
+    expect(rootResult?.ok).toBe(false);
+    expect(rootResult?.error).toMatch(/Root admin account is protected/i);
+
+    // Pending approve touching root admin
+    const rootApproveRes = await request.patch(`${BASE}/api/users/${rootAdminUser!.id}/approve`, {
+      headers: { cookie: nonRootSaCookie, 'Content-Type': 'application/json' },
+      data: { role: 'FIELD_WORKER' },
+    });
+    expect(rootApproveRes.status()).toBe(403);
+    expect((await rootApproveRes.json()).message).toMatch(/Root admin account is protected/i);
+
+    // Self-delete blocked for Root Admin -> 400
+    const rootSelfDel = await request.post(`${BASE}/api/admin/staff/${rootAdminUser!.id}/permanent-delete`, {
+      headers: { cookie: rootAdminCookie, 'Content-Type': 'application/json' },
+      data: { confirmEmail: rootAdminUser!.email, openComplaintsAction: 'unassign' },
+    });
+    expect(rootSelfDel.status()).toBe(400);
+    expect((await rootSelfDel.json()).message).toMatch(/cannot delete your own account/i);
+
+    // Root admin row is completely unchanged in DB
+    const rootDb = await prisma.user.findUnique({ where: { id: rootAdminUser!.id } });
+    expect(rootDb?.role).toBe('SUPER_ADMIN');
+    expect(rootDb?.isAuthorized).toBe(true);
+    expect(rootDb?.isSuspended).toBe(false);
+    expect(rootDb?.deletedAt).toBeNull();
+
+    // 6. Spoof test: user with root email but role != SUPER_ADMIN gets NO root powers
+    const spoofToken = await createJwtToken({
+      sub: 'spoofed_user_id',
+      email: 'kumarbajrang325@gmail.com',
+      name: 'Spoofed Citizen',
+      role: 'CITIZEN',
+      isAuthorized: true,
+    }, '7d');
+    const spoofRes = await request.post(`${BASE}/api/admin/staff/${peerSa.id}/permanent-delete`, {
+      headers: { cookie: `ic_access_token=${spoofToken}`, 'Content-Type': 'application/json' },
+      data: { confirmEmail: peerSa.email },
+    });
+    expect([401, 403]).toContain(spoofRes.status());
+
+    // Unverified Google email gets 401
+    const unverifiedGoogleRes = await request.post(`${BASE}/api/auth/google-login`, {
+      data: {
+        email: 'kumarbajrang325@gmail.com',
+        name: 'Spoofed Google',
+        email_verified: false,
+      },
+    });
+    expect(unverifiedGoogleRes.status()).toBe(401);
+    expect((await unverifiedGoogleRes.json()).message).toMatch(/not verified/i);
+
+    // 7. Audit row assertions: verify crossMunicipality flag is recorded
+    const auditLogs = await prisma.auditLog.findMany({
+      where: { action: 'STAFF_PERMANENTLY_DELETED' },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    });
+    expect(auditLogs.length).toBeGreaterThan(0);
+    const logWithMeta = auditLogs.find((l: any) => l.metadata && (l.metadata as any).crossMunicipality !== undefined);
+    expect(logWithMeta).toBeDefined();
+    const meta = logWithMeta!.metadata as any;
+    expect(typeof meta.crossMunicipality).toBe('boolean');
+    expect(meta.actorEmail).toBeDefined();
+    expect(meta.targetEmail).toBeDefined();
+
+    // Cleanup
+    await prisma.user.delete({ where: { id: peerSa.id } }).catch(() => {});
+    await prisma.user.delete({ where: { id: nonRootSa.id } }).catch(() => {});
+    await prisma.complaint.delete({ where: { id: complaintZ.id } }).catch(() => {});
+    await prisma.user.delete({ where: { id: staffZ1.id } }).catch(() => {});
+    await prisma.department.delete({ where: { id: deptZ.id } }).catch(() => {});
+    await prisma.municipality.delete({ where: { id: munZ.id } }).catch(() => {});
+  });
 });
+

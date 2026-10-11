@@ -10,6 +10,7 @@ import { addAuditLog, listAuditLogs } from '@/lib/audit-store';
 import {
   addUser,
   archiveUser,
+  assertCanManageStaff,
   deleteUser,
   getDeletePreflight,
   getDepartment,
@@ -22,9 +23,15 @@ import {
   reassignUserComplaints,
   suspendUser,
   updateUser,
+  validateComplaintReassignTarget,
+  isRootAdmin,
+  logPrivilegedStaffAction,
+  type CanManageStaffResult,
   type DeletePreflightResult,
   type PermanentDeleteInput,
   type PermanentDeleteResult,
+  type StaffActor,
+  type StaffTarget,
   type UserItem,
 } from '@/lib/staff-dept-store';
 
@@ -40,6 +47,7 @@ export interface StaffListFilters {
   search?: string;
   role?: string;
   departmentId?: string;
+  municipalityId?: string;
   status?: 'active' | 'inactive' | 'all';
   page?: number;
   limit?: number;
@@ -51,6 +59,23 @@ export interface StaffListResult {
   page: number;
   limit: number;
   totalPages: number;
+}
+
+export type StaffLoginStatus = 'PASSWORD_READY' | 'NO_PASSWORD' | 'LOCKED' | 'SUSPENDED' | 'PENDING_APPROVAL';
+
+export function computeStaffLoginStatus(user: {
+  isSuspended?: boolean | null;
+  lockedUntil?: string | Date | null;
+  hasPassword?: boolean | null;
+  passwordHash?: string | null;
+  isAuthorized?: boolean | null;
+}): StaffLoginStatus {
+  if (user.isSuspended) return 'SUSPENDED';
+  if (user.lockedUntil && new Date(user.lockedUntil).getTime() > Date.now()) return 'LOCKED';
+  if (!user.isAuthorized) return 'PENDING_APPROVAL';
+  const hasPass = Boolean(user.hasPassword ?? user.passwordHash);
+  if (!hasPass) return 'NO_PASSWORD';
+  return 'PASSWORD_READY';
 }
 
 export interface StaffSummary {
@@ -68,6 +93,10 @@ export interface StaffSummary {
   lastLoginAt: string | null;
   loginId?: string | null;
   hasPassword?: boolean;
+  isRootAdmin?: boolean;
+  failedLoginCount?: number;
+  lockedUntil?: string | null;
+  loginStatus?: StaffLoginStatus;
   createdAt: string;
 }
 
@@ -132,6 +161,10 @@ async function userToSummary(u: UserItem): Promise<StaffSummary> {
     lastLoginAt: u.lastLoginAt ?? null,
     loginId: u.loginId ?? null,
     hasPassword: Boolean(u.hasPassword),
+    isRootAdmin: isRootAdmin(u),
+    failedLoginCount: u.failedLoginCount ?? 0,
+    lockedUntil: u.lockedUntil ?? null,
+    loginStatus: computeStaffLoginStatus(u),
     createdAt: u.createdAt,
   };
 }
@@ -151,6 +184,7 @@ export async function listStaff(filters: StaffListFilters): Promise<ServiceResul
   let fetchedUsers = await listUsers({
     role: filters.role && filters.role !== 'ALL' ? filters.role : undefined,
     departmentId: filters.departmentId && filters.departmentId !== 'ALL' ? filters.departmentId : undefined,
+    municipalityId: filters.municipalityId && filters.municipalityId !== 'ALL' ? filters.municipalityId : undefined,
     search: filters.search,
   });
 
@@ -331,19 +365,16 @@ export async function createStaff(
 
 export async function deactivateStaff(
   targetId: string,
-  actor: { id: string; name: string },
+  actor: { id: string; name: string; role?: string; municipalityId?: string | null },
 ): Promise<ServiceResult<StaffSummary>> {
   const user = await getUser(targetId);
   if (!user || user.role === 'CITIZEN') {
-    return { ok: false, status: 404, message: 'Staff member not found.' };
+    return { ok: false, status: 404, message: 'Staff member not found or has already been removed.' };
   }
 
-  if (targetId === actor.id) {
-    return { ok: false, status: 400, message: 'You cannot deactivate your own account.' };
-  }
-
-  if (isSuperAdminTarget(user)) {
-    return { ok: false, status: 403, message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' };
+  const manageCheck = await assertCanManageStaff(actor, user, 'deactivate');
+  if (!manageCheck.allowed) {
+    return { ok: false, status: manageCheck.status, message: manageCheck.message || 'Cannot deactivate staff member.' };
   }
 
   if (user.isSuspended) {
@@ -355,14 +386,10 @@ export async function deactivateStaff(
     return { ok: false, status: 500, message: 'Failed to deactivate staff member.' };
   }
 
-  await addAuditLog({
-    actorId: actor.id,
-    actorName: actor.name,
+  await logPrivilegedStaffAction({
+    actor,
+    target: updated,
     action: 'STAFF_DEACTIVATED',
-    entityType: 'User',
-    targetId: updated.id,
-    targetName: updated.name,
-    metadata: { email: updated.email, role: updated.role },
   });
 
   return { ok: true, data: await userToSummary(updated) };
@@ -374,11 +401,16 @@ export async function deactivateStaff(
 
 export async function reactivateStaff(
   targetId: string,
-  actor: { id: string; name: string },
+  actor: { id: string; name: string; role?: string; municipalityId?: string | null },
 ): Promise<ServiceResult<StaffSummary>> {
   const user = await getUser(targetId);
   if (!user || user.role === 'CITIZEN') {
-    return { ok: false, status: 404, message: 'Staff member not found.' };
+    return { ok: false, status: 404, message: 'Staff member not found or has already been removed.' };
+  }
+
+  const manageCheck = await assertCanManageStaff(actor, user, 'reactivate');
+  if (!manageCheck.allowed) {
+    return { ok: false, status: manageCheck.status, message: manageCheck.message || 'Cannot reactivate staff member.' };
   }
 
   if (!user.isSuspended) {
@@ -390,14 +422,10 @@ export async function reactivateStaff(
     return { ok: false, status: 500, message: 'Failed to reactivate staff member.' };
   }
 
-  await addAuditLog({
-    actorId: actor.id,
-    actorName: actor.name,
+  await logPrivilegedStaffAction({
+    actor,
+    target: updated,
     action: 'STAFF_REACTIVATED',
-    entityType: 'User',
-    targetId: updated.id,
-    targetName: updated.name,
-    metadata: { email: updated.email, role: updated.role },
   });
 
   return { ok: true, data: await userToSummary(updated) };
@@ -410,15 +438,16 @@ export async function reactivateStaff(
 export async function reassignStaff(
   targetId: string,
   input: ReassignInput,
-  actor: { id: string; name: string },
+  actor: { id: string; name: string; role?: string; municipalityId?: string | null },
 ): Promise<ServiceResult<StaffSummary>> {
   const user = await getUser(targetId);
   if (!user || user.role === 'CITIZEN') {
-    return { ok: false, status: 404, message: 'Staff member not found.' };
+    return { ok: false, status: 404, message: 'Staff member not found or has already been removed.' };
   }
 
-  if (isSuperAdminTarget(user) && input.newRole && (input.newRole as string) !== 'SUPER_ADMIN') {
-    return { ok: false, status: 403, message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' };
+  const manageCheck = await assertCanManageStaff(actor, user, 'reassign');
+  if (!manageCheck.allowed) {
+    return { ok: false, status: manageCheck.status, message: manageCheck.message || 'Cannot reassign staff member.' };
   }
 
   const newRole = (input.newRole ?? user.role) as StaffRole;
@@ -473,13 +502,10 @@ export async function reassignStaff(
     return { ok: false, status: 500, message: 'Failed to reassign staff member.' };
   }
 
-  await addAuditLog({
-    actorId: actor.id,
-    actorName: actor.name,
+  await logPrivilegedStaffAction({
+    actor,
+    target: updated,
     action: 'STAFF_REASSIGNED',
-    entityType: 'User',
-    targetId: updated.id,
-    targetName: updated.name,
     metadata: { oldRole, newRole, oldDepartmentId, newDepartmentId },
   });
 
@@ -492,19 +518,16 @@ export async function reassignStaff(
 
 export async function removeStaff(
   targetId: string,
-  actor: { id: string; name: string },
+  actor: { id: string; name: string; role?: string; municipalityId?: string | null },
 ): Promise<ServiceResult<{ deleted: boolean }>> {
   const user = await getUser(targetId);
-  if (!user) {
-    return { ok: false, status: 404, message: 'Staff member not found.' };
+  if (!user || user.role === 'CITIZEN') {
+    return { ok: false, status: 404, message: 'Staff member not found or has already been removed.' };
   }
 
-  if (targetId === actor.id) {
-    return { ok: false, status: 400, message: 'You cannot delete your own account.' };
-  }
-
-  if (isSuperAdminTarget(user)) {
-    return { ok: false, status: 403, message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' };
+  const manageCheck = await assertCanManageStaff(actor, user, 'delete');
+  if (!manageCheck.allowed) {
+    return { ok: false, status: manageCheck.status, message: manageCheck.message || 'Cannot delete staff member.' };
   }
 
   const deleteRes = await deleteUser(targetId, actor.id);
@@ -532,13 +555,10 @@ export async function removeStaff(
     };
   }
 
-  await addAuditLog({
-    actorId: actor.id,
-    actorName: actor.name,
+  await logPrivilegedStaffAction({
+    actor,
+    target: user,
     action: 'STAFF_DELETED',
-    entityType: 'User',
-    targetId,
-    targetName: user.name,
     metadata: { email: user.email, role: user.role },
   });
 
@@ -555,16 +575,34 @@ export async function convertUserToStaff(
     role: StaffRole;
     departmentId?: string | null;
     assignedOfficerId?: string | null;
+    password?: string | null;
   },
-  actor: { id: string; name: string },
+  actor: { id: string; name: string; role?: string; municipalityId?: string | null },
 ): Promise<ServiceResult<StaffSummary>> {
   const user = await getUser(targetId);
   if (!user) {
     return { ok: false, status: 404, message: 'User not found.' };
   }
 
+  const manageCheck = await assertCanManageStaff(actor, user, 'convert');
+  if (!manageCheck.allowed) {
+    return { ok: false, status: manageCheck.status, message: manageCheck.message || 'Cannot convert this user.' };
+  }
+
   if (!STAFF_ROLES.includes(input.role)) {
     return { ok: false, status: 400, message: `Invalid role: ${input.role}. Must be one of ${STAFF_ROLES.join(', ')}.` };
+  }
+
+  let passwordHash: string | null = null;
+  if (input.password) {
+    const policy = validatePasswordPolicy(input.password, {
+      email: user.email,
+      name: user.name,
+    });
+    if (!policy.valid) {
+      return { ok: false, status: 400, message: policy.error || 'Password does not meet security requirements.' };
+    }
+    passwordHash = await bcrypt.hash(input.password, 10);
   }
 
   const needsDept = requiresDepartment(input.role);
@@ -604,25 +642,62 @@ export async function convertUserToStaff(
     assignedOfficerId: input.role === 'FIELD_WORKER' ? (input.assignedOfficerId ?? null) : null,
     isAuthorized: true,
     isSuspended: false,
+    ...(passwordHash ? { passwordHash } : {}),
+    failedLoginCount: 0,
+    lockedUntil: null,
   });
 
   if (!updated) {
     return { ok: false, status: 500, message: 'Failed to convert user to staff.' };
   }
 
-  await addAuditLog({
-    actorId: actor.id,
-    actorName: actor.name,
+  await logPrivilegedStaffAction({
+    actor,
+    target: updated,
     action: 'USER_CONVERTED_TO_STAFF',
-    entityType: 'User',
-    targetId: updated.id,
-    targetName: updated.name,
     metadata: {
       previousRole,
       newRole: updated.role,
       departmentId: updated.departmentId,
       assignedOfficerId: updated.assignedOfficerId,
     },
+  });
+
+  return { ok: true, data: await userToSummary(updated) };
+}
+
+// ---------------------------------------------------------------------------
+// Unlock Staff Account
+// ---------------------------------------------------------------------------
+
+export async function unlockStaffAccount(
+  targetId: string,
+  actor: { id: string; name: string; role?: string; municipalityId?: string | null },
+): Promise<ServiceResult<StaffSummary>> {
+  const user = await getUser(targetId);
+  if (!user || user.role === 'CITIZEN') {
+    return { ok: false, status: 404, message: 'Staff member not found.' };
+  }
+
+  const manageCheck = await assertCanManageStaff(actor, user, 'unlock');
+  if (!manageCheck.allowed) {
+    return { ok: false, status: manageCheck.status, message: manageCheck.message || 'Cannot unlock this staff account.' };
+  }
+
+  const updated = await updateUser(targetId, {
+    failedLoginCount: 0,
+    lockedUntil: null,
+  });
+
+  if (!updated) {
+    return { ok: false, status: 500, message: 'Failed to unlock staff account.' };
+  }
+
+  await logPrivilegedStaffAction({
+    actor,
+    target: updated,
+    action: 'STAFF_ACCOUNT_UNLOCKED',
+    metadata: { email: updated.email },
   });
 
   return { ok: true, data: await userToSummary(updated) };
@@ -651,8 +726,15 @@ export async function permanentlyDeleteStaff(
   return { ok: true, data: res.data! };
 }
 
-export { getDeletePreflight, archiveUser, reassignUserComplaints, permanentlyDeleteUser };
-export type { PermanentDeleteInput, PermanentDeleteResult };
+export {
+  getDeletePreflight,
+  archiveUser,
+  reassignUserComplaints,
+  permanentlyDeleteUser,
+  assertCanManageStaff,
+  validateComplaintReassignTarget,
+};
+export type { PermanentDeleteInput, PermanentDeleteResult, CanManageStaffResult, StaffActor, StaffTarget };
 
 // ---------------------------------------------------------------------------
 // Activity Log for a specific staff member

@@ -8,7 +8,7 @@ import {
 } from '@/services/gemini-service';
 
 test.describe('AI Service Health, Diagnostics & Visibility Suite', () => {
-  test('getGeminiModel defaults to gemini-3.8-flash and respects GEMINI_MODEL env', () => {
+  test('getGeminiModel defaults to gemini-3.1-flash-lite and respects GEMINI_MODEL env', () => {
     const defaultModel = getGeminiModel();
     expect(defaultModel).toBe(process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL);
   });

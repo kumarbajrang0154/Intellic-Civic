@@ -27,22 +27,54 @@ export interface UserItem {
   loginId?: string | null;
   googleId?: string | null;
   hasPassword?: boolean;
+  failedLoginCount?: number;
+  lockedUntil?: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
+export function getRootAdminEmail(): string {
+  const email = process.env.ROOT_ADMIN_EMAIL || process.env.SUPER_ADMIN_BOOTSTRAP_EMAIL || 'kumarbajrang325@gmail.com';
+  return email.replace(/^["'\s]+|["'\s]+$/g, '').trim().toLowerCase();
+}
+
+export function isRootAdminEmail(email?: string | null): boolean {
+  if (!email) return false;
+  return email.trim().toLowerCase() === getRootAdminEmail();
+}
+
+export function isRootAdmin(user?: {
+  email?: string | null;
+  role?: string | null;
+  isAuthorized?: boolean | null;
+  isSuspended?: boolean | null;
+  deletedAt?: any;
+} | null): boolean {
+  if (!user || !user.email) return false;
+  const matchesEmail = isRootAdminEmail(user.email);
+  const isSuperAdminRole = user.role === 'SUPER_ADMIN';
+  const isAuthorized = Boolean(user.isAuthorized);
+  const isNotSuspended = !Boolean(user.isSuspended);
+  const isNotArchived = user.deletedAt === null || user.deletedAt === undefined;
+  return matchesEmail && isSuperAdminRole && isAuthorized && isNotSuspended && isNotArchived;
+}
+
+export function isRootAdminTarget(target?: { email?: string | null; role?: string | null } | null): boolean {
+  if (!target || !target.email) return false;
+  return isRootAdminEmail(target.email);
+}
+
 export function getSuperAdminEmail(): string {
-  return (process.env.SUPER_ADMIN_BOOTSTRAP_EMAIL || 'kumarbajrang325@gmail.com').trim().toLowerCase();
+  return getRootAdminEmail();
 }
 
 export function isSuperAdminEmail(email?: string | null): boolean {
-  if (!email) return false;
-  return email.trim().toLowerCase() === getSuperAdminEmail();
+  return isRootAdminEmail(email);
 }
 
 export function isSuperAdminTarget(target?: { role?: string | null; email?: string | null } | null): boolean {
   if (!target) return false;
-  return target.role === 'SUPER_ADMIN' || (target.email ? isSuperAdminEmail(target.email) : false);
+  return target.role === 'SUPER_ADMIN' || (target.email ? isRootAdminEmail(target.email) : false);
 }
 
 export async function getDefaultMunicipality() {
@@ -90,6 +122,8 @@ function formatUserItem(user: any): UserItem {
     loginId: user.loginId || null,
     googleId: user.googleId || null,
     hasPassword: Boolean(user.passwordHash),
+    failedLoginCount: typeof user.failedLoginCount === 'number' ? user.failedLoginCount : 0,
+    lockedUntil: user.lockedUntil ? (user.lockedUntil instanceof Date ? user.lockedUntil.toISOString() : new Date(user.lockedUntil).toISOString()) : null,
     createdAt: user.createdAt instanceof Date ? user.createdAt.toISOString() : new Date(user.createdAt || Date.now()).toISOString(),
     updatedAt: user.updatedAt instanceof Date ? user.updatedAt.toISOString() : new Date(user.updatedAt || Date.now()).toISOString(),
   };
@@ -173,6 +207,7 @@ export async function listUsers(filters?: {
   role?: string;
   departmentId?: string;
   assignedOfficerId?: string;
+  municipalityId?: string;
   pendingOnly?: boolean;
   search?: string;
   includeArchived?: boolean;
@@ -194,6 +229,10 @@ export async function listUsers(filters?: {
 
   if (filters?.departmentId && filters.departmentId !== 'ALL') {
     where.departmentId = filters.departmentId;
+  }
+
+  if (filters?.municipalityId && filters.municipalityId !== 'ALL') {
+    where.municipalityId = filters.municipalityId;
   }
 
   if (filters?.assignedOfficerId) {
@@ -233,7 +272,7 @@ export async function ensureSuperAdminUser(
   email?: string,
   name: string = 'Bajrang Kumar (Super Admin)',
 ): Promise<UserItem> {
-  const targetEmail = (email || getSuperAdminEmail()).toLowerCase().trim();
+  const targetEmail = (email || getRootAdminEmail()).toLowerCase().trim();
 
   let admin = await prisma.user.findFirst({
     where: {
@@ -251,6 +290,7 @@ export async function ensureSuperAdminUser(
         role: UserRole.SUPER_ADMIN,
         isAuthorized: true,
         isSuspended: false,
+        deletedAt: null,
         name: admin.name || name,
         municipalityId: admin.municipalityId || mun.id,
       },
@@ -267,6 +307,7 @@ export async function ensureSuperAdminUser(
         municipalityId: mun.id,
         isAuthorized: true,
         isSuspended: false,
+        deletedAt: null,
       },
     });
   }
@@ -338,7 +379,11 @@ export async function addUser(input: {
 
 export async function updateUser(
   id: string,
-  updates: Partial<Pick<UserItem, 'name' | 'email' | 'role' | 'departmentId' | 'assignedOfficerId' | 'municipalityId' | 'isAuthorized' | 'isSuspended'>>,
+  updates: Partial<Pick<UserItem, 'name' | 'email' | 'role' | 'departmentId' | 'assignedOfficerId' | 'municipalityId' | 'isAuthorized' | 'isSuspended'>> & {
+    passwordHash?: string | null;
+    failedLoginCount?: number;
+    lockedUntil?: Date | string | null;
+  },
 ): Promise<UserItem | null> {
   try {
     const current = await prisma.user.findUnique({ where: { id } });
@@ -348,11 +393,7 @@ export async function updateUser(
     let updatedAuthorized = updates.isAuthorized !== undefined ? updates.isAuthorized : current.isAuthorized;
     let updatedSuspended = updates.isSuspended !== undefined ? updates.isSuspended : current.isSuspended;
 
-    if (
-      current.role === UserRole.SUPER_ADMIN ||
-      current.role === UserRole.ADMIN ||
-      (current.email && isSuperAdminEmail(current.email))
-    ) {
+    if (current.email && isRootAdminEmail(current.email)) {
       updatedRole = UserRole.SUPER_ADMIN;
       updatedAuthorized = true;
       updatedSuspended = false;
@@ -369,6 +410,11 @@ export async function updateUser(
         municipalityId: updates.municipalityId !== undefined ? updates.municipalityId : undefined,
         isAuthorized: updatedAuthorized,
         isSuspended: updatedSuspended,
+        passwordHash: updates.passwordHash !== undefined ? updates.passwordHash : undefined,
+        failedLoginCount: updates.failedLoginCount !== undefined ? updates.failedLoginCount : undefined,
+        lockedUntil: updates.lockedUntil !== undefined
+          ? (updates.lockedUntil === null ? null : new Date(updates.lockedUntil))
+          : undefined,
       },
     });
 
@@ -380,7 +426,7 @@ export async function updateUser(
 
 export async function suspendUser(id: string, isSuspended: boolean): Promise<UserItem | null> {
   const target = await getUser(id);
-  if (target && isSuperAdminTarget(target) && isSuspended) {
+  if (target && isRootAdminTarget(target) && isSuspended) {
     return null; // Protected
   }
   if (isSuspended) {
@@ -429,7 +475,10 @@ export interface DeletePreflightResult {
   reasons: string[];
 }
 
-export async function getDeletePreflight(targetId: string, actorId?: string): Promise<DeletePreflightResult | null> {
+export async function getDeletePreflight(
+  targetId: string,
+  actorOrId?: string | StaffActor,
+): Promise<DeletePreflightResult | null> {
   const user = await prisma.user.findUnique({
     where: { id: targetId },
   });
@@ -438,6 +487,7 @@ export async function getDeletePreflight(targetId: string, actorId?: string): Pr
     return null;
   }
 
+  const actorId = typeof actorOrId === 'string' ? actorOrId : actorOrId?.id;
   const isSelf = actorId ? actorId === targetId : false;
   const isProtected = isSuperAdminTarget(user);
   const isSuperAdmin = isProtected;
@@ -452,6 +502,14 @@ export async function getDeletePreflight(targetId: string, actorId?: string): Pr
       },
     });
     isLastAdmin = adminCount <= 1;
+  }
+
+  let municipalityForbidden = false;
+  if (actorOrId && typeof actorOrId === 'object' && actorOrId.role !== 'SUPER_ADMIN') {
+    const actorMunId = actorOrId.municipalityId;
+    if (actorMunId && user.municipalityId && actorMunId !== user.municipalityId) {
+      municipalityForbidden = true;
+    }
   }
 
   const [
@@ -545,8 +603,11 @@ export async function getDeletePreflight(targetId: string, actorId?: string): Pr
   if (isLastAdmin) {
     reasons.push('Cannot delete the last remaining active Administrator account.');
   }
+  if (municipalityForbidden) {
+    reasons.push('You can only manage staff of your own municipality.');
+  }
   if (openAssignedComplaints > 0) {
-    reasons.push(`User has ${openAssignedComplaints} open assigned complaint(s). Reassign them first.`);
+    reasons.push(`User has ${openAssignedComplaints} open complaint(s) assigned to them. Reassign them first.`);
   }
   if (assignedWorkers > 0) {
     reasons.push(`User has ${assignedWorkers} assigned field worker(s). Reassign them first.`);
@@ -580,8 +641,8 @@ export async function getDeletePreflight(targetId: string, actorId?: string): Pr
     feedbacks +
     assignedWorkers;
 
-  const canHardDelete = !isSelf && !isProtected && !isLastAdmin && totalBlockers === 0;
-  const canForceDelete = !isSelf && !isProtected && !isLastAdmin && user.role !== 'CITIZEN';
+  const canHardDelete = !isSelf && !isProtected && !isLastAdmin && !municipalityForbidden && totalBlockers === 0;
+  const canForceDelete = !isSelf && !isProtected && !isLastAdmin && !municipalityForbidden && user.role !== 'CITIZEN';
 
   return {
     canHardDelete,
@@ -732,27 +793,161 @@ export async function deleteUser(id: string, actorId?: string): Promise<DeleteUs
   }
 }
 
-export async function archiveUser(
-  targetId: string,
-  actor: { id: string; name: string },
-): Promise<{ ok: boolean; status: number; message: string; data?: any }> {
-  const user = await prisma.user.findUnique({
-    where: { id: targetId },
+// -----------------------------------------------------------------------------
+// Unified Staff Management RBAC & Municipality Isolation Guard
+// -----------------------------------------------------------------------------
+
+export interface StaffActor {
+  id: string;
+  name?: string;
+  email?: string | null;
+  role?: string | null;
+  municipalityId?: string | null;
+  isAuthorized?: boolean | null;
+  isSuspended?: boolean | null;
+  deletedAt?: any;
+}
+
+export interface StaffTarget {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  role?: string | null;
+  municipalityId?: string | null;
+  isAuthorized?: boolean | null;
+  isSuspended?: boolean | null;
+  deletedAt?: any;
+}
+
+export type StaffManageAction =
+  | 'delete'
+  | 'permanent_delete'
+  | 'archive'
+  | 'deactivate'
+  | 'reactivate'
+  | 'reassign'
+  | 'reassign_dept'
+  | 'password'
+  | 'unlock'
+  | 'role_change'
+  | 'convert'
+  | 'approve'
+  | 'reject'
+  | 'preflight';
+
+export interface CanManageStaffResult {
+  allowed: boolean;
+  status: number;
+  message?: string;
+}
+
+export async function assertCanManageStaff(
+  actor: StaffActor,
+  target: StaffTarget,
+  action: StaffManageAction = 'delete',
+): Promise<CanManageStaffResult> {
+  // 1. Block self-action on destruction/suspension/demotion
+  if (target.id === actor.id) {
+    const actionDesc =
+      action === 'permanent_delete' || action === 'delete'
+        ? 'delete'
+        : action === 'archive'
+        ? 'archive'
+        : action === 'deactivate'
+        ? 'deactivate'
+        : action === 'role_change' || action === 'convert'
+        ? 'demote or change the role of'
+        : 'manage';
+    if (
+      action === 'delete' ||
+      action === 'permanent_delete' ||
+      action === 'archive' ||
+      action === 'deactivate' ||
+      action === 'role_change' ||
+      action === 'convert'
+    ) {
+      return {
+        allowed: false,
+        status: 400,
+        message: `You cannot ${actionDesc} your own account.`,
+      };
+    }
+  }
+
+  // 2. Root Admin Immunity: cannot be touched by anyone else
+  if (isRootAdminTarget(target)) {
+    if (target.id !== actor.id) {
+      return {
+        allowed: false,
+        status: 403,
+        message: 'Root admin account is protected.',
+      };
+    }
+  }
+
+  // Resolve actor role, email, municipality from DB if missing
+  let actorRole = actor.role;
+  let actorEmail = actor.email;
+  let actorMunId = actor.municipalityId;
+  let actorAuthorized = actor.isAuthorized;
+  let actorSuspended = actor.isSuspended;
+  let actorDeletedAt = actor.deletedAt;
+  if (!actorRole || !actorEmail || actorMunId === undefined) {
+    const dbActor = await prisma.user.findUnique({
+      where: { id: actor.id },
+      select: { role: true, email: true, municipalityId: true, isAuthorized: true, isSuspended: true, deletedAt: true },
+    });
+    if (dbActor) {
+      actorRole = actorRole || dbActor.role;
+      actorEmail = actorEmail || dbActor.email;
+      if (actorMunId === undefined) actorMunId = dbActor.municipalityId;
+      if (actorAuthorized === undefined) actorAuthorized = dbActor.isAuthorized;
+      if (actorSuspended === undefined) actorSuspended = dbActor.isSuspended;
+      if (actorDeletedAt === undefined) actorDeletedAt = dbActor.deletedAt;
+    }
+  }
+
+  // 3. Super Admin Protection: Super Admin accounts cannot be deactivated, soft-deleted, or archived by ANYONE.
+  if (
+    (action === 'delete' || action === 'archive' || action === 'deactivate') &&
+    (target.role === 'SUPER_ADMIN' || isSuperAdminTarget(target))
+  ) {
+    return {
+      allowed: false,
+      status: 403,
+      message: 'Super Admin accounts are permanently protected.',
+    };
+  }
+
+  // 4. ROOT ADMIN: can manage ANY target across ANY municipality, including other ADMINs and permanent delete of other SUPER_ADMINs
+  const actorIsRoot = isRootAdmin({
+    email: actorEmail,
+    role: actorRole,
+    isAuthorized: actorAuthorized ?? true,
+    isSuspended: actorSuspended ?? false,
+    deletedAt: actorDeletedAt,
   });
-
-  if (!user) {
-    return { ok: false, status: 404, message: 'User not found.' };
+  if (actorIsRoot) {
+    return { allowed: true, status: 200 };
   }
 
-  if (targetId === actor.id) {
-    return { ok: false, status: 400, message: 'You cannot archive your own account.' };
+  // 5. Super Admin Protection: Non-root admins cannot permanently delete Super Admin accounts
+  if (
+    action === 'permanent_delete' &&
+    (target.role === 'SUPER_ADMIN' || isSuperAdminTarget(target))
+  ) {
+    return {
+      allowed: false,
+      status: 403,
+      message: 'Super Admin accounts are permanently protected.',
+    };
   }
 
-  if (isSuperAdminTarget(user)) {
-    return { ok: false, status: 403, message: 'Super Admin accounts cannot be archived or deleted.' };
-  }
-
-  if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
+  // 5. Last remaining Administrator protection for deletion/archival
+  if (
+    (action === 'delete' || action === 'permanent_delete' || action === 'archive') &&
+    (target.role === 'ADMIN' || target.role === 'SUPER_ADMIN')
+  ) {
     const adminCount = await prisma.user.count({
       where: {
         role: { in: ['ADMIN', 'SUPER_ADMIN'] },
@@ -761,8 +956,213 @@ export async function archiveUser(
       },
     });
     if (adminCount <= 1) {
-      return { ok: false, status: 403, message: 'Cannot archive the last remaining Administrator account.' };
+      return {
+        allowed: false,
+        status: 403,
+        message: 'Cannot delete the last remaining active Administrator account.',
+      };
     }
+  }
+
+  // 5. Non-root SUPER_ADMIN:
+  // Any municipality, any non-SUPER_ADMIN target (staff and ADMIN).
+  // Cannot touch other SUPER_ADMINs or the root admin.
+  if (actorRole === 'SUPER_ADMIN') {
+    if (target.role === 'SUPER_ADMIN' || isSuperAdminTarget(target)) {
+      return {
+        allowed: false,
+        status: 403,
+        message: 'Super Admin accounts are permanently protected.',
+      };
+    }
+    return { allowed: true, status: 200 };
+  }
+
+  // 6. Municipal ADMIN:
+  // Only staff of their own municipality, never ADMIN-of-others or SUPER_ADMIN targets.
+  if (actorRole === 'ADMIN') {
+    if (target.role === 'SUPER_ADMIN' || isSuperAdminTarget(target)) {
+      return {
+        allowed: false,
+        status: 403,
+        message: 'Super Admin accounts are permanently protected.',
+      };
+    }
+
+    if (target.role === 'ADMIN') {
+      if (actorMunId && target.municipalityId && actorMunId !== target.municipalityId) {
+        return {
+          allowed: false,
+          status: 403,
+          message: 'Staff member belongs to a different municipality. You can only manage staff of your own municipality.',
+        };
+      }
+      return {
+        allowed: false,
+        status: 403,
+        message: 'Administrators cannot modify other Administrator accounts.',
+      };
+    }
+
+    if (actorMunId && target.municipalityId && actorMunId !== target.municipalityId) {
+      return {
+        allowed: false,
+        status: 403,
+        message: 'Staff member belongs to a different municipality. You can only manage staff of your own municipality.',
+      };
+    }
+
+    return { allowed: true, status: 200 };
+  }
+
+  // 7. Everyone else: 403
+  return {
+    allowed: false,
+    status: 403,
+    message: 'Forbidden: Insufficient permissions.',
+  };
+}
+
+export async function logPrivilegedStaffAction(params: {
+  actor: { id: string; email?: string | null; role?: string | null; name?: string | null; municipalityId?: string | null };
+  target: { id: string; email?: string | null; role?: string | null; name?: string | null; municipalityId?: string | null };
+  action: string;
+  metadata?: Record<string, any>;
+}) {
+  const { actor, target, action, metadata = {} } = params;
+
+  let actorEmail = actor.email;
+  let actorRole = actor.role;
+  let actorMunId = actor.municipalityId;
+  if (!actorEmail || !actorRole || actorMunId === undefined) {
+    const dbActor = await prisma.user.findUnique({
+      where: { id: actor.id },
+      select: { email: true, role: true, municipalityId: true },
+    });
+    if (dbActor) {
+      actorEmail = actorEmail || dbActor.email;
+      actorRole = actorRole || dbActor.role;
+      if (actorMunId === undefined) actorMunId = dbActor.municipalityId;
+    }
+  }
+
+  const crossMunicipality = Boolean(
+    actorMunId &&
+    target.municipalityId &&
+    actorMunId !== target.municipalityId
+  );
+
+  const safeMetadata = { ...metadata };
+  delete (safeMetadata as any).password;
+  delete (safeMetadata as any).passwordHash;
+  delete (safeMetadata as any).hash;
+
+  return addAuditLog({
+    actorId: actor.id,
+    actorName: actor.name || actorEmail || 'Admin',
+    action,
+    entityType: 'User',
+    targetId: target.id,
+    targetName: target.name || target.email || 'User',
+    metadata: {
+      actorId: actor.id,
+      actorEmail: actorEmail || null,
+      actorRole: actorRole || null,
+      targetId: target.id,
+      targetName: target.name || null,
+      targetEmail: target.email || null,
+      targetRole: target.role || null,
+      targetMunicipalityId: target.municipalityId || null,
+      crossMunicipality,
+      ...safeMetadata,
+    },
+  });
+}
+
+export async function validateComplaintReassignTarget(
+  sourceUserId: string,
+  targetStaffId: string,
+): Promise<{ ok: true; targetStaff: any } | { ok: false; status: number; message: string }> {
+  if (sourceUserId === targetStaffId) {
+    return {
+      ok: false,
+      status: 400,
+      message: 'Cannot reassign complaints to the staff member being removed.',
+    };
+  }
+
+  const sourceUser = await prisma.user.findUnique({
+    where: { id: sourceUserId },
+    select: { id: true, name: true, role: true, municipalityId: true },
+  });
+
+  if (!sourceUser) {
+    return {
+      ok: false,
+      status: 404,
+      message: 'Staff member not found or has already been removed.',
+    };
+  }
+
+  const targetStaff = await prisma.user.findUnique({
+    where: { id: targetStaffId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      municipalityId: true,
+      isSuspended: true,
+      deletedAt: true,
+    },
+  });
+
+  if (!targetStaff || targetStaff.isSuspended || targetStaff.deletedAt) {
+    return {
+      ok: false,
+      status: 400,
+      message: 'Selected target staff member is inactive or does not exist.',
+    };
+  }
+
+  if (targetStaff.role === 'CITIZEN' || !targetStaff.role) {
+    return {
+      ok: false,
+      status: 400,
+      message: 'Cannot reassign complaints to a citizen account.',
+    };
+  }
+
+  if (
+    sourceUser.municipalityId &&
+    targetStaff.municipalityId &&
+    sourceUser.municipalityId !== targetStaff.municipalityId
+  ) {
+    return {
+      ok: false,
+      status: 400,
+      message: 'Target staff member must belong to the same municipality as the staff member being deleted.',
+    };
+  }
+
+  return { ok: true, targetStaff };
+}
+
+export async function archiveUser(
+  targetId: string,
+  actor: { id: string; name: string; role?: string; municipalityId?: string | null },
+): Promise<{ ok: boolean; status: number; message: string; data?: any }> {
+  const user = await prisma.user.findUnique({
+    where: { id: targetId },
+  });
+
+  if (!user) {
+    return { ok: false, status: 404, message: 'Staff member not found or has already been removed.' };
+  }
+
+  const manageCheck = await assertCanManageStaff(actor, user, 'archive');
+  if (!manageCheck.allowed) {
+    return { ok: false, status: manageCheck.status, message: manageCheck.message || 'Cannot archive this account.' };
   }
 
   const now = new Date();
@@ -797,13 +1197,10 @@ export async function archiveUser(
     });
   });
 
-  await addAuditLog({
-    actorId: actor.id,
-    actorName: actor.name,
+  await logPrivilegedStaffAction({
+    actor,
+    target: user,
     action: 'USER_ARCHIVED',
-    entityType: 'User',
-    targetId,
-    targetName: user.name,
     metadata: {
       originalEmail,
       tombstoneEmail,
@@ -829,21 +1226,23 @@ export async function archiveUser(
 export async function reassignUserComplaints(
   sourceUserId: string,
   targetStaffId: string,
-  actor: { id: string; name: string },
+  actor: { id: string; name: string; role?: string; municipalityId?: string | null },
 ): Promise<{ ok: boolean; status: number; message: string; data?: any }> {
-  if (sourceUserId === targetStaffId) {
-    return { ok: false, status: 400, message: 'Target staff member must be different from source staff.' };
-  }
-
   const sourceUser = await prisma.user.findUnique({ where: { id: sourceUserId } });
   if (!sourceUser) {
-    return { ok: false, status: 404, message: 'Source user not found.' };
+    return { ok: false, status: 404, message: 'Staff member not found or has already been removed.' };
   }
 
-  const targetStaff = await prisma.user.findUnique({ where: { id: targetStaffId } });
-  if (!targetStaff || targetStaff.isSuspended || targetStaff.deletedAt) {
-    return { ok: false, status: 400, message: 'Target staff member not found or is inactive.' };
+  const manageCheck = await assertCanManageStaff(actor, sourceUser, 'reassign');
+  if (!manageCheck.allowed) {
+    return { ok: false, status: manageCheck.status, message: manageCheck.message || 'Cannot reassign complaints for this staff member.' };
   }
+
+  const valRes = await validateComplaintReassignTarget(sourceUserId, targetStaffId);
+  if (!valRes.ok) {
+    return { ok: false, status: valRes.status, message: valRes.message };
+  }
+  const targetStaff = valRes.targetStaff;
 
   let count = 0;
 
@@ -891,13 +1290,10 @@ export async function reassignUserComplaints(
     count += workerRes.count;
   });
 
-  await addAuditLog({
-    actorId: actor.id,
-    actorName: actor.name,
+  await logPrivilegedStaffAction({
+    actor,
+    target: sourceUser,
     action: 'COMPLAINTS_REASSIGNED',
-    entityType: 'User',
-    targetId: sourceUserId,
-    targetName: sourceUser.name,
     metadata: {
       sourceUserId,
       targetStaffId,
@@ -986,52 +1382,21 @@ export async function permanentlyDeleteUser(
   });
 
   if (!targetUser) {
-    return { ok: false, status: 404, message: 'Staff member not found.' };
+    return { ok: false, status: 404, message: 'Staff member not found or has already been removed.' };
   }
 
-  // 1. Self delete protection
-  if (targetId === actor.id) {
-    return { ok: false, status: 400, message: 'You cannot delete your own account.' };
+  // Unified manage check (self, super admin, last admin, and municipality isolation)
+  const manageCheck = await assertCanManageStaff(actor, targetUser, 'permanent_delete');
+  if (!manageCheck.allowed) {
+    return { ok: false, status: manageCheck.status, message: manageCheck.message || 'Cannot delete staff member.' };
   }
 
-  // 2. Super Admin protection (protected platform-wide)
-  if (targetUser.role === 'SUPER_ADMIN' || isSuperAdminTarget(targetUser)) {
-    return { ok: false, status: 403, message: 'Super Admin accounts are permanently protected and cannot be deleted.' };
-  }
-
-  // 3. Last admin protection
-  if (targetUser.role === 'ADMIN') {
-    const adminCount = await prisma.user.count({
-      where: {
-        role: { in: ['ADMIN', 'SUPER_ADMIN'] },
-        isSuspended: false,
-        deletedAt: null,
-      },
-    });
-    if (adminCount <= 1) {
-      return { ok: false, status: 403, message: 'Cannot delete the last remaining Administrator account.' };
-    }
-  }
-
-  // 4. Same municipality check
-  let actorMunicipalityId = actor.municipalityId;
-  if (!actorMunicipalityId) {
-    const actorRecord = await prisma.user.findUnique({
-      where: { id: actor.id },
-      select: { municipalityId: true },
-    });
-    actorMunicipalityId = actorRecord?.municipalityId || null;
-  }
-  if (actorMunicipalityId && targetUser.municipalityId && actorMunicipalityId !== targetUser.municipalityId) {
-    return { ok: false, status: 403, message: 'Forbidden: Staff member belongs to a different municipality.' };
-  }
-
-  // 5. Staff check (block CITIZEN)
+  // Staff check (block CITIZEN)
   if (targetUser.role === 'CITIZEN') {
     return { ok: false, status: 400, message: 'Target user is a citizen, not a staff member.' };
   }
 
-  // 6. Email confirmation check (case-insensitive)
+  // Email confirmation check (case-insensitive)
   const normalizedTargetEmail = (targetUser.email || '').trim().toLowerCase();
   const normalizedConfirmEmail = (input.confirmEmail || '').trim().toLowerCase();
   if (!normalizedConfirmEmail || normalizedConfirmEmail !== normalizedTargetEmail) {
@@ -1042,7 +1407,7 @@ export async function permanentlyDeleteUser(
     };
   }
 
-  // 7. Find open complaints assigned to this staff member
+  // Find open complaints assigned to this staff member
   const openComplaints = await prisma.complaint.findMany({
     where: {
       status: { notIn: ['RESOLVED', 'CLOSED', 'REJECTED', 'DUPLICATE'] },
@@ -1074,20 +1439,9 @@ export async function permanentlyDeleteUser(
       if (!input.reassignToId) {
         return { ok: false, status: 400, message: 'reassignToId is required when openComplaintsAction is "reassign".' };
       }
-      if (input.reassignToId === targetId) {
-        return { ok: false, status: 400, message: 'Cannot reassign complaints to the staff member being deleted.' };
-      }
-      const targetStaff = await prisma.user.findUnique({
-        where: { id: input.reassignToId },
-      });
-      if (!targetStaff || targetStaff.isSuspended || targetStaff.deletedAt) {
-        return { ok: false, status: 400, message: 'Selected reassign target staff member is inactive or not found.' };
-      }
-      if (targetStaff.role === 'CITIZEN') {
-        return { ok: false, status: 400, message: 'Cannot reassign complaints to a citizen.' };
-      }
-      if (actor.municipalityId && targetStaff.municipalityId && actor.municipalityId !== targetStaff.municipalityId) {
-        return { ok: false, status: 400, message: 'Target staff member must belong to the same municipality.' };
+      const valRes = await validateComplaintReassignTarget(targetId, input.reassignToId);
+      if (!valRes.ok) {
+        return { ok: false, status: valRes.status, message: valRes.message };
       }
     }
   }
@@ -1122,24 +1476,21 @@ export async function permanentlyDeleteUser(
 
           reassignedCount = openComplaints.length;
 
-          // Status history notes
-          for (const c of openComplaints) {
-            await tx.statusHistory.create({
-              data: {
-                complaintId: c.id,
-                fromStatus: c.status,
-                toStatus: c.status,
-                notes: `Reassigned from deleted staff ${targetUser.name} to target staff.`,
-                changedByUserId: actor.id,
-              },
-            });
-          }
+          // Status history notes (batched)
+          await tx.statusHistory.createMany({
+            data: openComplaints.map((c) => ({
+              complaintId: c.id,
+              fromStatus: c.status,
+              toStatus: c.status,
+              notes: `Reassigned from deleted staff ${targetUser.name} to target staff.`,
+              changedByUserId: actor.id,
+            })),
+          });
         } else if (input.openComplaintsAction === 'unassign') {
-          // Unassign open worker assignments
+          // Unassign open worker assignments & return to triage-able state
           await tx.complaint.updateMany({
             where: {
-              assignedFieldWorkerId: targetId,
-              status: { notIn: ['RESOLVED', 'CLOSED', 'REJECTED', 'DUPLICATE'] },
+              id: { in: openComplaints.map((c) => c.id) },
             },
             data: {
               assignedFieldWorkerId: null,
@@ -1147,79 +1498,71 @@ export async function permanentlyDeleteUser(
             },
           });
 
-          // Delete open officer assignments
-          await tx.assignment.deleteMany({
-            where: {
-              departmentOfficerId: targetId,
-              complaint: { status: { notIn: ['RESOLVED', 'CLOSED', 'REJECTED', 'DUPLICATE'] } },
-            },
-          });
-
-          // Set status back to triage-able state PENDING_DEPT_REVIEW
-          await tx.complaint.updateMany({
-            where: {
-              id: { in: openComplaints.map((c) => c.id) },
-              status: { in: ['ASSIGNED', 'IN_PROGRESS'] },
-            },
-            data: { status: 'PENDING_DEPT_REVIEW' },
-          });
-
           unassignedCount = openComplaints.length;
 
-          // Status history notes
-          for (const c of openComplaints) {
-            await tx.statusHistory.create({
-              data: {
-                complaintId: c.id,
-                fromStatus: c.status,
-                toStatus: 'PENDING_DEPT_REVIEW',
-                notes: `Staff unassigned due to permanent account deletion. Returned to triage pool.`,
-                changedByUserId: actor.id,
-              },
-            });
-          }
+          // Status history notes (batched)
+          await tx.statusHistory.createMany({
+            data: openComplaints.map((c) => ({
+              complaintId: c.id,
+              fromStatus: c.status,
+              toStatus: 'PENDING_DEPT_REVIEW',
+              notes: `Staff unassigned due to permanent account deletion. Returned to triage pool.`,
+              changedByUserId: actor.id,
+            })),
+          });
         }
       }
 
-      // b. Any remaining assignments (closed/resolved complaints or assignments created by user)
-      await tx.assignment.deleteMany({
-        where: { departmentOfficerId: targetId },
-      });
-      await tx.assignment.updateMany({
-        where: { assignedByUserId: targetId },
-        data: { assignedByUserId: actor.id },
-      });
-
-      // c. Detach field workers under this officer
-      const detachedWorkers = await tx.user.updateMany({
-        where: { assignedOfficerId: targetId },
-        data: { assignedOfficerId: null },
-      });
-      detachedWorkersCount = detachedWorkers.count;
-
-      // d. Evidence Option A: snapshot uploader name, null FK
+      // Group independent cleanups in parallel
       const staffNameSnapshot = targetUser.name || 'Staff Member';
-      const evidenceRes = await tx.evidence.updateMany({
+      const evidencePromise = tx.evidence.updateMany({
         where: { uploadedByUserId: targetId },
         data: {
           uploadedByName: staffNameSnapshot,
           uploadedByUserId: null,
         },
       });
-      evidencePreservedCount = evidenceRes.count;
 
-      // e. Delete notifications & refresh tokens
-      await tx.notification.deleteMany({ where: { recipientUserId: targetId } });
-      await tx.refreshToken.deleteMany({ where: { userId: targetId } });
+      const cleanups: Promise<any>[] = [evidencePromise];
 
-      // f. Null status history changedByUserId
-      await tx.statusHistory.updateMany({
-        where: { changedByUserId: targetId },
-        data: { changedByUserId: null },
-      });
+      let detachedWorkersPromise: Promise<{ count: number }> | null = null;
+      if (
+        targetUser.role === 'DEPARTMENT_OFFICER' ||
+        targetUser.role === 'DEPARTMENT_HEAD' ||
+        targetUser.role === 'ADMIN' ||
+        targetUser.role === 'SUPER_ADMIN'
+      ) {
+        detachedWorkersPromise = tx.user.updateMany({
+          where: { assignedOfficerId: targetId },
+          data: { assignedOfficerId: null },
+        });
+        cleanups.push(
+          detachedWorkersPromise,
+          tx.assignment.deleteMany({
+            where: { departmentOfficerId: targetId },
+          }),
+          tx.assignment.updateMany({
+            where: { assignedByUserId: targetId },
+            data: { assignedByUserId: actor.id },
+          })
+        );
+      }
 
-      // g. Audit rows: snapshot actor name and email into metadata, set userId = null
-      const actorNameStr = targetUser.name || targetUser.email || 'Deleted Staff';
+      if (targetUser.role === 'CITIZEN') {
+        cleanups.push(tx.feedback.deleteMany({ where: { citizenId: targetId } }));
+      }
+
+      await Promise.all(cleanups);
+      detachedWorkersCount = detachedWorkersPromise ? (await detachedWorkersPromise).count : 0;
+      evidencePreservedCount = (await evidencePromise).count;
+
+      // i. Forced rollback hook for rollback testing
+      if (input.forceRollbackForTest) {
+        throw new Error('FORCED_TRANSACTION_ROLLBACK_TEST');
+      }
+
+      // Snapshot AuditLog metadata in bulk before onDelete: SetNull disassociates userId
+      const actorNameStr = targetUser.name || targetUser.email || 'Deleted User';
       const actorEmailStr = targetUser.email || '';
       await tx.$executeRaw(Prisma.sql`
         UPDATE audit_logs
@@ -1229,23 +1572,20 @@ export async function permanentlyDeleteUser(
             'actorName', COALESCE(to_jsonb(metadata)->>'actorName', ${actorNameStr}::text),
             'actorEmail', COALESCE(to_jsonb(metadata)->>'actorEmail', ${actorEmailStr}::text)
           ))::json
-        END,
-        "userId" = NULL
+        END
         WHERE "userId" = ${targetId}
       `);
-
-      // h. Feedback refs
-      await tx.feedback.deleteMany({ where: { citizenId: targetId } });
-
-      // i. Forced rollback hook for rollback testing
-      if (input.forceRollbackForTest) {
-        throw new Error('FORCED_TRANSACTION_ROLLBACK_TEST');
-      }
 
       // j. Delete user row permanently
       await tx.user.delete({ where: { id: targetId } });
 
       // k. Create one permanent deletion audit log row (actor.id is userId, surviving user delete)
+      const crossMunicipality = Boolean(
+        actor.municipalityId &&
+        targetUser.municipalityId &&
+        actor.municipalityId !== targetUser.municipalityId
+      );
+
       await tx.auditLog.create({
         data: {
           userId: actor.id,
@@ -1253,9 +1593,15 @@ export async function permanentlyDeleteUser(
           entityType: 'User',
           entityId: targetId,
           metadata: {
+            actorId: actor.id,
+            actorEmail: (actor as any).email || null,
+            actorRole: actor.role || null,
+            targetId,
             targetName: targetUser.name,
             targetEmail: targetUser.email,
             targetRole: targetUser.role,
+            targetMunicipalityId: targetUser.municipalityId || null,
+            crossMunicipality,
             targetDepartmentName: targetUser.department?.name || null,
             targetDepartmentId: targetUser.departmentId || null,
             deletedBy: actor.name,

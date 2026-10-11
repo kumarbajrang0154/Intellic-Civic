@@ -19,7 +19,10 @@ export async function getSeededUser(query: {
   if (query.email) where.email = query.email;
   if (query.id) where.id = query.id;
 
-  const user = await prisma.user.findFirst({ where });
+  const user = await prisma.user.findFirst({
+    where,
+    orderBy: { createdAt: 'asc' },
+  });
   if (!user) {
     throw new Error(`Seeded user not found in DB for query: ${JSON.stringify(query)}`);
   }

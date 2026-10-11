@@ -61,6 +61,10 @@ interface StaffMember {
   lastLoginAt: string | null;
   loginId?: string | null;
   hasPassword?: boolean;
+  isRootAdmin?: boolean;
+  failedLoginCount?: number;
+  lockedUntil?: string | null;
+  loginStatus?: 'PASSWORD_READY' | 'NO_PASSWORD' | 'LOCKED' | 'SUSPENDED' | 'PENDING_APPROVAL';
   createdAt: string;
 }
 
@@ -242,6 +246,10 @@ export default function AdminStaffPage() {
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [convertRole, setConvertRole] = useState('DEPARTMENT_OFFICER');
   const [convertDept, setConvertDept] = useState('');
+  const [convertAssignedOfficer, setConvertAssignedOfficer] = useState('');
+  const [convertPassword, setConvertPassword] = useState('');
+  const [convertDeptOfficers, setConvertDeptOfficers] = useState<StaffMember[]>([]);
+  const [loadingConvertOfficers, setLoadingConvertOfficers] = useState(false);
   const [converting, setConverting] = useState(false);
   const [convertError, setConvertError] = useState('');
 
@@ -253,7 +261,14 @@ export default function AdminStaffPage() {
   const [bulkReassignDeptId, setBulkReassignDeptId] = useState('');
 
   // Current user info
-  const [currentUser, setCurrentUser] = useState({ name: 'Admin', role: 'ADMIN' as 'ADMIN' | 'SUPER_ADMIN' });
+  const [currentUser, setCurrentUser] = useState<{
+    id: string;
+    name: string;
+    role: 'ADMIN' | 'SUPER_ADMIN';
+    email: string;
+    isRootAdmin?: boolean;
+    municipalityId?: string | null;
+  }>({ id: '', name: 'Admin', role: 'ADMIN', email: '', isRootAdmin: false, municipalityId: null });
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -261,8 +276,12 @@ export default function AdminStaffPage() {
       .then((d) => {
         if (d.user) {
           setCurrentUser({
+            id: d.user.id || '',
             name: d.user.name || 'Admin',
             role: d.user.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'ADMIN',
+            email: d.user.email || '',
+            isRootAdmin: Boolean(d.user.isRootAdmin || d.user.email?.toLowerCase().trim() === 'kumarbajrang325@gmail.com'),
+            municipalityId: d.user.municipalityId || null,
           });
         }
       })
@@ -292,6 +311,20 @@ export default function AdminStaffPage() {
       setCreateAssignedOfficer('');
     }
   }, [createDept, createRole]);
+
+  useEffect(() => {
+    if (convertDept && convertRole === 'FIELD_WORKER') {
+      setLoadingConvertOfficers(true);
+      fetch(`/api/admin/staff?role=DEPARTMENT_OFFICER&departmentId=${convertDept}&status=active&limit=100`)
+        .then((r) => r.json())
+        .then((d) => setConvertDeptOfficers(d.items || []))
+        .catch(console.error)
+        .finally(() => setLoadingConvertOfficers(false));
+    } else {
+      setConvertDeptOfficers([]);
+      setConvertAssignedOfficer('');
+    }
+  }, [convertDept, convertRole]);
 
   // ── Fetch staff list ─────────────────────────────────────────────────────────
 
@@ -447,7 +480,29 @@ export default function AdminStaffPage() {
     }
   }
 
-  // ── Preflight & Safe Delete Alternatives ─────────────────────────────────────
+  // Preflight & Safe Delete Alternatives ─────────────────────────────────────
+  const [sameMunStaff, setSameMunStaff] = useState<StaffMember[]>([]);
+  const [loadingSameMunStaff, setLoadingSameMunStaff] = useState(false);
+
+  async function loadSameMunStaff(staff: StaffMember) {
+    setLoadingSameMunStaff(true);
+    try {
+      const url = staff.municipalityId
+        ? `/api/admin/staff?municipalityId=${encodeURIComponent(staff.municipalityId)}&limit=100&status=active`
+        : `/api/admin/staff?limit=100&status=active`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const d = await res.json();
+        setSameMunStaff(d.items || []);
+      } else {
+        setSameMunStaff([]);
+      }
+    } catch {
+      setSameMunStaff([]);
+    } finally {
+      setLoadingSameMunStaff(false);
+    }
+  }
 
   function openDelete(staff: StaffMember) {
     setDeleteTarget(staff);
@@ -456,6 +511,7 @@ export default function AdminStaffPage() {
     setOpenComplaintsAction('unassign');
     setReassignToStaffId('');
     setDeleteError('');
+    loadSameMunStaff(staff);
     fetchPreflight(staff.id);
   }
 
@@ -467,6 +523,14 @@ export default function AdminStaffPage() {
       if (res.ok) {
         const d = await res.json();
         setPreflightData(d);
+      } else {
+        const d = await res.json();
+        setDeleteError(d.message || 'Cannot inspect delete preflight.');
+        showGlobalError({
+          title: 'Preflight Blocked',
+          message: d.message || 'Cannot manage staff member.',
+          statusCode: res.status,
+        });
       }
     } catch (err) {
       console.error('Error fetching delete preflight:', err);
@@ -608,12 +672,28 @@ export default function AdminStaffPage() {
     setConverting(true);
     setConvertError('');
     try {
+      const needsDept = ['DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(convertRole);
+      if (needsDept && !convertDept) {
+        setConvertError('Department is required for this role.');
+        return;
+      }
+      if (convertRole === 'FIELD_WORKER' && !convertAssignedOfficer) {
+        setConvertError('Assigned Department Officer is required for Field Workers.');
+        return;
+      }
+      if (convertPassword && convertPassword.length < 8) {
+        setConvertError('Password must be at least 8 characters.');
+        return;
+      }
+
       const res = await fetch(`/api/admin/users/${conflictInfo.id}/convert`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           role: convertRole,
-          departmentId: ['DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(convertRole) ? (convertDept || null) : null,
+          departmentId: ['DEPARTMENT_OFFICER', 'FIELD_WORKER', 'DEPARTMENT_HEAD'].includes(convertRole) ? (convertDept || null) : null,
+          assignedOfficerId: convertRole === 'FIELD_WORKER' ? (convertAssignedOfficer || null) : null,
+          password: convertPassword || undefined,
         }),
       });
       const d = await res.json();
@@ -863,12 +943,43 @@ export default function AdminStaffPage() {
                       <td className="px-4 py-3 min-w-0 max-w-[140px] sm:max-w-none">
                         <div className="font-semibold text-slate-900 text-sm truncate">{staff.name}</div>
                         <div className="text-xs text-slate-500 mt-0.5 truncate">{staff.email}</div>
-                        <div className="mt-1">
-                          {staff.hasPassword ? (
-                            <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded-md">Password Set</span>
-                          ) : (
-                            <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md">Google Only</span>
-                          )}
+                        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                          {(() => {
+                            const isLocked = Boolean(staff.lockedUntil && new Date(staff.lockedUntil).getTime() > Date.now());
+                            if (!staff.isActive) {
+                              return (
+                                <span className="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-md">
+                                  Suspended
+                                </span>
+                              );
+                            }
+                            if (isLocked) {
+                              return (
+                                <span className="text-[11px] font-semibold text-amber-900 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded-md">
+                                  Locked
+                                </span>
+                              );
+                            }
+                            if (!staff.isAuthorized) {
+                              return (
+                                <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
+                                  Pending Approval
+                                </span>
+                              );
+                            }
+                            if (staff.hasPassword) {
+                              return (
+                                <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md">
+                                  Password Ready
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md">
+                                No password set
+                              </span>
+                            );
+                          })()}
                         </div>
                       </td>
                       <td className="px-4 py-3">{roleBadge(staff.role)}</td>
@@ -894,45 +1005,142 @@ export default function AdminStaffPage() {
                               <Activity className="w-4 h-4 text-slate-500" />
                             </Button>
                           </Link>
-                          {staff.role !== 'SUPER_ADMIN' && staff.email !== 'kumarbajrang325@gmail.com' && staff.email !== 'kumarbajrang0154@gmail.com' ? (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                title={staff.hasPassword || staff.loginId ? 'Reset Password' : 'Set Password'}
-                                data-testid={`credentials-btn-${staff.id}`}
-                                onClick={() => openPasswordModal(staff)}
-                              >
-                                <KeyRound className="w-4 h-4 text-amber-600" />
-                              </Button>
-                              <Button variant="ghost" size="sm" title="Reassign" onClick={() => openReassign(staff)}>
-                                <Users className="w-4 h-4 text-blue-600" />
-                              </Button>
-                              {staff.isActive ? (
-                                <Button variant="ghost" size="sm" title="Deactivate" onClick={() => setDeactivateTarget(staff)}>
-                                  <UserX className="w-4 h-4 text-rose-600" />
+                          {(() => {
+                            const isTargetRoot = Boolean(staff.isRootAdmin || staff.email?.toLowerCase().trim() === 'kumarbajrang325@gmail.com');
+                            const isSelf = staff.id === currentUser.id;
+                            const isTargetSuperAdmin = staff.role === 'SUPER_ADMIN';
+                            const isActorRoot = Boolean(currentUser.isRootAdmin || currentUser.email?.toLowerCase().trim() === 'kumarbajrang325@gmail.com');
+                            const isActorMunicipalAdmin = currentUser.role === 'ADMIN';
+                            const isDifferentMunicipality = Boolean(
+                              isActorMunicipalAdmin &&
+                              currentUser.municipalityId &&
+                              staff.municipalityId &&
+                              currentUser.municipalityId !== staff.municipalityId
+                            );
+
+                            if (isTargetRoot) {
+                              return (
+                                <span
+                                  className="text-[11px] font-semibold text-purple-950 bg-purple-100 border border-purple-300 px-2.5 py-0.5 rounded-full shadow-2xs"
+                                  title="Root admin is protected"
+                                >
+                                  Root Admin • Protected
+                                </span>
+                              );
+                            }
+
+                            if (isTargetSuperAdmin && !isActorRoot) {
+                              return (
+                                <span
+                                  className="text-[11px] font-semibold text-indigo-950 bg-indigo-100 border border-indigo-300 px-2.5 py-0.5 rounded-full shadow-2xs"
+                                  title="Super Admin accounts are protected"
+                                >
+                                  Protected
+                                </span>
+                              );
+                            }
+
+                            if (isDifferentMunicipality) {
+                              return (
+                                <span
+                                  className="text-[11px] font-semibold text-slate-600 bg-slate-100 border border-slate-300 px-2.5 py-0.5 rounded-full"
+                                  title="You can only manage staff of your own municipality"
+                                >
+                                  Other Mun
+                                </span>
+                              );
+                            }
+
+                            const isTargetLocked = Boolean(staff.lockedUntil && new Date(staff.lockedUntil).getTime() > Date.now());
+
+                            return (
+                              <>
+                                {isTargetLocked && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    title="Unlock Account"
+                                    data-testid={`unlock-btn-${staff.id}`}
+                                    className="text-amber-700 hover:text-amber-800 hover:bg-amber-50"
+                                    onClick={async () => {
+                                      try {
+                                        const res = await fetch(`/api/admin/staff/${staff.id}/unlock`, { method: 'POST' });
+                                        const d = await res.json();
+                                        if (res.ok) {
+                                          showGlobalError({
+                                            title: 'Account Unlocked',
+                                            message: `Successfully unlocked ${staff.name}'s account.`,
+                                          });
+                                          fetchStaff();
+                                        } else {
+                                          showGlobalError({
+                                            title: 'Unlock Failed',
+                                            message: d.message || 'Failed to unlock staff account.',
+                                            statusCode: res.status,
+                                          });
+                                        }
+                                      } catch {
+                                        showGlobalError({
+                                          title: 'Unlock Failed',
+                                          message: 'Network error occurred.',
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    <KeyRound className="w-4 h-4 text-amber-600" />
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  title={staff.hasPassword || staff.loginId ? 'Reset Password' : 'Set Password'}
+                                  data-testid={`credentials-btn-${staff.id}`}
+                                  onClick={() => openPasswordModal(staff)}
+                                >
+                                  <KeyRound className="w-4 h-4 text-amber-600" />
                                 </Button>
-                              ) : (
-                                <Button variant="ghost" size="sm" title="Reactivate" onClick={() => handleReactivate(staff)}>
-                                  <UserCheck className="w-4 h-4 text-emerald-600" />
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  title={isSelf ? 'Cannot reassign own account' : 'Reassign'}
+                                  disabled={isSelf}
+                                  onClick={() => openReassign(staff)}
+                                >
+                                  <Users className="w-4 h-4 text-blue-600" />
                                 </Button>
-                              )}
-                              {/* Delete — visible to both ADMIN and SUPER_ADMIN, blocked on SUPER_ADMIN targets */}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                title="Delete Staff"
-                                data-testid={`delete-staff-${staff.id}`}
-                                onClick={() => openDelete(staff)}
-                              >
-                                <Trash2 className="w-4 h-4 text-rose-500" />
-                              </Button>
-                            </>
-                          ) : (
-                            <span className="text-[11px] font-semibold text-indigo-950 bg-indigo-100 border border-indigo-300 px-2.5 py-0.5 rounded-full shadow-2xs" title="Super Admin accounts are permanent and protected">
-                              Protected
-                            </span>
-                          )}
+                                {staff.isActive ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    title={isSelf ? 'You cannot deactivate your own account' : 'Deactivate'}
+                                    disabled={isSelf}
+                                    onClick={() => setDeactivateTarget(staff)}
+                                  >
+                                    <UserX className="w-4 h-4 text-rose-600" />
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    title="Reactivate"
+                                    onClick={() => handleReactivate(staff)}
+                                  >
+                                    <UserCheck className="w-4 h-4 text-emerald-600" />
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  title={isSelf ? 'You cannot delete your own account' : 'Delete Staff'}
+                                  disabled={isSelf}
+                                  data-testid={`delete-staff-${staff.id}`}
+                                  onClick={() => openDelete(staff)}
+                                >
+                                  <Trash2 className="w-4 h-4 text-rose-500" />
+                                </Button>
+                              </>
+                            );
+                          })()}
                         </div>
                       </td>
                     </tr>
@@ -1449,38 +1657,55 @@ export default function AdminStaffPage() {
                             Action for {preflightData.blockers.openAssignedComplaints} Open Complaint(s) <span className="text-rose-500">*</span>:
                           </label>
                           <div className="space-y-2 text-xs">
-                            <label className="flex items-start gap-2 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="openAction"
-                                checked={openComplaintsAction === 'reassign'}
-                                onChange={() => setOpenComplaintsAction('reassign')}
-                                className="mt-0.5"
-                              />
-                              <div>
-                                <span className="font-semibold text-slate-900">Reassign open complaints to another active staff member</span>
-                                <p className="text-[11px] text-slate-500">Transfers open workload to another active team member in the municipality.</p>
-                              </div>
-                            </label>
+                            {(() => {
+                              const candidates = sameMunStaff.length > 0
+                                ? sameMunStaff.filter((s) => s.id !== deleteTarget?.id && s.isActive && s.role !== 'CITIZEN')
+                                : data?.items?.filter((s) => s.id !== deleteTarget?.id && s.isActive && s.role !== 'CITIZEN' && (!deleteTarget?.municipalityId || !s.municipalityId || s.municipalityId === deleteTarget.municipalityId)) || [];
 
-                            {openComplaintsAction === 'reassign' && (
-                              <div className="ml-5 mt-1.5">
-                                <select
-                                  value={reassignToStaffId}
-                                  onChange={(e) => setReassignToStaffId(e.target.value)}
-                                  className="flex h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                >
-                                  <option value="">— Select Target Staff Member —</option>
-                                  {data?.items
-                                    ?.filter((s) => s.id !== deleteTarget?.id && s.isActive && s.role !== 'CITIZEN')
-                                    ?.map((s) => (
-                                      <option key={s.id} value={s.id}>
-                                        {s.name} ({s.role} · {s.departmentName || 'General'})
-                                      </option>
-                                    ))}
-                                </select>
-                              </div>
-                            )}
+                              const hasCandidates = candidates.length > 0;
+
+                              return (
+                                <>
+                                  <label className={`flex items-start gap-2 ${hasCandidates ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+                                    <input
+                                      type="radio"
+                                      name="openAction"
+                                      checked={openComplaintsAction === 'reassign'}
+                                      disabled={!hasCandidates}
+                                      onChange={() => {
+                                        if (hasCandidates) setOpenComplaintsAction('reassign');
+                                      }}
+                                      className="mt-0.5"
+                                    />
+                                    <div>
+                                      <span className="font-semibold text-slate-900">Reassign open complaints to another active staff member</span>
+                                      <p className="text-[11px] text-slate-500">
+                                        {hasCandidates
+                                          ? 'Transfers open workload to another active team member in the same municipality.'
+                                          : 'No other active staff members exist in this municipality to receive complaints.'}
+                                      </p>
+                                    </div>
+                                  </label>
+
+                                  {hasCandidates && openComplaintsAction === 'reassign' && (
+                                    <div className="ml-5 mt-1.5">
+                                      <select
+                                        value={reassignToStaffId}
+                                        onChange={(e) => setReassignToStaffId(e.target.value)}
+                                        className="flex h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      >
+                                        <option value="">— Select Target Staff Member —</option>
+                                        {candidates.map((s) => (
+                                          <option key={s.id} value={s.id}>
+                                            {s.name} ({s.role} · {s.departmentName || 'General'})
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            })()}
 
                             <label className="flex items-start gap-2 cursor-pointer pt-1">
                               <input
@@ -1491,7 +1716,7 @@ export default function AdminStaffPage() {
                                 className="mt-0.5"
                               />
                               <div>
-                                <span className="font-semibold text-slate-900">Unassign and return to triage pool</span>
+                                <span className="font-semibold text-slate-900">Unassign and return to triage pool (Recommended)</span>
                                 <p className="text-[11px] text-slate-500">
                                   Complaints are not deleted. Assignee is cleared and status is reset to PENDING_DEPT_REVIEW for re-triage.
                                 </p>
@@ -1678,8 +1903,8 @@ export default function AdminStaffPage() {
                       </Button>
                     )}
 
-                    {/* 3. Convert citizen -> staff */}
-                    {conflictInfo.status === 'citizen' && (
+                    {/* 3. Convert citizen / pending -> staff */}
+                    {(conflictInfo.status === 'citizen' || conflictInfo.status === 'pending') && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1687,11 +1912,13 @@ export default function AdminStaffPage() {
                         onClick={() => {
                           setConvertRole('DEPARTMENT_OFFICER');
                           setConvertDept('');
+                          setConvertAssignedOfficer('');
+                          setConvertPassword('');
                           setConvertError('');
                           setShowConvertModal(true);
                         }}
                       >
-                        <UserCheck className="w-3.5 h-3.5 mr-2 text-indigo-600" /> Convert Citizen to Staff
+                        <UserCheck className="w-3.5 h-3.5 mr-2 text-indigo-600" /> Convert to Staff & Set Password
                       </Button>
                     )}
                   </div>
@@ -1705,7 +1932,7 @@ export default function AdminStaffPage() {
           </DialogContent>
         </Dialog>
 
-        {/* ── Convert Citizen -> Staff Dialog ──────────────────────────────── */}
+        {/* ── Convert Account -> Staff Dialog ──────────────────────────────── */}
         <Dialog open={showConvertModal} onOpenChange={setShowConvertModal}>
           <DialogContent className="max-w-md">
             <DialogHeader>
@@ -1723,18 +1950,25 @@ export default function AdminStaffPage() {
                 <label className="text-xs font-semibold text-slate-700 block mb-1">Target Staff Role</label>
                 <select
                   value={convertRole}
-                  onChange={(e) => { setConvertRole(e.target.value); setConvertDept(''); }}
+                  onChange={(e) => {
+                    setConvertRole(e.target.value);
+                    setConvertDept('');
+                    setConvertAssignedOfficer('');
+                  }}
                   className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="DEPARTMENT_HEAD">Department Head</option>
                   <option value="DEPARTMENT_OFFICER">Department Officer</option>
                   <option value="FIELD_WORKER">Field Worker</option>
+                  <option value="ADMIN">Super Admin</option>
                 </select>
               </div>
 
-              {['DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(convertRole) && (
+              {['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(convertRole) && (
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Assigned Department <span className="text-rose-500">*</span></label>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Assigned Department {['DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(convertRole) && <span className="text-rose-500">*</span>}
+                  </label>
                   <select
                     value={convertDept}
                     onChange={(e) => setConvertDept(e.target.value)}
@@ -1745,6 +1979,47 @@ export default function AdminStaffPage() {
                   </select>
                 </div>
               )}
+
+              {convertRole === 'FIELD_WORKER' && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Assigned Department Officer <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={convertAssignedOfficer}
+                    onChange={(e) => setConvertAssignedOfficer(e.target.value)}
+                    disabled={!convertDept || loadingConvertOfficers || convertDeptOfficers.length === 0}
+                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                  >
+                    <option value="">
+                      {!convertDept
+                        ? '— Select department first —'
+                        : loadingConvertOfficers
+                        ? 'Loading officers...'
+                        : convertDeptOfficers.length === 0
+                        ? 'No officers in department'
+                        : '— Select Officer —'}
+                    </option>
+                    {convertDeptOfficers.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name} ({o.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">
+                  Initial Password <span className="text-slate-400 font-normal">(optional — min 8 chars)</span>
+                </label>
+                <Input
+                  type="password"
+                  placeholder="Set login password for staff"
+                  value={convertPassword}
+                  onChange={(e) => setConvertPassword(e.target.value)}
+                />
+              </div>
             </div>
 
             <DialogFooter>
@@ -1752,7 +2027,11 @@ export default function AdminStaffPage() {
               <Button
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
                 onClick={handleConvertCitizen}
-                disabled={converting || (['DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(convertRole) && !convertDept)}
+                disabled={
+                  converting ||
+                  (['DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(convertRole) && !convertDept) ||
+                  (convertRole === 'FIELD_WORKER' && !convertAssignedOfficer)
+                }
               >
                 {converting ? 'Converting...' : 'Confirm Conversion'}
               </Button>
@@ -1766,28 +2045,42 @@ export default function AdminStaffPage() {
             <DialogHeader>
               <DialogTitle>Reassign Open Complaints</DialogTitle>
               <DialogDescription>
-                Transfer open complaints from <strong className="text-slate-900">{deleteTarget?.name}</strong> to another active staff member.
+                Transfer open complaints from <strong className="text-slate-900">{deleteTarget?.name}</strong> to another active staff member in the same municipality.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-2">
-              <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">Transfer To Staff Member</label>
-                <select
-                  value={targetStaffIdForComplaints}
-                  onChange={(e) => setTargetStaffIdForComplaints(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">— Select Active Staff Member —</option>
-                  {data?.items
-                    ?.filter((s) => s.id !== deleteTarget?.id && s.isActive)
-                    ?.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.role} · {s.departmentName || 'General'})
-                      </option>
-                    ))}
-                </select>
-              </div>
+              {(() => {
+                const candidates = sameMunStaff.length > 0
+                  ? sameMunStaff.filter((s) => s.id !== deleteTarget?.id && s.isActive && s.role !== 'CITIZEN')
+                  : data?.items?.filter((s) => s.id !== deleteTarget?.id && s.isActive && s.role !== 'CITIZEN' && (!deleteTarget?.municipalityId || !s.municipalityId || s.municipalityId === deleteTarget.municipalityId)) || [];
+
+                if (candidates.length === 0) {
+                  return (
+                    <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-md">
+                      No other active staff members found in this municipality. Open complaints cannot be transferred cross-municipality. Use the permanent delete flow to unassign complaints back to the triage pool.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">Transfer To Staff Member</label>
+                    <select
+                      value={targetStaffIdForComplaints}
+                      onChange={(e) => setTargetStaffIdForComplaints(e.target.value)}
+                      className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">— Select Active Staff Member —</option>
+                      {candidates.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.role} · {s.departmentName || 'General'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })()}
             </div>
 
             <DialogFooter>
@@ -1862,7 +2155,7 @@ export default function AdminStaffPage() {
                   {bulkDeleteStep}
                 </span>
                 <span className="text-xs font-semibold tracking-wider text-rose-600 uppercase">
-                  Bulk Permanent Deletion • Step {bulkDeleteStep} of 3
+                  Confirm Bulk Deletion • Bulk Permanent Deletion • Step {bulkDeleteStep} of 3
                 </span>
               </div>
               <DialogTitle className="text-lg sm:text-xl font-bold text-slate-900">

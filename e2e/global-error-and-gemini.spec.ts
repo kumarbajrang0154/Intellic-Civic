@@ -185,7 +185,7 @@ test.describe('Global Error Popup (All Portals) & Gemini Visibility Suite', () =
         contentType: 'application/json',
         body: JSON.stringify({
           ok: false,
-          model: 'gemini-3.8-flash',
+          model: 'gemini-3.1-flash-lite',
           status: 403,
           latencyMs: 142,
           error: 'The caller does not have permission for the requested project',

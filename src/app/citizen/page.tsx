@@ -76,6 +76,8 @@ export default function CitizenDashboardPage() {
     }
   }, [user.id]);
 
+  const fetchComplaintsRef = React.useRef<any>(null);
+
   React.useEffect(() => {
     loadDrafts();
 
@@ -84,7 +86,7 @@ export default function CitizenDashboardPage() {
         const { syncDrafts } = await import('@/lib/offline-queue');
         await syncDrafts(user.id || '');
         await loadDrafts();
-        fetchComplaints(true);
+        fetchComplaintsRef.current?.(true);
       }
     };
 
@@ -94,7 +96,7 @@ export default function CitizenDashboardPage() {
     const handleDraftsChanged = () => loadDrafts();
     const handleDraftSynced = (e: any) => {
       loadDrafts();
-      fetchComplaints(true);
+      fetchComplaintsRef.current?.(true);
       toast.success(`Complaint synced successfully! Ticket #${e.detail?.ticketId || ''}`);
     };
     const handleAuthRequired = () => {
@@ -109,10 +111,10 @@ export default function CitizenDashboardPage() {
       }
     };
 
-    // 30s retry timer while drafts are pending/failed and online
+    // 4s retry timer while drafts are syncing/pending and online
     const intervalTimer = setInterval(() => {
       runSync();
-    }, 30000);
+    }, 4000);
 
     window.addEventListener('intellicivic:drafts-changed', handleDraftsChanged);
     window.addEventListener('intellicivic:draft-synced', handleDraftSynced);
@@ -230,6 +232,8 @@ export default function CitizenDashboardPage() {
     [page, statusFilter, debouncedSearch, fromDate, toDate],
   );
 
+  fetchComplaintsRef.current = fetchComplaints;
+
   React.useEffect(() => {
     fetchComplaints();
   }, [fetchComplaints]);
@@ -237,7 +241,7 @@ export default function CitizenDashboardPage() {
   React.useEffect(() => {
     const interval = setInterval(() => {
       fetchComplaints(true);
-    }, 30000);
+    }, 4000);
     return () => clearInterval(interval);
   }, [fetchComplaints]);
 

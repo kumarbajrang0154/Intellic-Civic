@@ -11,21 +11,21 @@ export async function POST(
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 
-  let body: { role?: string; departmentId?: string | null; assignedOfficerId?: string | null };
+  let body: { role?: string; departmentId?: string | null; assignedOfficerId?: string | null; password?: string | null };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ message: 'Invalid JSON request body.' }, { status: 400 });
   }
 
-  const { role, departmentId, assignedOfficerId } = body;
+  const { role, departmentId, assignedOfficerId, password } = body;
   if (!role) {
     return NextResponse.json({ message: 'role is required.' }, { status: 400 });
   }
 
   const result = await convertUserToStaff(
     params.id,
-    { role: role as StaffRole, departmentId, assignedOfficerId },
+    { role: role as StaffRole, departmentId, assignedOfficerId, password: password || undefined },
     auth.admin,
   );
 

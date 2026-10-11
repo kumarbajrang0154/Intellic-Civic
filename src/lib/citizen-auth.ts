@@ -51,18 +51,31 @@ export async function requireCitizen(): Promise<RequireCitizenResult> {
     };
   }
 
-  const dbUser = await prisma.user.findFirst({
-    where: { OR: orConditions },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      mobileNumber: true,
-      role: true,
-      isSuspended: true,
-      deletedAt: true,
-    },
-  });
+  const dbUser = userId
+    ? await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          mobileNumber: true,
+          role: true,
+          isSuspended: true,
+          deletedAt: true,
+        },
+      })
+    : await prisma.user.findFirst({
+        where: { OR: orConditions },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          mobileNumber: true,
+          role: true,
+          isSuspended: true,
+          deletedAt: true,
+        },
+      });
 
   if (!dbUser) {
     return {

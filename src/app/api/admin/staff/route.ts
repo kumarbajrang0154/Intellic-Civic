@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
     search: searchParams.get('search') ?? undefined,
     role: searchParams.get('role') ?? undefined,
     departmentId: searchParams.get('departmentId') ?? undefined,
+    municipalityId: searchParams.get('municipalityId') ?? undefined,
     status: (searchParams.get('status') as 'active' | 'inactive' | 'all') ?? 'all',
     page: parseInt(searchParams.get('page') ?? '1', 10),
     limit: parseInt(searchParams.get('limit') ?? '20', 10),

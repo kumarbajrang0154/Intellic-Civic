@@ -342,9 +342,9 @@ Description: ${complaintDescription}
 Evaluate whether the photo plausibly shows the described civic issue or matches the category. Return JSON with verified (bool), confidence (0-1), reasoning (str).`;
 
   const response = await callWithRetry(
-    () => withTimeout(model.generateContent([prompt, imagePart]), 20000, 'Gemini photo verification timed out after 20s'),
+    () => withTimeout(model.generateContent([prompt, imagePart]), 8000, 'Gemini photo verification timed out after 8s'),
     1,
-    [1000],
+    [500],
     'Gemini Photo Verification',
   );
   const parsed = JSON.parse(response.response.text());
@@ -429,9 +429,9 @@ Return strictly JSON matching schema.`;
   }
 
   const response = await callWithRetry(
-    () => withTimeout(model.generateContent(contentParts), 20000, 'Gemini complaint routing classification timed out after 20s'),
-    2,
-    [1000, 2000],
+    () => withTimeout(model.generateContent(contentParts), 8000, 'Gemini complaint routing classification timed out after 8s'),
+    1,
+    [500],
     'Gemini Classification',
   );
   const parsed = JSON.parse(response.response.text());
