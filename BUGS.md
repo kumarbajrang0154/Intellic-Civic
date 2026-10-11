@@ -32,3 +32,13 @@
 - **Issue**: In `e2e/citizen-offline-submission.spec.ts`, mobile 375px test failed waiting for visible `h1` element (`File a New Complaint`).
 - **Root Cause**: In `src/app/citizen/complaints/new/page.tsx`, the `<h1>` element had `hidden md:block` classes, rendering it invisible on mobile viewports.
 - **Resolution**: Replaced `hidden md:block` with responsive typography `text-xl sm:text-2xl` so the heading is visible on both mobile and desktop screens.
+
+### 6. Admin Staff Permanent Deletion & Atomic Impact Resolution
+- **Issue**: Admins needed the ability to permanently delete staff members with full clarity of blockers, alternatives (reassign, deactivate, archive), and safe cascading data handling without schema drops.
+- **Root Cause**: Staff deletion was previously blocked or failed due to active foreign key references (assigned complaints, field worker hierarchy, evidence authorship, audit log foreign keys, notifications).
+- **Resolution**:
+  - Built comprehensive impact preflight in `src/lib/staff-dept-store.ts` calculating active complaints, worker subordinates, evidence, audit logs, and safeguards (self, super admin, last admin, other municipality).
+  - Implemented `permanentlyDeleteUser` using a single atomic `prisma.$transaction`: reassigns or unassigns open complaints, detaches worker subordinates, preserves evidence rows with author name snapshots, snapshots audit log actor info into metadata, and creates a clean `STAFF_PERMANENTLY_DELETED` audit log without leaking sensitive hashes.
+  - Implemented 3-step modal on Admin Staff UI (`src/app/admin/staff/page.tsx`) with impact assessment, alternatives, and explicit confirmation typing.
+  - In `e2e/staff-permanent-delete.spec.ts`, split Desktop (1280px) and Mobile (375px) tests into dedicated blocks with 90s timeouts to ensure resilient end-to-end execution.
+

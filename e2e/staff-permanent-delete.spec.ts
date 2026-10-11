@@ -615,14 +615,15 @@ test.describe('Admin Permanent Staff Deletion Suite', () => {
     expect(await prisma.user.findUnique({ where: { id: superAdmin!.id } })).not.toBeNull();
   });
 
-  test('8. UI 3-Step Permanent Delete flow at 1280px and 375px', async ({ page, request }) => {
+  test('8a. UI 3-Step Permanent Delete flow at 1280px Desktop', async ({ page, request }) => {
+    test.setTimeout(90000);
     const cookie = await getAdminContext(request);
     const ts = Date.now();
-    const staffEmail = `ui_delete_test_${ts}@example.com`;
+    const staffEmail = `ui_desk_del_${ts}@example.com`;
 
     const staff = await prisma.user.create({
       data: {
-        name: `UI Delete Test Officer ${ts}`,
+        name: `UI Desktop Officer ${ts}`,
         email: staffEmail,
         role: 'DEPARTMENT_OFFICER',
         authProvider: 'GOOGLE',
@@ -633,7 +634,7 @@ test.describe('Admin Permanent Staff Deletion Suite', () => {
     });
 
     const complaint = await createComplaint({
-      title: `UI Test Case For Impact ${ts}`,
+      title: `UI Desktop Case Impact ${ts}`,
       description: 'Test complaint details for impact report view',
       status: 'ASSIGNED',
       assignedFieldWorkerId: staff.id,
@@ -646,7 +647,6 @@ test.describe('Admin Permanent Staff Deletion Suite', () => {
       path: '/',
     }]);
 
-    // 8a. Test at 1280px Desktop
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto(`${BASE}/admin/staff`);
     await page.waitForLoadState('networkidle');
@@ -699,17 +699,19 @@ test.describe('Admin Permanent Staff Deletion Suite', () => {
     await expect(page.getByText('Staff Permanently Deleted')).toBeVisible({ timeout: 15000 });
     await expect(page.getByText(/has been permanently deleted from the database/i)).toBeVisible();
 
-    // Close the popup by clicking outside or close button if present
-    const closeBtn = page.getByRole('button', { name: /close|ok|dismiss/i }).first();
-    if (await closeBtn.isVisible().catch(() => false)) {
-      await closeBtn.click();
-    }
+    // Cleanup complaint
+    await prisma.complaint.delete({ where: { id: complaint.id } }).catch(() => {});
+  });
 
-    // 8b. Test at 375px Mobile Viewport
-    const mobileStaffEmail = `mobile_del_${ts}@example.com`;
+  test('8b. UI 3-Step Permanent Delete flow at 375px Mobile Viewport', async ({ page, request }) => {
+    test.setTimeout(90000);
+    const cookie = await getAdminContext(request);
+    const ts = Date.now();
+    const mobileStaffEmail = `ui_mob_del_${ts}@example.com`;
+
     const mobileStaff = await prisma.user.create({
       data: {
-        name: `Mobile Staff ${ts}`,
+        name: `UI Mobile Staff ${ts}`,
         email: mobileStaffEmail,
         role: 'FIELD_WORKER',
         authProvider: 'GOOGLE',
@@ -718,6 +720,13 @@ test.describe('Admin Permanent Staff Deletion Suite', () => {
         municipalityId: defaultMun.id,
       },
     });
+
+    await page.context().addCookies([{
+      name: 'ic_access_token',
+      value: cookie.replace('ic_access_token=', ''),
+      domain: 'localhost',
+      path: '/',
+    }]);
 
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto(`${BASE}/admin/staff`);
@@ -757,9 +766,6 @@ test.describe('Admin Permanent Staff Deletion Suite', () => {
 
     // Verify popup on mobile
     await expect(page.getByText('Staff Permanently Deleted')).toBeVisible({ timeout: 15000 });
-
-    // Cleanup
-    await prisma.complaint.delete({ where: { id: complaint.id } });
   });
 
   test('9. Passwords and hashes are never leaked in audit logs or API responses', async ({ request }) => {
