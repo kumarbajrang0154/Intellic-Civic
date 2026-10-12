@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { decodeJwtToken } from '@/lib/auth-jwt';
+import { decodeJwtToken, verifyJwtToken } from '@/lib/auth-jwt';
 import { getOrCreateCitizenProfile } from '@/lib/user-store';
 import { isRootAdmin } from '@/lib/staff-dept-store';
 
@@ -28,7 +28,7 @@ export async function GET() {
       return NextResponse.json({ user: null }, { status: 401 });
     }
 
-    const payload = decodeJwtToken(accessToken);
+    const payload = await verifyJwtToken(accessToken);
     if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
       return NextResponse.json({ user: null }, { status: 401 });
     }

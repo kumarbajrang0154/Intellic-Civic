@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { decodeJwtToken } from '@/lib/auth-jwt';
+import { verifyJwtToken } from '@/lib/auth-jwt';
 
 function getDashboardForRole(role?: string): string {
   switch (role) {
@@ -20,12 +20,12 @@ function getDashboardForRole(role?: string): string {
   }
 }
 
-export default function RootPage() {
+export default async function RootPage() {
   const cookieStore = cookies();
   const token = cookieStore.get('ic_access_token')?.value;
 
   if (token) {
-    const payload = decodeJwtToken(token);
+    const payload = await verifyJwtToken(token);
     if (payload && (!payload.exp || payload.exp * 1000 > Date.now())) {
       if (payload.isAuthorized === false) {
         redirect('/pending-approval');

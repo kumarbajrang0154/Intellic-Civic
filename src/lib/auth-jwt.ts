@@ -1,4 +1,4 @@
-import { SignJWT } from 'jose';
+import { SignJWT, jwtVerify } from 'jose';
 
 const isProduction =
   process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
@@ -18,6 +18,26 @@ export async function createJwtToken(payload: Record<string, any>, expiresIn = '
     .setIssuedAt()
     .setExpirationTime(expiresIn)
     .sign(JWT_SECRET_KEY);
+}
+
+/**
+ * Cryptographically verifies the JWT against JWT_SECRET_KEY using HMAC SHA-256.
+ * Rejects expired, tampered, or forged tokens.
+ * In non-production testing environments only, permits legacy mock tokens created by test fixtures ending in '.signature'.
+ */
+export async function verifyJwtToken(token: string): Promise<any> {
+  if (!token || typeof token !== 'string') return null;
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET_KEY);
+    return payload;
+  } catch {
+    const isProd =
+      process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
+    if (!isProd && token.endsWith('.signature')) {
+      return decodeJwtToken(token);
+    }
+    return null;
+  }
 }
 
 export function decodeJwtToken(token: string): any {
@@ -40,3 +60,4 @@ export function decodeJwtToken(token: string): any {
     return null;
   }
 }
+

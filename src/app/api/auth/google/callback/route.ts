@@ -30,10 +30,18 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const code = searchParams.get('code');
   const error = searchParams.get('error');
+  const state = searchParams.get('state');
+  const cookieState = req.cookies.get('oauth_state')?.value;
 
   // Google cancelled or denied
   if (error || !code) {
     return NextResponse.redirect(new URL('/login/staff?error=google_cancelled', frontendUrl));
+  }
+
+  // Validate state against CSRF if state cookie was set
+  if (cookieState && state && state !== cookieState) {
+    console.warn('[SECURITY] Google OAuth CSRF state mismatch detected.');
+    return NextResponse.redirect(new URL('/login/staff?error=csrf_detected', frontendUrl));
   }
 
   try {

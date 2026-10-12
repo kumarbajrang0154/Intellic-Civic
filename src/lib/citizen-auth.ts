@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { decodeJwtToken } from '@/lib/auth-jwt';
+import { decodeJwtToken, verifyJwtToken } from '@/lib/auth-jwt';
 import prisma from '@/lib/prisma';
 
 export interface CitizenAuthPayload {
@@ -27,7 +27,7 @@ export async function requireCitizen(): Promise<RequireCitizenResult> {
     };
   }
 
-  const payload = decodeJwtToken(token);
+  const payload = await verifyJwtToken(token);
   if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
     return {
       authorized: false,

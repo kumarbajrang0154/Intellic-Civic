@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeJwtToken } from '@/lib/auth-jwt';
+import { decodeJwtToken, verifyJwtToken } from '@/lib/auth-jwt';
 import {
   listUserNotifications,
   markAllNotificationsRead,
@@ -9,13 +9,13 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-function getAuthenticatedUserId(): { userId: string } | { response: NextResponse } {
+async function getAuthenticatedUserId(): Promise<{ userId: string } | { response: NextResponse }> {
   const cookieStore = cookies();
   const token = cookieStore.get('ic_access_token')?.value;
   if (!token) {
     return { response: NextResponse.json({ message: 'Authentication required' }, { status: 401 }) };
   }
-  const payload = decodeJwtToken(token);
+  const payload = await verifyJwtToken(token);
   if (!payload || !payload.sub || (payload.exp && payload.exp * 1000 < Date.now())) {
     return { response: NextResponse.json({ message: 'Session expired or invalid' }, { status: 401 }) };
   }
@@ -24,7 +24,7 @@ function getAuthenticatedUserId(): { userId: string } | { response: NextResponse
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = getAuthenticatedUserId();
+    const auth = await getAuthenticatedUserId();
     if ('response' in auth) return auth.response;
 
     const userId = auth.userId;
@@ -35,8 +35,12 @@ export async function GET(req: NextRequest) {
     const result = await listUserNotifications(userId, { unreadOnly, limit });
     return NextResponse.json(result);
   } catch (error: any) {
+    console.error('[Notifications GET Error]', error);
     return NextResponse.json(
-      { message: 'Failed to fetch notifications', error: error.message },
+      {
+        message: 'Failed to fetch notifications',
+        ...(process.env.NODE_ENV !== 'production' ? { error: error?.message } : {}),
+      },
       { status: 500 },
     );
   }
@@ -44,7 +48,7 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const auth = getAuthenticatedUserId();
+    const auth = await getAuthenticatedUserId();
     if ('response' in auth) return auth.response;
 
     const userId = auth.userId;
@@ -67,8 +71,12 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    console.error('[Notifications PATCH Error]', error);
     return NextResponse.json(
-      { message: 'Failed to update notification', error: error.message },
+      {
+        message: 'Failed to update notification',
+        ...(process.env.NODE_ENV !== 'production' ? { error: error?.message } : {}),
+      },
       { status: 500 },
     );
   }

@@ -30,6 +30,26 @@ const nextConfig = {
         source: '/:path*',
         headers: [
           {
+            key: 'X-Frame-Options',
+            value: 'SAMEORIGIN',
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
+          },
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=31536000; includeSubDomains; preload',
+          },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(self), microphone=(self), geolocation=(self)',
+          },
+          {
             key: 'Cache-Control',
             value: 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
           },

@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeJwtToken } from '@/lib/auth-jwt';
+import { decodeJwtToken, verifyJwtToken } from '@/lib/auth-jwt';
 import { getComplaintById } from '@/lib/complaints-store';
 import prisma from '@/lib/prisma';
 
@@ -18,8 +18,8 @@ export async function GET(
       return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
     }
 
-    const payload = decodeJwtToken(accessToken);
-    if (!payload || !payload.sub) {
+    const payload = await verifyJwtToken(accessToken);
+    if (!payload || !payload.sub || (payload.exp && payload.exp * 1000 < Date.now())) {
       return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -44,8 +44,13 @@ export async function GET(
 
     return NextResponse.json(complaint);
   } catch (error: any) {
+    console.error('[Complaint Detail Error]', error);
     return NextResponse.json(
-      { statusCode: 500, message: 'Internal server error', error: error.message },
+      {
+        statusCode: 500,
+        message: 'Internal server error',
+        ...(process.env.NODE_ENV !== 'production' ? { error: error?.message } : {}),
+      },
       { status: 500 },
     );
   }
@@ -63,8 +68,8 @@ export async function DELETE(
       return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
     }
 
-    const payload = decodeJwtToken(accessToken);
-    if (!payload || !payload.sub) {
+    const payload = await verifyJwtToken(accessToken);
+    if (!payload || !payload.sub || (payload.exp && payload.exp * 1000 < Date.now())) {
       return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -117,8 +122,13 @@ export async function DELETE(
       message: 'Complaint deleted successfully.',
     });
   } catch (error: any) {
+    console.error('[Complaint Delete Error]', error);
     return NextResponse.json(
-      { statusCode: 500, message: 'Internal server error', error: error.message },
+      {
+        statusCode: 500,
+        message: 'Internal server error',
+        ...(process.env.NODE_ENV !== 'production' ? { error: error?.message } : {}),
+      },
       { status: 500 },
     );
   }

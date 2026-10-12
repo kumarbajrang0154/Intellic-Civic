@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { createJwtToken, decodeJwtToken } from '@/lib/auth-jwt';
+import { createJwtToken, decodeJwtToken, verifyJwtToken } from '@/lib/auth-jwt';
 
 export async function POST() {
   try {
@@ -14,7 +14,7 @@ export async function POST() {
       );
     }
 
-    const payload = decodeJwtToken(refreshToken);
+    const payload = await verifyJwtToken(refreshToken);
     if (!payload || payload.type !== 'refresh' || (payload.exp && payload.exp * 1000 < Date.now())) {
       const errorResponse = NextResponse.json(
         { statusCode: 401, message: 'Invalid or expired refresh token' },
@@ -54,9 +54,15 @@ export async function POST() {
 
     return response;
   } catch (error: any) {
+    console.error('[Refresh Token Error]', error);
     return NextResponse.json(
-      { statusCode: 500, message: 'Internal server error', error: error.message },
+      {
+        statusCode: 500,
+        message: 'Internal server error',
+        ...(process.env.NODE_ENV !== 'production' ? { error: error?.message } : {}),
+      },
       { status: 500 },
     );
   }
 }
+

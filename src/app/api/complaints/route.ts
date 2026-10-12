@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeJwtToken } from '@/lib/auth-jwt';
+import { decodeJwtToken, verifyJwtToken } from '@/lib/auth-jwt';
 import { requireCitizen } from '@/lib/citizen-auth';
 import { createComplaint, listComplaints } from '@/lib/complaints-store';
 import prisma from '@/lib/prisma';
@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
     }
 
-    const payload = decodeJwtToken(accessToken);
-    if (!payload) {
+    const payload = await verifyJwtToken(accessToken);
+    if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
       return NextResponse.json({ statusCode: 401, message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -89,8 +89,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error: any) {
+    console.error('[Complaints GET Error]', error);
     return NextResponse.json(
-      { statusCode: 500, message: 'Internal server error', error: error.message },
+      {
+        statusCode: 500,
+        message: 'Internal server error',
+        ...(process.env.NODE_ENV !== 'production' ? { error: error?.message } : {}),
+      },
       { status: 500 },
     );
   }
@@ -215,8 +220,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(newComplaint, { status: 201 });
   } catch (error: any) {
+    console.error('[Complaints POST Error]', error);
     return NextResponse.json(
-      { statusCode: 500, message: 'Internal server error', error: error.message },
+      {
+        statusCode: 500,
+        message: 'Internal server error',
+        ...(process.env.NODE_ENV !== 'production' ? { error: error?.message } : {}),
+      },
       { status: 500 },
     );
   }

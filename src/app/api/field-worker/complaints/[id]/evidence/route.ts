@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeJwtToken } from '@/lib/auth-jwt';
+import { decodeJwtToken, verifyJwtToken } from '@/lib/auth-jwt';
 import { uploadWorkEvidence } from '@/services/fieldWorkerService';
 
 export async function POST(
@@ -15,8 +15,8 @@ export async function POST(
       return NextResponse.json({ statusCode: 401, message: 'Unauthorized session' }, { status: 401 });
     }
 
-    const payload = decodeJwtToken(accessToken);
-    if (!payload || !payload.sub) {
+    const payload = await verifyJwtToken(accessToken);
+    if (!payload || !payload.sub || (payload.exp && payload.exp * 1000 < Date.now())) {
       return NextResponse.json({ statusCode: 401, message: 'Unauthorized session' }, { status: 401 });
     }
 
@@ -59,9 +59,15 @@ export async function POST(
 
     return NextResponse.json({ success: true, message: result.message, evidence: result.evidence }, { status: 201 });
   } catch (error: any) {
+    console.error('[Field Worker Evidence Error]', error);
     return NextResponse.json(
-      { statusCode: 500, message: 'Internal server error', error: error.message },
+      {
+        statusCode: 500,
+        message: 'Internal server error',
+        ...(process.env.NODE_ENV !== 'production' ? { error: error?.message } : {}),
+      },
       { status: 500 },
     );
   }
 }
+

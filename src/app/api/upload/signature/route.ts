@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
+import { verifyJwtToken } from '@/lib/auth-jwt';
 
 export async function POST() {
   try {
@@ -10,6 +11,14 @@ export async function POST() {
     if (!accessToken) {
       return NextResponse.json(
         { statusCode: 401, message: 'Unauthorized session' },
+        { status: 401 },
+      );
+    }
+
+    const payload = await verifyJwtToken(accessToken);
+    if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
+      return NextResponse.json(
+        { statusCode: 401, message: 'Unauthorized: Session invalid or expired' },
         { status: 401 },
       );
     }
@@ -32,9 +41,15 @@ export async function POST() {
       apiKey,
     });
   } catch (error: any) {
+    console.error('[Upload Signature Error]', error);
     return NextResponse.json(
-      { statusCode: 500, message: 'Failed to generate upload signature', error: error.message },
+      {
+        statusCode: 500,
+        message: 'Failed to generate upload signature',
+        ...(process.env.NODE_ENV !== 'production' ? { error: error?.message } : {}),
+      },
       { status: 500 },
     );
   }
 }
+

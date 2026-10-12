@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { decodeJwtToken } from '@/lib/auth-jwt';
+import { decodeJwtToken, verifyJwtToken } from '@/lib/auth-jwt';
 
 export async function GET(
   req: NextRequest,
@@ -11,7 +11,7 @@ export async function GET(
     if (!token) {
       return new NextResponse('Unauthorized: Valid session required', { status: 401 });
     }
-    const payload = decodeJwtToken(token);
+    const payload = await verifyJwtToken(token);
     if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
       return new NextResponse('Unauthorized: Session expired or invalid', { status: 401 });
     }

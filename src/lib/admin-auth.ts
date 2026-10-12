@@ -6,7 +6,7 @@
 
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { decodeJwtToken } from '@/lib/auth-jwt';
+import { decodeJwtToken, verifyJwtToken } from '@/lib/auth-jwt';
 import { getUser, getUserByEmail, isSuperAdminTarget } from '@/lib/staff-dept-store';
 
 export interface AdminPayload {
@@ -35,7 +35,7 @@ export async function requireAdmin(): Promise<RequireAdminResult> {
     };
   }
 
-  const payload = decodeJwtToken(token);
+  const payload = await verifyJwtToken(token);
   if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
     return {
       authorized: false,
@@ -107,7 +107,7 @@ export async function requireSuperAdmin(): Promise<RequireAdminResult> {
     };
   }
 
-  const payload = decodeJwtToken(token);
+  const payload = await verifyJwtToken(token);
   if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
     return {
       authorized: false,
@@ -189,7 +189,7 @@ export async function requireStaff(allowedRoles?: string[]): Promise<RequireStaf
     };
   }
 
-  const payload = decodeJwtToken(token);
+  const payload = await verifyJwtToken(token);
   if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
     return {
       authorized: false,
