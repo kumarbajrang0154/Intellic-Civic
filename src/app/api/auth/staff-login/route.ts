@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import prisma from '@/lib/prisma';
 import { createJwtToken } from '@/lib/auth-jwt';
+import { checkRateLimit, rateLimitErrorResponse } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,40 +11,6 @@ const ALLOWED_STAFF_ROLES = ['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER', 'FIELD_WOR
 
 // Pre-computed constant salt-10 bcrypt hash used to prevent timing attacks
 const DUMMY_BCRYPT_HASH = '$2a$10$e7eG/J.cWz.t70f5Zt4f2eZl76V1.V3p0.o73jZ0rF8s51oW8x2nO';
-
-// In-memory per-IP rate limiter (max 30 requests per minute per IP)
-const IP_RATE_LIMIT_WINDOW_MS = 60 * 1000;
-const IP_MAX_ATTEMPTS = 30;
-const ipRateLimitStore: Map<string, { count: number; resetAt: number }> =
-  (globalThis as any).__staffLoginIpRateLimit || new Map<string, { count: number; resetAt: number }>();
-(globalThis as any).__staffLoginIpRateLimit = ipRateLimitStore;
-
-function checkIpRateLimit(ip: string): boolean {
-  const now = Date.now();
-  if (ipRateLimitStore.size > 2000) {
-    ipRateLimitStore.forEach((entry, key) => {
-      if (entry.resetAt < now) ipRateLimitStore.delete(key);
-    });
-  }
-  const current = ipRateLimitStore.get(ip);
-  if (!current || now > current.resetAt) {
-    ipRateLimitStore.set(ip, { count: 1, resetAt: now + IP_RATE_LIMIT_WINDOW_MS });
-    return true;
-  }
-  if (current.count >= IP_MAX_ATTEMPTS) {
-    return false;
-  }
-  current.count++;
-  return true;
-}
-
-function getClientIp(req: NextRequest): string {
-  const forwarded = req.headers.get('x-forwarded-for');
-  if (forwarded) return forwarded.split(',')[0].trim();
-  const realIp = req.headers.get('x-real-ip');
-  if (realIp) return realIp.trim();
-  return '127.0.0.1';
-}
 
 function getPortalRouteForRole(role?: string | null): string {
   switch (role) {
@@ -70,12 +37,9 @@ const GENERIC_ERROR_RESPONSE = {
 
 export async function POST(req: NextRequest) {
   try {
-    const clientIp = getClientIp(req);
-    if (!checkIpRateLimit(clientIp)) {
-      return NextResponse.json(
-        { statusCode: 429, message: 'Too many login attempts. Please try again later.' },
-        { status: 429, headers: { 'Retry-After': '60' } },
-      );
+    const rateLimitResult = await checkRateLimit(req, 'auth');
+    if (!rateLimitResult.success) {
+      return rateLimitErrorResponse(rateLimitResult);
     }
 
     const body = await req.json().catch(() => ({}));

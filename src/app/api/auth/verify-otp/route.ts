@@ -3,11 +3,17 @@ import { createJwtToken } from '@/lib/auth-jwt';
 import { verifySavedOtp } from '@/lib/otp-store';
 import { getOrCreateCitizenProfile, normalizeMobileNumber } from '@/lib/user-store';
 import prisma from '@/lib/prisma';
+import { checkRateLimit, rateLimitErrorResponse } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  const rateLimitResult = await checkRateLimit(req, 'auth');
+  if (!rateLimitResult.success) {
+    return rateLimitErrorResponse(rateLimitResult);
+  }
+
   const start = Date.now();
   const log = (step: string, details?: any) =>
     console.log(`[VERIFY-OTP] ${step} at +${Date.now() - start}ms${details !== undefined ? ` | ${JSON.stringify(details)}` : ''}`);

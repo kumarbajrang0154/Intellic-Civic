@@ -1,12 +1,17 @@
 import { NextResponse } from 'next/server';
 import { generateAndSaveOtp } from '@/lib/otp-store';
 import { normalizeMobileNumber } from '@/lib/user-store';
+import { checkRateLimit, rateLimitErrorResponse } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
+    const rateLimitResult = await checkRateLimit(request, 'auth');
+    if (!rateLimitResult.success) {
+      return rateLimitErrorResponse(rateLimitResult);
+    }
     let body: any;
     try {
       body = await request.json();

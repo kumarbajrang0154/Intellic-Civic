@@ -1,9 +1,10 @@
 import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
 import { verifyJwtToken } from '@/lib/auth-jwt';
+import { checkRateLimit, rateLimitErrorResponse } from '@/lib/rate-limit';
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
     const cookieStore = cookies();
     const accessToken = cookieStore.get('ic_access_token')?.value;
@@ -21,6 +22,11 @@ export async function POST() {
         { statusCode: 401, message: 'Unauthorized: Session invalid or expired' },
         { status: 401 },
       );
+    }
+
+    const rateLimitResult = await checkRateLimit(request, 'upload', payload.sub);
+    if (!rateLimitResult.success) {
+      return rateLimitErrorResponse(rateLimitResult);
     }
 
     const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'demo';

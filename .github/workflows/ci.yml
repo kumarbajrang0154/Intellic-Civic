@@ -1,0 +1,88 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    name: Lint, Typecheck, Build & Security
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Secret Scan (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Production Build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+          DATABASE_URL: 'postgresql://mock_user:mock_pass@mock-ci-db.local:5432/mock_db?sslmode=require'
+          DIRECT_URL: 'postgresql://mock_user:mock_pass@mock-ci-db.local:5432/mock_db?sslmode=require'
+          JWT_SECRET: 'ci-pipeline-build-safe-jwt-secret-key-32chars'
+          NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: 'ci-cloud'
+
+      - name: Dependency Audit (High & Critical)
+        run: npm audit --audit-level=high
+        continue-on-error: true # Report findings without blocking build unless critical
+
+  e2e-regression:
+    name: Playwright Regression (Guarded Test DB Only)
+    runs-on: ubuntu-latest
+    needs: [validate]
+    # Runs ONLY if dedicated test database secrets are configured in GitHub repository.
+    # NEVER runs against production database.
+    if: "${{ secrets.TEST_DATABASE_URL != '' && secrets.TEST_DATABASE_HOST != '' }}"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Run Playwright Regression
+        run: npx playwright test --project=regression
+        env:
+          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          TEST_DATABASE_HOST: ${{ secrets.TEST_DATABASE_HOST }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-test-jwt-secret-32-chars-minimum' }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}

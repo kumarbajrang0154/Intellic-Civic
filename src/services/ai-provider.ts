@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import { reportGeminiFallback } from '@/lib/error-monitoring';
 
 export interface PhotoVerificationResult {
   verified: boolean;
@@ -1007,6 +1008,11 @@ export async function verifyComplaintPhoto(
   } catch (errGemini: any) {
     const { status: geminiStatus, message: geminiMsg } = sanitizeAiErrorMessage(errGemini);
     console.warn(`[Gemini AI] Photo verification failed (HTTP ${geminiStatus}): ${geminiMsg}. Attempting failover to Groq...`);
+    reportGeminiFallback({
+      status: geminiStatus,
+      reason: geminiMsg,
+      failoverTarget: shouldFailover(geminiStatus) && getGroqApiKey() ? 'groq' : 'heuristic',
+    });
 
     if (shouldFailover(geminiStatus) && getGroqApiKey()) {
       try {
@@ -1092,6 +1098,11 @@ export async function classifyComplaintRouting(
   } catch (errGemini: any) {
     const { status: geminiStatus, message: geminiMsg } = sanitizeAiErrorMessage(errGemini);
     console.warn(`[Gemini AI] Classification failed (HTTP ${geminiStatus}): ${geminiMsg}. Attempting failover to Groq...`);
+    reportGeminiFallback({
+      status: geminiStatus,
+      reason: geminiMsg,
+      failoverTarget: shouldFailover(geminiStatus) && getGroqApiKey() ? 'groq' : 'heuristic',
+    });
 
     if (shouldFailover(geminiStatus) && getGroqApiKey()) {
       try {
@@ -1134,6 +1145,11 @@ export async function parseVoiceComplaint(
   } catch (errGemini: any) {
     const { status: geminiStatus, message: geminiMsg } = sanitizeAiErrorMessage(errGemini);
     console.warn(`[Gemini AI] Voice parsing failed (HTTP ${geminiStatus}): ${geminiMsg}. Attempting failover to Groq...`);
+    reportGeminiFallback({
+      status: geminiStatus,
+      reason: geminiMsg,
+      failoverTarget: shouldFailover(geminiStatus) && getGroqApiKey() ? 'groq' : 'fallback',
+    });
 
     if (shouldFailover(geminiStatus) && getGroqApiKey()) {
       try {
@@ -1167,6 +1183,11 @@ export async function checkAiHealth(): Promise<AiHealthResult> {
 
   // Gemini failed (e.g. 403, 404, 429, 400). Check if Groq can take over.
   if (shouldFailover(geminiHealth.status) && getGroqApiKey()) {
+    reportGeminiFallback({
+      status: geminiHealth.status,
+      reason: geminiHealth.error || 'Gemini health check probe failed',
+      failoverTarget: 'groq',
+    });
     const groqHealth = await checkGroqHealthDirect();
     if (groqHealth.ok) {
       return {

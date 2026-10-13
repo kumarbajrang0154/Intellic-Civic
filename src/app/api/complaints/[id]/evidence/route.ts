@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCitizen } from '@/lib/citizen-auth';
 import { addEvidenceToComplaint } from '@/lib/complaints-store';
+import { checkRateLimit, rateLimitErrorResponse } from '@/lib/rate-limit';
 
 export async function POST(
   request: NextRequest,
@@ -10,6 +11,11 @@ export async function POST(
   try {
     const auth = await requireCitizen();
     if (!auth.authorized) return auth.response;
+
+    const rateLimitResult = await checkRateLimit(request, 'upload', auth.user.id);
+    if (!rateLimitResult.success) {
+      return rateLimitErrorResponse(rateLimitResult);
+    }
 
     const { id } = params;
     const body = await request.json();

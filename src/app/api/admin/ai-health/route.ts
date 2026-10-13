@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
 import { checkAiHealth, getGeminiModel } from '@/services/gemini-service';
+import { checkRateLimit, rateLimitErrorResponse } from '@/lib/rate-limit';
 
 export const maxDuration = 30;
 
@@ -9,6 +10,11 @@ export async function GET(req: NextRequest) {
     const auth = await requireAdmin();
     if (!auth.authorized) {
       return auth.response;
+    }
+
+    const rateLimitResult = await checkRateLimit(req, 'ai', auth.admin.id);
+    if (!rateLimitResult.success) {
+      return rateLimitErrorResponse(rateLimitResult);
     }
 
     const health = await checkAiHealth();

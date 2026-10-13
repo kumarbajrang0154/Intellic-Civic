@@ -79,4 +79,17 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+let withSentryConfig;
+try {
+  const sentry = require('@sentry/nextjs');
+  withSentryConfig = sentry.withSentryConfig || require('@sentry/nextjs/config').withSentryConfig;
+} catch {
+  withSentryConfig = (cfg) => cfg;
+}
+
+module.exports = withSentryConfig(nextConfig, {
+  silent: true,
+  widenClientFileUpload: true,
+  hideSourceMaps: true,
+  disableLogger: true,
+});

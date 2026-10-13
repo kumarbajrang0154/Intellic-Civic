@@ -4,6 +4,7 @@ import { decodeJwtToken, verifyJwtToken } from '@/lib/auth-jwt';
 import { requireCitizen } from '@/lib/citizen-auth';
 import { createComplaint, listComplaints } from '@/lib/complaints-store';
 import prisma from '@/lib/prisma';
+import { checkRateLimit, rateLimitErrorResponse } from '@/lib/rate-limit';
 
 export const maxDuration = 60;
 
@@ -105,6 +106,11 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireCitizen();
     if (!auth.authorized) return auth.response;
+
+    const rateLimitResult = await checkRateLimit(request, 'complaintCreate', auth.user.id);
+    if (!rateLimitResult.success) {
+      return rateLimitErrorResponse(rateLimitResult);
+    }
 
     const body = await request.json();
     const {
