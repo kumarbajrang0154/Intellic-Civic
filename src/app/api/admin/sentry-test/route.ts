@@ -4,8 +4,12 @@ import { captureMessage, captureException, isSentryConfigured } from '@/lib/erro
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-  // Safe route: Strictly forbidden in production environments
-  if (process.env.NODE_ENV === 'production' && !req.headers.get('x-allow-test-sentry')) {
+  const isProduction =
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL_ENV === 'production' ||
+    req.headers.get('x-simulated-env') === 'production';
+
+  if (isProduction) {
     return NextResponse.json({ message: 'Not Found' }, { status: 404 });
   }
 

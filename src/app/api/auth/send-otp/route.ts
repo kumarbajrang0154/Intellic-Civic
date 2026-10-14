@@ -1,17 +1,13 @@
 import { NextResponse } from 'next/server';
 import { generateAndSaveOtp } from '@/lib/otp-store';
 import { normalizeMobileNumber } from '@/lib/user-store';
-import { checkRateLimit, rateLimitErrorResponse } from '@/lib/rate-limit';
+import { checkSendOtpRateLimit, rateLimitErrorResponse } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    const rateLimitResult = await checkRateLimit(request, 'auth');
-    if (!rateLimitResult.success) {
-      return rateLimitErrorResponse(rateLimitResult);
-    }
     let body: any;
     try {
       body = await request.json();
@@ -30,6 +26,12 @@ export async function POST(request: Request) {
         { statusCode: 400, message: 'Mobile number must be a valid 10-digit number' },
         { status: 400, headers: { 'Content-Type': 'application/json' } },
       );
+    }
+
+    // Rate limiting: IP (10 / 10m) + Phone (3 / 10m)
+    const rateLimitResult = await checkSendOtpRateLimit(request, cleanNumber);
+    if (!rateLimitResult.success) {
+      return rateLimitErrorResponse(rateLimitResult);
     }
 
     const mode = (process.env.OTP_AUTH_MODE || 'console').toLowerCase();
@@ -64,7 +66,7 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error('[SEND OTP SERVER ERROR]', error);
     return NextResponse.json(
-      { statusCode: 500, message: 'Internal server error', error: error?.message || String(error) },
+      { statusCode: 500, message: 'Internal server error' },
       { status: 500, headers: { 'Content-Type': 'application/json' } },
     );
   }

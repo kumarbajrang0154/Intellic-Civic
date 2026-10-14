@@ -12,10 +12,11 @@ This document details the operational configuration, security boundaries, rate l
 | `DIRECT_URL` | Server | Local/Dev Direct Host | Staging Direct Host | Production Direct Host | Direct migration & DDL connection |
 | `TEST_DATABASE_HOST` | Server | Dev Neon Hostname | Staging Neon Hostname | **NEVER SET TO PROD** | Safety guard preventing tests touching production |
 | `JWT_SECRET` | Server | Dev secret (>=32 chars) | Staging secret | High-entropy secret | Session HMAC signing key |
+| `RATE_LIMIT_HMAC_SECRET` | Server | Dev fallback secret | Staging secret | **Required** (High entropy) | Secret for HMAC-SHA256 hashing mobile numbers in rate limit keys |
 | `OTP_AUTH_MODE` | Server | `console` (or `firebase`) | `firebase` | `firebase` | Citizen mobile OTP authentication mode |
 | `NEXT_PUBLIC_OTP_AUTH_MODE` | Client | `console` (or `firebase`) | `firebase` | `firebase` | Frontend OTP UI mode toggle |
-| `UPSTASH_REDIS_REST_URL` | Server | Optional (falls back to memory) | Required | **Required** | Upstash Serverless Redis REST endpoint |
-| `UPSTASH_REDIS_REST_TOKEN` | Server | Optional (falls back to memory) | Required | **Required** | Upstash Serverless Redis REST token |
+| `UPSTASH_REDIS_REST_URL` | Server | Optional | Optional | Optional | Upstash Serverless Redis REST endpoint (Neon Postgres limiter used if omitted) |
+| `UPSTASH_REDIS_REST_TOKEN` | Server | Optional | Optional | Optional | Upstash Serverless Redis REST token (Neon Postgres limiter used if omitted) |
 | `SENTRY_DSN` | Server | Optional (no-op if unset) | Optional | **Required** | Server-side Sentry error ingest |
 | `NEXT_PUBLIC_SENTRY_DSN` | Client | Optional (no-op if unset) | Optional | **Required** | Client-side Sentry error ingest |
 | `GEMINI_API_KEY` | Server | Dev API key | Staging API key | Production API key | Google Gemini Generative AI |
@@ -27,26 +28,29 @@ This document details the operational configuration, security boundaries, rate l
 
 ## 2. Rate Limiting Architecture & Verification
 
-Rate limiting is governed by `@/lib/rate-limit.ts` using Upstash Serverless Redis across all Vercel Lambdas.
+Rate limiting is governed by `@/lib/rate-limit.ts`. IntelliCivic implements a tiered, resilient rate limiting strategy requiring zero external accounts by default:
+1. **Upstash Redis (Optional)**: If `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are present, distributed sliding window limiting across Vercel Lambdas is handled by Upstash.
+2. **Neon Postgres Atomic Limiter (Default for Production)**: If Upstash is not configured, production instances automatically use an atomic Postgres upsert limiter backed by the `rate_limit_buckets` table. Using single-statement `INSERT ... ON CONFLICT ("key") DO UPDATE` with tagged parameters, it operates safely across serverless Lambdas with zero race conditions.
+3. **In-Memory Store (Local Dev & Testing)**: In non-production environments without Upstash, an in-memory sliding window store is used.
 
-### Named Presets
-- `auth`: **5 requests / 60s** (Strict: OTP send, OTP verify, Staff login, Dev login).
+### Named Presets & OTP Specific Limits
+- `auth`: **10 requests / 60s** (Strict: staff-login, dev-login, and general auth endpoints).
+- `send-otp` (Phone): **3 requests / 10 minutes** per phone number (hashed with HMAC-SHA256; raw phone number is never stored as key).
+- `send-otp` (IP): **10 requests / 10 minutes** per client IP.
+- `verify-otp` (Phone): **5 verification attempts / 10 minutes** per phone number.
 - `complaintCreate`: **10 requests / 60s** (Scoped per authenticated citizen ID).
 - `ai`: **20 requests / 60s** (Voice parsing, AI diagnostics).
 - `upload`: **20 requests / 60s** (Cloudinary signature generation, Evidence submission).
 - `general`: **60 requests / 60s** (General API operations).
 
 ### Fail-Closed vs. Fail-Open Architecture
-1. **Local Development / Test (`NODE_ENV !== 'production'`)**:
-   - If Upstash credentials are missing, automatically falls back to an in-memory sliding window limiter with a console warning.
-2. **Production (`NODE_ENV === 'production'`)**:
-   - **Auth / OTP routes (`preset: 'auth'`) MUST FAIL CLOSED (HTTP 503 Service Unavailable)** if Redis is unconfigured or unreachable. This prevents brute-force attacks and credential stuffing when the security boundary cannot be guaranteed.
-   - **Non-auth routes (`preset: 'general', 'ai', 'upload', 'complaintCreate'`) FAIL OPEN** with logged critical warnings and Sentry incident tags, ensuring user civics workflows are not dropped during infrastructure hiccups.
+- **Auth Routes (`preset: 'auth'`, `send-otp`, `verify-otp`)**: If the rate limiter backend (Postgres or Upstash) experiences an internal error, auth routes **FAIL CLOSED (HTTP 503 Service Unavailable with `Retry-After: 60`)**. This strictly preserves security boundaries against brute force.
+- **Non-Auth Routes**: Non-auth endpoints **FAIL OPEN** with logged critical warnings and Sentry error monitoring (`reportRateLimitFailOpen`), preventing citizen grievance workflows from being blocked during transient database hiccups.
 
 ### Verification Steps
 ```bash
-# Verify Auth Rate Limiting (Sends 6 requests to OTP endpoint; 6th triggers 429)
-for i in {1..6}; do
+# Verify Auth Rate Limiting (Sends requests to OTP endpoint; triggers 429 when threshold exceeded)
+for i in {1..4}; do
   curl -i -X POST http://localhost:3000/api/auth/send-otp \
     -H "Content-Type: application/json" \
     -d '{"mobileNumber":"9876543210"}'
@@ -120,37 +124,58 @@ The GitHub Actions workflow `.github/workflows/ci.yml` triggers on `push` and `p
 
 ## 5. Deployment & Rollback Runbook
 
-### Deploying to Vercel
-1. Ensure the following environment variables are configured in the Vercel Project Settings:
-   - `DATABASE_URL`
-   - `DIRECT_URL`
-   - `JWT_SECRET`
-   - `UPSTASH_REDIS_REST_URL`
-   - `UPSTASH_REDIS_REST_TOKEN`
-   - `SENTRY_DSN`
-   - `NEXT_PUBLIC_SENTRY_DSN`
-   - `GEMINI_API_KEY`
-   - `GROQ_API_KEY`
-2. Trigger deployment:
+### Deployment Procedure
+The deployment pipeline must execute steps in this exact order:
+
+1. **Deploy Database Migration**:
+   Run Prisma migration deploy using the direct database connection:
    ```bash
-   git push origin main
+   npx prisma migrate deploy
    ```
-   Or deploy via Vercel CLI:
+   *Note: This applies the `20261014170000_add_rate_limit_bucket` migration creating the `rate_limit_buckets` table for Postgres rate limiting.*
+
+2. **Configure Required Environment Variables**:
+   Ensure the following variable is configured on the deployment platform (e.g., Vercel Project Settings):
+   - `RATE_LIMIT_HMAC_SECRET`: High-entropy 32+ character random secret used for HMAC-SHA256 phone hashing.
+   Confirm other production secrets are present:
+   - `DATABASE_URL` & `DIRECT_URL`
+   - `JWT_SECRET`
+   - `SENTRY_DSN` & `NEXT_PUBLIC_SENTRY_DSN`
+   - `GEMINI_API_KEY` (and optional `GROQ_API_KEY`)
+   *(Note: `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are completely optional).*
+
+3. **Deploy Application Artifact**:
+   Deploy the Next.js application build via Vercel Git integration (`git push origin main`) or CLI:
    ```bash
    vercel --prod
    ```
 
-### Instant Rollback Procedure
-If a production issue or regression occurs:
+4. **Post-Deployment Smoke Test**:
+   Execute endpoint verification on `send-otp` and health checks:
+   ```bash
+   curl -i -X POST https://your-production-domain.vercel.app/api/auth/send-otp \
+     -H "Content-Type: application/json" \
+     -d '{"mobileNumber":"9876543210"}'
+   ```
+
+### Rollback Procedure
+If a production defect or operational incident occurs:
+
 1. **Vercel Instant Rollback**:
-   - Go to **Vercel Dashboard** → Project **Deployments**.
-   - Locate the last known good deployment.
-   - Click the three dots `...` → **Instant Rollback**.
-   - Traffic instantly switches to the previous immutable deployment artifact within < 2 seconds.
+   - Navigate to **Vercel Dashboard** → **Deployments**.
+   - Locate the previous known good deployment.
+   - Click `...` → **Instant Rollback**. Traffic reverts in < 2 seconds.
+
 2. **Git Rollback**:
    ```bash
    git revert HEAD -m 1
    git push origin main
    ```
-3. **Database Integrity**:
-   - Phase 0 changes introduced **zero schema changes** (`prisma/schema.prisma` was untouched). Database rollbacks are not required.
+
+3. **Database Rollback Note**:
+   - The `rate_limit_buckets` table is completely additive and non-breaking for existing user/complaint data.
+   - If rolling back application code to a prior commit, the table can remain in the database without side effects.
+   - If manual removal is explicitly required:
+     ```sql
+     DROP TABLE IF EXISTS "rate_limit_buckets";
+     ```

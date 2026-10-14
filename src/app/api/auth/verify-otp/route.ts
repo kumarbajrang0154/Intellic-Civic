@@ -3,17 +3,12 @@ import { createJwtToken } from '@/lib/auth-jwt';
 import { verifySavedOtp } from '@/lib/otp-store';
 import { getOrCreateCitizenProfile, normalizeMobileNumber } from '@/lib/user-store';
 import prisma from '@/lib/prisma';
-import { checkRateLimit, rateLimitErrorResponse } from '@/lib/rate-limit';
+import { checkVerifyOtpRateLimit, rateLimitErrorResponse } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-  const rateLimitResult = await checkRateLimit(req, 'auth');
-  if (!rateLimitResult.success) {
-    return rateLimitErrorResponse(rateLimitResult);
-  }
-
   const start = Date.now();
   const log = (step: string, details?: any) =>
     console.log(`[VERIFY-OTP] ${step} at +${Date.now() - start}ms${details !== undefined ? ` | ${JSON.stringify(details)}` : ''}`);
@@ -41,6 +36,12 @@ export async function POST(req: NextRequest) {
         let cleanNumber = normalizeMobileNumber(mobileNumber);
 
         log('mode-evaluated', { mode, hasIdToken: Boolean(idToken), cleanNumber });
+
+        // Enforce rate limiting: general IP auth limit + per-phone verification attempts (5 / 10m)
+        const rateLimitResult = await checkVerifyOtpRateLimit(req, cleanNumber || undefined);
+        if (!rateLimitResult.success) {
+          return rateLimitErrorResponse(rateLimitResult);
+        }
 
         // =========================================================================
         // FIREBASE MODE: Verify Firebase ID Token via Firebase Admin SDK
@@ -257,11 +258,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        message:
-          error?.message === 'INTERNAL_TIMEOUT_8000ms'
-            ? 'Request timed out internally — check logs for last checkpoint reached'
-            : 'Server verification error',
-        debug: error?.message || String(error),
+        message: 'Server verification error',
       },
       { status: 500, headers: { 'Content-Type': 'application/json' } },
     );

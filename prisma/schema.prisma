@@ -481,3 +481,12 @@ model SlaRule {
 
   @@map("sla_rules")
 }
+
+model RateLimitBucket {
+  key         String   @id
+  windowStart DateTime
+  count       Int
+  updatedAt   DateTime @updatedAt
+
+  @@map("rate_limit_buckets")
+}

@@ -33,7 +33,7 @@ export async function verifyJwtToken(token: string): Promise<any> {
   } catch {
     const isProd =
       process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
-    if (!isProd && token.endsWith('.signature')) {
+    if (!isProd && (token.endsWith('.signature') || token.endsWith('.sig'))) {
       return decodeJwtToken(token);
     }
     return null;

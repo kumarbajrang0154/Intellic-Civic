@@ -1,5 +1,15 @@
 import { test, expect } from '@playwright/test';
-import { checkRateLimit, resolveRateLimitKey, rateLimitErrorResponse, RATE_LIMIT_PRESETS } from '../src/lib/rate-limit';
+import {
+  checkRateLimit,
+  resolveRateLimitKey,
+  rateLimitErrorResponse,
+  RATE_LIMIT_PRESETS,
+  checkSendOtpRateLimit,
+  checkPostgresLimit,
+  SEND_OTP_PHONE_LIMIT,
+  SEND_OTP_IP_LIMIT,
+} from '../src/lib/rate-limit';
+import prisma from '../src/lib/prisma';
 
 test.describe('Rate Limiter Unit & Integration Test Suite', () => {
   test('1. resolveRateLimitKey correctly distinguishes user keys and IP addresses', () => {
@@ -135,6 +145,134 @@ test.describe('Rate Limiter Unit & Integration Test Suite', () => {
       const body = await res.json();
       expect(body.statusCode).toBe(429);
       expect(res.headers()['retry-after']).toBeTruthy();
+    }
+  });
+
+  test('7. Per-phone limit blocks the 4th send-otp for the same number even from different IPs', async () => {
+    const uniquePhone = `98${Date.now().toString().slice(-8)}`;
+    // 3 requests from different IPs
+    for (let i = 1; i <= 3; i++) {
+      const req = new Request('http://localhost:3000/api/auth/send-otp', {
+        headers: { 'x-forwarded-for': `198.51.100.${i + 30}` },
+      });
+      const res = await checkSendOtpRateLimit(req, uniquePhone);
+      expect(res.success).toBe(true);
+    }
+
+    // 4th request from a completely different IP for the same phone must be blocked (SEND_OTP_PHONE_LIMIT = 3)
+    const req4 = new Request('http://localhost:3000/api/auth/send-otp', {
+      headers: { 'x-forwarded-for': '198.51.100.99' },
+    });
+    const blockedRes = await checkSendOtpRateLimit(req4, uniquePhone);
+    expect(blockedRes.success).toBe(false);
+    expect(blockedRes.remaining).toBe(0);
+    expect(blockedRes.retryAfterSeconds).toBeGreaterThan(0);
+  });
+
+  test('8. Per-IP limit blocks after the threshold regardless of phone number', async () => {
+    const testIp = `192.0.2.${Math.floor(Math.random() * 200) + 10}`;
+    const limit = SEND_OTP_IP_LIMIT; // 10
+
+    // Send 10 requests from the same IP with distinct phone numbers
+    for (let i = 1; i <= limit; i++) {
+      const distinctPhone = `91${String(i).padStart(8, '0')}`;
+      const req = new Request('http://localhost:3000/api/auth/send-otp', {
+        headers: { 'x-forwarded-for': testIp },
+      });
+      const res = await checkSendOtpRateLimit(req, distinctPhone);
+      expect(res.success).toBe(true);
+    }
+
+    // 11th request from same IP with another new phone number must be blocked by IP limit
+    const req11 = new Request('http://localhost:3000/api/auth/send-otp', {
+      headers: { 'x-forwarded-for': testIp },
+    });
+    const blockedRes = await checkSendOtpRateLimit(req11, '9199999999');
+    expect(blockedRes.success).toBe(false);
+    expect(blockedRes.remaining).toBe(0);
+  });
+
+  test('9. Postgres limiter: counts persist across two separate Prisma client calls', async () => {
+    const key = `pg_persist_test_${Date.now()}`;
+    const config = { requests: 5, windowSec: 60, description: '5 per 60s' };
+
+    // First call inserts/increments count to 1
+    const res1 = await checkPostgresLimit(key, config);
+    expect(res1.success).toBe(true);
+    expect(res1.remaining).toBe(4);
+
+    // Verify row in database via separate Prisma query
+    const dbRow1 = await prisma.rateLimitBucket.findUnique({ where: { key } });
+    expect(dbRow1).not.toBeNull();
+    expect(dbRow1?.count).toBe(1);
+
+    // Second call increments count to 2
+    const res2 = await checkPostgresLimit(key, config);
+    expect(res2.success).toBe(true);
+    expect(res2.remaining).toBe(3);
+
+    // Verify persisted count in database
+    const dbRow2 = await prisma.rateLimitBucket.findUnique({ where: { key } });
+    expect(dbRow2?.count).toBe(2);
+  });
+
+  test('10. Limit resets after the window using an injectable clock', async () => {
+    const key = `clock_reset_test_${Date.now()}`;
+    const config = { requests: 2, windowSec: 600, description: '2 per 10m' };
+    let currentTime = new Date('2026-10-14T12:00:00.000Z');
+    const clock = () => currentTime;
+
+    // Call 1 at T=0
+    const res1 = await checkPostgresLimit(key, config, clock);
+    expect(res1.success).toBe(true);
+    expect(res1.remaining).toBe(1);
+
+    // Call 2 at T=0 (hits limit)
+    const res2 = await checkPostgresLimit(key, config, clock);
+    expect(res2.success).toBe(true);
+    expect(res2.remaining).toBe(0);
+
+    // Call 3 at T=0 (blocked)
+    const res3 = await checkPostgresLimit(key, config, clock);
+    expect(res3.success).toBe(false);
+
+    // Advance clock past 10-minute window (T = +601 seconds)
+    currentTime = new Date(currentTime.getTime() + 601 * 1000);
+
+    // Call 4 at T=+601s (window has reset, request must succeed)
+    const res4 = await checkPostgresLimit(key, config, clock);
+    expect(res4.success).toBe(true);
+    expect(res4.remaining).toBe(1);
+  });
+
+  test('11. Production mode with no Upstash uses the Postgres limiter', async () => {
+    const originalEnv = process.env.NODE_ENV;
+    const originalUrl = process.env.UPSTASH_REDIS_REST_URL;
+    const originalToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+    try {
+      (process.env as any).NODE_ENV = 'production';
+      delete process.env.UPSTASH_REDIS_REST_URL;
+      delete process.env.UPSTASH_REDIS_REST_TOKEN;
+
+      const testKey = `prod_pg_test_${Date.now()}`;
+      const dummyReq = new Request('http://localhost:3000/api/auth/staff-login');
+
+      // In production with Upstash absent, Postgres limiter is used (does not fail closed)
+      const result = await checkRateLimit(dummyReq, 'auth', testKey);
+      expect(result.success).toBe(true);
+      expect(result.failedClosed).toBe(false);
+
+      // Verify row was written to Postgres rate_limit_buckets table
+      const bucket = await prisma.rateLimitBucket.findUnique({
+        where: { key: `auth:user:${testKey}` },
+      });
+      expect(bucket).not.toBeNull();
+      expect(bucket?.count).toBeGreaterThanOrEqual(1);
+    } finally {
+      (process.env as any).NODE_ENV = originalEnv;
+      if (originalUrl) process.env.UPSTASH_REDIS_REST_URL = originalUrl;
+      if (originalToken) process.env.UPSTASH_REDIS_REST_TOKEN = originalToken;
     }
   });
 });
