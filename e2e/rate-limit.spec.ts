@@ -86,7 +86,7 @@ test.describe('Rate Limiter Unit & Integration Test Suite', () => {
     expect(freshB.remaining).toBe(limit - 1);
   });
 
-  test('5. Production fail-closed behavior for auth routes when Redis is absent', async () => {
+  test('5. Production auth without Upstash uses Postgres limiter and does not fail closed when Postgres is healthy', async () => {
     const originalEnv = process.env.NODE_ENV;
     const originalUrl = process.env.UPSTASH_REDIS_REST_URL;
     const originalToken = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -97,24 +97,53 @@ test.describe('Rate Limiter Unit & Integration Test Suite', () => {
       delete process.env.UPSTASH_REDIS_REST_URL;
       delete process.env.UPSTASH_REDIS_REST_TOKEN;
 
+      const testKey = `prod_pg_auth_${Date.now()}`;
       const dummyReq = new Request('http://localhost:3000/api/auth/staff-login');
-      const authResult = await checkRateLimit(dummyReq, 'auth', 'unconfigured_prod_test');
+      const authResult = await checkRateLimit(dummyReq, 'auth', testKey);
 
-      // Auth routes MUST fail closed for security
+      // In production without Upstash, healthy Postgres limiter handles requests without failing closed
+      expect(authResult.success).toBe(true);
+      expect(authResult.source).toBe('postgres');
+      expect(authResult.remaining).toBe(RATE_LIMIT_PRESETS.auth.requests - 1);
+    } finally {
+      (process.env as any).NODE_ENV = originalEnv;
+      if (originalUrl) process.env.UPSTASH_REDIS_REST_URL = originalUrl;
+      if (originalToken) process.env.UPSTASH_REDIS_REST_TOKEN = originalToken;
+    }
+  });
+
+  test('5b. Production auth fails closed (503) when the Postgres limiter throws', async () => {
+    const originalEnv = process.env.NODE_ENV;
+    const originalUrl = process.env.UPSTASH_REDIS_REST_URL;
+    const originalToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+    const originalQueryRaw = prisma.$queryRaw;
+
+    try {
+      // Simulate production with missing Redis credentials and broken Postgres
+      (process.env as any).NODE_ENV = 'production';
+      delete process.env.UPSTASH_REDIS_REST_URL;
+      delete process.env.UPSTASH_REDIS_REST_TOKEN;
+
+      // Inject failing Prisma client
+      (prisma as any).$queryRaw = async () => {
+        throw new Error('Simulated database network failure in rate limiter');
+      };
+
+      const dummyReq = new Request('http://localhost:3000/api/auth/staff-login');
+      const authResult = await checkRateLimit(dummyReq, 'auth', `prod_failing_pg_${Date.now()}`);
+
+      // Auth routes MUST fail closed for security when Postgres limiter throws
       expect(authResult.success).toBe(false);
       expect(authResult.failedClosed).toBe(true);
+      expect(authResult.source).toBe('postgres');
 
       const res = rateLimitErrorResponse(authResult);
       expect(res.status).toBe(503);
       const body = await res.json();
       expect(body.statusCode).toBe(503);
       expect(body.error).toBe('Service Unavailable');
-
-      // Non-auth routes in production fail open
-      const generalResult = await checkRateLimit(dummyReq, 'general', 'unconfigured_prod_general');
-      expect(generalResult.success).toBe(true);
-      expect(generalResult.failedClosed).toBe(false);
     } finally {
+      (prisma as any).$queryRaw = originalQueryRaw;
       (process.env as any).NODE_ENV = originalEnv;
       if (originalUrl) process.env.UPSTASH_REDIS_REST_URL = originalUrl;
       if (originalToken) process.env.UPSTASH_REDIS_REST_TOKEN = originalToken;

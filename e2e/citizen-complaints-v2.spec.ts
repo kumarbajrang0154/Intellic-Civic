@@ -4,13 +4,22 @@ const BASE = 'http://localhost:3000';
 
 // ── Helper: get an authenticated Citizen API context ──────────────────────────
 
+let cachedCitizenToken: string | null = null;
+
 async function getCitizenContext(request: APIRequestContext, mobile = '9876543210'): Promise<string> {
+  if (mobile === '9876543210' && cachedCitizenToken) {
+    return cachedCitizenToken;
+  }
   const verifyRes = await request.post(`${BASE}/api/auth/verify-otp`, {
     data: { mobileNumber: mobile, otp: '123456' },
   });
   const cookies = verifyRes.headers()['set-cookie'] ?? '';
   const match = cookies.match(/ic_access_token=([^;]+)/);
-  return match ? `ic_access_token=${match[1]}` : '';
+  const token = match ? `ic_access_token=${match[1]}` : '';
+  if (mobile === '9876543210') {
+    cachedCitizenToken = token;
+  }
+  return token;
 }
 
 async function getOtherCitizenContext(request: APIRequestContext): Promise<string> {

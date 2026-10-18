@@ -43,6 +43,7 @@ export interface RateLimitResult {
   remaining: number;
   reset: number; // Unix timestamp in ms
   retryAfterSeconds: number;
+  source?: 'memory' | 'postgres' | 'upstash';
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +104,7 @@ export function checkInMemoryLimit(
       remaining: 0,
       reset: oldest + windowMs,
       retryAfterSeconds,
+      source: 'memory',
     };
   }
 
@@ -115,6 +117,7 @@ export function checkInMemoryLimit(
     remaining,
     reset: now + windowMs,
     retryAfterSeconds: 0,
+    source: 'memory',
   };
 }
 
@@ -166,6 +169,7 @@ export async function checkPostgresLimit(
     remaining,
     reset: resetMs,
     retryAfterSeconds,
+    source: 'postgres',
   };
 }
 
@@ -303,6 +307,7 @@ export async function checkRateLimit(
         remaining: upstashResult.remaining,
         reset: upstashResult.reset,
         retryAfterSeconds: upstashResult.success ? 0 : retryAfterSeconds,
+        source: 'upstash',
       };
     } catch (err: any) {
       console.error(`[RATE LIMIT ERROR] Upstash Redis call failed for key "${key}":`, err?.message || err);
@@ -335,6 +340,7 @@ export async function checkRateLimit(
         remaining: 0,
         reset: Date.now() + config.windowSec * 1000,
         retryAfterSeconds: config.windowSec,
+        source: 'postgres',
       };
     }
 
@@ -347,6 +353,7 @@ export async function checkRateLimit(
       remaining: 1,
       reset: Date.now() + config.windowSec * 1000,
       retryAfterSeconds: 0,
+      source: 'postgres',
     };
   }
 }

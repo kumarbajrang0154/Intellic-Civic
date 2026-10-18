@@ -98,7 +98,7 @@ test.describe('Offline-First Citizen Complaint Submission & Sync Suite', () => {
   // ─────────────────────────────────────────────────────────────────────────────
   test('1. Offline submit: saves draft to IndexedDB without firing network request', async ({ page, context }) => {
     await page.goto('/citizen/complaints/new');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await clearIdb(page);
 
     // Fill form fields
@@ -158,7 +158,7 @@ test.describe('Offline-First Citizen Complaint Submission & Sync Suite', () => {
     await prisma.complaint.deleteMany({ where: { clientRequestId } });
 
     await page.goto('/citizen');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Seed draft in IndexedDB
     await saveDraftInPage(page, {
@@ -211,7 +211,7 @@ test.describe('Offline-First Citizen Complaint Submission & Sync Suite', () => {
     await prisma.complaint.deleteMany({ where: { clientRequestId } });
 
     await page.goto('/citizen');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const draftData = {
       id: clientRequestId,
@@ -263,7 +263,7 @@ test.describe('Offline-First Citizen Complaint Submission & Sync Suite', () => {
     await prisma.complaint.deleteMany({ where: { clientRequestId } });
 
     await page.goto('/citizen');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Seed draft
     await saveDraftInPage(page, {
@@ -376,7 +376,7 @@ test.describe('Offline-First Citizen Complaint Submission & Sync Suite', () => {
     await prisma.complaint.deleteMany({ where: { clientRequestId: { in: [crId1, crId2] } } });
 
     await page.goto('/citizen');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const t0 = new Date(Date.now() - 60000).toISOString();
     const t1 = new Date(Date.now() - 30000).toISOString();

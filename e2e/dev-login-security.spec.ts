@@ -88,7 +88,9 @@ test.describe('Dev-Login Security Hardening Tests', () => {
     expect(body.message).toContain('Both id and email are missing');
   });
 
-  test('7. Returns 404 Not Found in production environment mode', async ({ request }) => {
+  test('7. Client header x-simulated-env is ignored and cannot spoof environment in dev-login', async ({ request }) => {
+    // Under Task 3a, client headers like x-simulated-env are strictly rejected as security controls.
+    // In development mode, sending x-simulated-env: production must NOT be respected.
     const res = await request.post(`${baseURL}/api/auth/dev-login`, {
       headers: {
         'x-simulated-env': 'production',
@@ -98,9 +100,10 @@ test.describe('Dev-Login Security Hardening Tests', () => {
       },
     });
 
-    expect(res.status()).toBe(404);
+    expect(res.status()).toBe(200);
     const body = await res.json();
-    expect(body.message).toBe('Not Found');
+    expect(body.success).toBe(true);
+    expect(body.user.role).toBe('SUPER_ADMIN');
   });
 });
 

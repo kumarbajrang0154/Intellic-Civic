@@ -431,8 +431,8 @@ Return strictly JSON matching schema.`;
 
   const response = await callWithRetry(
     () => withTimeout(model.generateContent(contentParts), 8000, 'Gemini complaint routing classification timed out after 8s'),
-    1,
-    [500],
+    2,
+    [1000, 2000],
     'Gemini Classification',
   );
   const parsed = JSON.parse(response.response.text());

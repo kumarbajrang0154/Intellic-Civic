@@ -1,10 +1,16 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 
 // Ensure .env is loaded
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 export default async function globalSetup() {
+  const mockFile = path.join(process.cwd(), '.gemini-mock.json');
+  if (fs.existsSync(mockFile)) {
+    try { fs.unlinkSync(mockFile); } catch {}
+  }
+
   const dbUrl = process.env.DATABASE_URL;
   const expectedHost = process.env.TEST_DATABASE_HOST?.trim();
 

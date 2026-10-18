@@ -82,6 +82,24 @@ test.describe('Staff Roles (Officer, Dept Head, Field Worker) Outcome-Based Bug 
           data: { assignedOfficerId: null },
         });
 
+        await prisma.complaint.upsert({
+          where: { id: 'cmp-field-assigned' },
+          update: {
+            status: 'ASSIGNED',
+            assignedFieldWorkerId: 'fw-demo-1',
+          },
+          create: {
+            id: 'cmp-field-assigned',
+            ticketId: 'INC-2026-0902-7711',
+            title: 'Broken Traffic Light Wiring at Ring Road Crossing',
+            description: 'Traffic signal control box door damaged. Wires exposed causing traffic light disruption.',
+            status: 'ASSIGNED',
+            priority: 'HIGH',
+            citizenId: 'citizen_9876543210',
+            assignedFieldWorkerId: 'fw-demo-1',
+          },
+        });
+
         const officerToken = await createAuthJwt({
           sub: officerUser.id,
           role: 'DEPARTMENT_OFFICER',

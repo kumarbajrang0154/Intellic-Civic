@@ -29,6 +29,31 @@ async function getCitizenContext(request: APIRequestContext): Promise<string> {
 }
 
 test.describe('Field Worker Portal API Integration Tests', () => {
+  test.beforeEach(async () => {
+    const category = await prisma.category.findFirst();
+    const citizen = await prisma.user.findFirst({ where: { role: 'CITIZEN' } });
+    await prisma.complaint.upsert({
+      where: { id: 'cmp-field-assigned' },
+      update: {
+        status: 'ASSIGNED',
+        assignedFieldWorkerId: 'fw-demo-1',
+        readyForReview: false,
+        fieldWorkerRemarks: null,
+      },
+      create: {
+        id: 'cmp-field-assigned',
+        ticketId: 'INC-2026-0902-7711',
+        title: 'Broken Traffic Light Wiring at Ring Road Crossing',
+        description: 'Traffic signal control box door damaged. Wires exposed causing traffic light disruption.',
+        status: 'ASSIGNED',
+        priority: 'HIGH',
+        citizenId: citizen?.id || 'citizen_9876543210',
+        categoryId: category?.id,
+        assignedFieldWorkerId: 'fw-demo-1',
+      },
+    });
+  });
+
   test('1. GET /api/field-worker/complaints — auth and role enforcement', async ({ request }) => {
     // 401 Unauthenticated
     const unauthRes = await request.get(`${BASE}/api/field-worker/complaints`);

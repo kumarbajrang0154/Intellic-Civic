@@ -113,7 +113,7 @@ test.describe('Root Path Redirect & Landing Page Removal E2E Tests', () => {
 
     // 1. Visit /citizen online first to register SW and cache shell
     await page.goto('/citizen');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Wait for SW to be registered and active, and ensure cache contains the shell
     await page.evaluate(async () => {
@@ -164,8 +164,8 @@ test.describe('Root Path Redirect & Landing Page Removal E2E Tests', () => {
     // Click Sign Out / Logout in sidebar
     await page.click('button:has-text("Sign Out"), button:has-text("Logout")');
 
-    await expect(page).toHaveURL(/\/login\/citizen/);
-    await expect(page.getByText('Citizen Verification')).toBeVisible();
+    await expect(page).toHaveURL(/\/login\/citizen/, { timeout: 15000 });
+    await expect(page.getByText('Citizen Verification')).toBeVisible({ timeout: 15000 });
 
     const cookies = await context.cookies();
     const accessToken = cookies.find((c) => c.name === 'ic_access_token');

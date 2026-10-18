@@ -178,6 +178,26 @@ test.describe('Admin & RBAC Destructive Edge Flows Outcome Sweep', () => {
           mobileNumber: citizenUser.mobileNumber || '9876543210',
         });
 
+        // Ensure cmp-field-assigned is in ASSIGNED status owned by citizenUser
+        await prisma.complaint.upsert({
+          where: { id: 'cmp-field-assigned' },
+          update: {
+            status: 'ASSIGNED',
+            assignedFieldWorkerId: 'fw-demo-1',
+            citizenId: citizenUser.id,
+          },
+          create: {
+            id: 'cmp-field-assigned',
+            ticketId: 'INC-2026-0902-7711',
+            title: 'Broken Traffic Light Wiring at Ring Road Crossing',
+            description: 'Traffic signal control box door damaged. Wires exposed causing traffic light disruption.',
+            status: 'ASSIGNED',
+            priority: 'HIGH',
+            citizenId: citizenUser.id,
+            assignedFieldWorkerId: 'fw-demo-1',
+          },
+        });
+
         // Attempt to DELETE cmp-field-assigned (status: ASSIGNED)
         const delAssignedRes = await request.delete('/api/complaints/cmp-field-assigned', {
           headers: { Cookie: `ic_access_token=${citizenToken}` },

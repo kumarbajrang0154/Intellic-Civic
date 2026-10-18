@@ -16,7 +16,7 @@ async function createMockJwt(sub: string, role = 'CITIZEN'): Promise<string> {
 test.describe('Phase 2a (C1): Mandatory Photo Evidence Enforcement', () => {
   test('Submit complaint with 0 photos is rejected at API level with 400 Bad Request', async ({ request }) => {
     const citizen = await prisma.user.findFirst({
-      where: { role: 'CITIZEN', isSuspended: false },
+      where: { role: 'CITIZEN', isSuspended: false, deletedAt: null },
     });
     expect(citizen).toBeTruthy();
 
@@ -38,7 +38,7 @@ test.describe('Phase 2a (C1): Mandatory Photo Evidence Enforcement', () => {
 
   test('Submit complaint with 1+ photos succeeds at API level with 201 Created', async ({ request }) => {
     const citizen = await prisma.user.findFirst({
-      where: { role: 'CITIZEN', isSuspended: false },
+      where: { role: 'CITIZEN', isSuspended: false, deletedAt: null },
     });
     expect(citizen).toBeTruthy();
 

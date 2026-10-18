@@ -607,7 +607,7 @@ export async function getDeletePreflight(
     reasons.push('You can only manage staff of your own municipality.');
   }
   if (openAssignedComplaints > 0) {
-    reasons.push(`User has ${openAssignedComplaints} open complaint(s) assigned to them. Reassign them first.`);
+    reasons.push(`User has ${openAssignedComplaints} open complaint(s) / open assigned complaint(s). Reassign them first.`);
   }
   if (assignedWorkers > 0) {
     reasons.push(`User has ${assignedWorkers} assigned field worker(s). Reassign them first.`);
@@ -915,7 +915,7 @@ export async function assertCanManageStaff(
     return {
       allowed: false,
       status: 403,
-      message: 'Super Admin accounts are permanently protected.',
+      message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.',
     };
   }
 

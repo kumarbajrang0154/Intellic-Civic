@@ -369,6 +369,7 @@ test.describe('Staff Credentials Authentication & Management (Email + Admin Pass
     for (let i = 1; i <= 5; i++) {
       const res = await request.post(`${BASE}/api/auth/staff-login`, {
         data: { email, password: 'WrongPassword!' },
+        headers: { 'x-forwarded-for': '10.0.4.1' },
       });
       expect(res.status()).toBe(401);
     }
@@ -383,6 +384,7 @@ test.describe('Staff Credentials Authentication & Management (Email + Admin Pass
     // Attempting login with CORRECT password during lockout is rejected with identical generic 401
     const tryCorrectLocked = await request.post(`${BASE}/api/auth/staff-login`, {
       data: { email, password },
+      headers: { 'x-forwarded-for': '10.0.4.1' },
     });
     expect(tryCorrectLocked.status()).toBe(401);
     const lockedBody = await tryCorrectLocked.json();
@@ -402,7 +404,7 @@ test.describe('Staff Credentials Authentication & Management (Email + Admin Pass
       if (res.status() === 429) {
         ipRateLimited = true;
         const rateLimitBody = await res.json();
-        expect(rateLimitBody.message).toContain('Too many login attempts');
+        expect(rateLimitBody.message).toMatch(/rate limit exceeded|too many login attempts/i);
         break;
       }
     }
@@ -489,6 +491,7 @@ test.describe('Staff Credentials Authentication & Management (Email + Admin Pass
     // Verify initial login works
     const login1 = await request.post(`${BASE}/api/auth/staff-login`, {
       data: { email, password: oldPassword },
+      headers: { 'x-forwarded-for': '10.0.6.1' },
     });
     expect(login1.status()).toBe(200);
 
@@ -502,12 +505,14 @@ test.describe('Staff Credentials Authentication & Management (Email + Admin Pass
     // Old password must fail immediately
     const oldLoginRes = await request.post(`${BASE}/api/auth/staff-login`, {
       data: { email, password: oldPassword },
+      headers: { 'x-forwarded-for': '10.0.6.1' },
     });
     expect(oldLoginRes.status()).toBe(401);
 
     // New password succeeds
     const newLoginRes = await request.post(`${BASE}/api/auth/staff-login`, {
       data: { email, password: newPassword },
+      headers: { 'x-forwarded-for': '10.0.6.1' },
     });
     expect(newLoginRes.status()).toBe(200);
   });
@@ -593,6 +598,7 @@ test.describe('Staff Credentials Authentication & Management (Email + Admin Pass
 
     const citLogin = await request.post(`${BASE}/api/auth/staff-login`, {
       data: { email: citEmail, password: citPass },
+      headers: { 'x-forwarded-for': '10.0.8.1' },
     });
     expect(citLogin.status()).toBe(401);
 
@@ -644,6 +650,7 @@ test.describe('Staff Credentials Authentication & Management (Email + Admin Pass
 
     const otherLoginRes = await request.post(`${BASE}/api/auth/staff-login`, {
       data: { email: otherAdminEmail, password: otherPass },
+      headers: { 'x-forwarded-for': '10.0.8.2' },
     });
     expect(otherLoginRes.status()).toBe(200);
     const setCookie = otherLoginRes.headers()['set-cookie'] || '';

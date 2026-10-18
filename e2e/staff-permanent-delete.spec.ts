@@ -617,9 +617,7 @@ test.describe('Admin Permanent Staff Deletion Suite', () => {
       },
     });
 
-    const superAdmin = await prisma.user.findFirst({
-      where: { role: 'SUPER_ADMIN' },
-    });
+    const superAdmin = await ensureSuperAdminUser();
     expect(superAdmin).not.toBeNull();
 
     const res = await request.post(`${BASE}/api/admin/staff/bulk`, {

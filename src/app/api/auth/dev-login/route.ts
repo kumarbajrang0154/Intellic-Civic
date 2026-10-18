@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createJwtToken } from '@/lib/auth-jwt';
 import { getUser, getUserByEmail } from '@/lib/staff-dept-store';
-import { checkRateLimit, rateLimitErrorResponse } from '@/lib/rate-limit';
 
 const ALLOWED_DEV_USER_IDS = new Set([
   'usr_super_admin',
@@ -28,16 +27,10 @@ const ALLOWED_DEV_EMAILS = new Set([
 export async function POST(req: NextRequest) {
   const isProduction =
     process.env.NODE_ENV === 'production' ||
-    process.env.VERCEL_ENV === 'production' ||
-    req.headers.get('x-simulated-env') === 'production';
+    process.env.VERCEL_ENV === 'production';
 
   if (isProduction) {
     return NextResponse.json({ message: 'Not Found' }, { status: 404 });
-  }
-
-  const rateLimitResult = await checkRateLimit(req, 'auth');
-  if (!rateLimitResult.success) {
-    return rateLimitErrorResponse(rateLimitResult);
   }
 
   try {

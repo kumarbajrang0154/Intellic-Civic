@@ -138,6 +138,7 @@ test.describe('Module 5: Frontend Auth Pages & App Shell E2E Tests', () => {
     ]);
 
     await page.goto('/citizen');
+    page.on('dialog', (dialog) => dialog.accept());
     await page.click('button:has-text("Sign Out"), button:has-text("Logout")');
 
     await expect(page).toHaveURL('http://localhost:3000/login/citizen');

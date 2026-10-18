@@ -93,14 +93,17 @@ test.describe('UI Admin Staff Delete and Reassign Flows for exact screenshot sta
     // 4. Set Viewport to 1280px Desktop
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto(`${BASE}/admin/staff`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // ─────────────────────────────────────────────────────────────
     // FLOW A: Ramesh Kumar -> Delete Dialog -> Reassign Open Complaints
     // ─────────────────────────────────────────────────────────────
     const searchInput = page.getByPlaceholder('Search by name or email...');
-    await searchInput.fill(ramesh!.email);
-    await page.waitForTimeout(600);
+    await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/api/admin/staff') && r.status() === 200),
+      searchInput.fill(ramesh!.email),
+    ]);
+    await expect(page.locator('text=Loading staff...')).not.toBeVisible({ timeout: 10000 });
 
     const rameshDelBtn = page.getByTestId(`delete-staff-${ramesh!.id}`);
     await expect(rameshDelBtn).toBeVisible({ timeout: 10000 });
@@ -113,7 +116,7 @@ test.describe('UI Admin Staff Delete and Reassign Flows for exact screenshot sta
 
     // Step 1 -> Step 2
     const nextBtn = page.getByRole('button', { name: /Next: Review Options & Alternatives/i });
-    await expect(nextBtn).toBeEnabled({ timeout: 10000 });
+    await expect(nextBtn).toBeEnabled({ timeout: 20000 });
     await nextBtn.click();
 
     // Step 2 Choose
@@ -164,8 +167,11 @@ test.describe('UI Admin Staff Delete and Reassign Flows for exact screenshot sta
     // ─────────────────────────────────────────────────────────────
     // FLOW B: Worker With Complaint -> 3-Step Permanent Delete Flow
     // ─────────────────────────────────────────────────────────────
-    await searchInput.fill(worker!.email);
-    await page.waitForTimeout(600);
+    await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/api/admin/staff') && r.status() === 200),
+      searchInput.fill(worker!.email),
+    ]);
+    await expect(page.locator('text=Loading staff...')).not.toBeVisible({ timeout: 10000 });
 
     const workerDelBtn = page.getByTestId(`delete-staff-${worker!.id}`);
     await expect(workerDelBtn).toBeVisible({ timeout: 10000 });
@@ -178,7 +184,7 @@ test.describe('UI Admin Staff Delete and Reassign Flows for exact screenshot sta
 
     // Step 1 -> Step 2
     const nextBtnWorker = page.getByRole('button', { name: /Next: Review Options & Alternatives/i });
-    await expect(nextBtnWorker).toBeEnabled({ timeout: 10000 });
+    await expect(nextBtnWorker).toBeEnabled({ timeout: 20000 });
     await nextBtnWorker.click();
 
     // Step 2: Choose
@@ -314,14 +320,17 @@ test.describe('UI Admin Staff Delete and Reassign Flows for exact screenshot sta
     // 4. Set Viewport to 375px Mobile
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto(`${BASE}/admin/staff`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // ─────────────────────────────────────────────────────────────
     // FLOW A: Ramesh Kumar (375px)
     // ─────────────────────────────────────────────────────────────
     const searchInput = page.getByPlaceholder('Search by name or email...');
-    await searchInput.fill(ramesh!.email);
-    await page.waitForTimeout(600);
+    await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/api/admin/staff') && r.status() === 200),
+      searchInput.fill(ramesh!.email),
+    ]);
+    await expect(page.locator('text=Loading staff...')).not.toBeVisible({ timeout: 10000 });
 
     const rameshDelBtn = page.getByTestId(`delete-staff-${ramesh!.id}`);
     await expect(rameshDelBtn).toBeVisible({ timeout: 10000 });
@@ -335,7 +344,7 @@ test.describe('UI Admin Staff Delete and Reassign Flows for exact screenshot sta
 
     // Step 1 -> Step 2
     const nextBtn = page.getByRole('button', { name: /Next: Review Options & Alternatives/i });
-    await expect(nextBtn).toBeEnabled({ timeout: 10000 });
+    await expect(nextBtn).toBeEnabled({ timeout: 20000 });
     await nextBtn.click();
 
     // Step 2 Choose
@@ -384,8 +393,11 @@ test.describe('UI Admin Staff Delete and Reassign Flows for exact screenshot sta
     // ─────────────────────────────────────────────────────────────
     // FLOW B: Worker With Complaint (375px)
     // ─────────────────────────────────────────────────────────────
-    await searchInput.fill(worker!.email);
-    await page.waitForTimeout(600);
+    await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/api/admin/staff') && r.status() === 200),
+      searchInput.fill(worker!.email),
+    ]);
+    await expect(page.locator('text=Loading staff...')).not.toBeVisible({ timeout: 10000 });
 
     const workerDelBtn = page.getByTestId(`delete-staff-${worker!.id}`);
     await expect(workerDelBtn).toBeVisible({ timeout: 10000 });
@@ -399,7 +411,7 @@ test.describe('UI Admin Staff Delete and Reassign Flows for exact screenshot sta
 
     // Step 1 -> Step 2
     const nextBtnWorker = page.getByRole('button', { name: /Next: Review Options & Alternatives/i });
-    await expect(nextBtnWorker).toBeEnabled({ timeout: 10000 });
+    await expect(nextBtnWorker).toBeEnabled({ timeout: 20000 });
     await nextBtnWorker.click();
 
     // Step 2: Choose

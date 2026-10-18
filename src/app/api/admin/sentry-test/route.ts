@@ -6,8 +6,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   const isProduction =
     process.env.NODE_ENV === 'production' ||
-    process.env.VERCEL_ENV === 'production' ||
-    req.headers.get('x-simulated-env') === 'production';
+    process.env.VERCEL_ENV === 'production';
 
   if (isProduction) {
     return NextResponse.json({ message: 'Not Found' }, { status: 404 });
