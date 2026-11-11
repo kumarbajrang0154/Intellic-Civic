@@ -5,7 +5,7 @@ import { captureException } from '@/lib/error-monitoring';
 import prisma from '@/lib/prisma';
 import { checkRateLimit, rateLimitErrorResponse } from '@/lib/rate-limit';
 
-export const staffLanguageSchema = z.object({
+const staffLanguageSchema = z.object({
   preferredLanguage: z.enum(['en', 'original']),
 });
 
