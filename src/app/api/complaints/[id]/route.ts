@@ -33,13 +33,30 @@ export async function GET(
     }
 
     const { id } = params;
-    const complaint = await getComplaintById(id);
+    const complaint = await getComplaintById(id, user.id);
 
     if (!complaint) {
       return NextResponse.json(
         { statusCode: 404, message: 'Complaint ticket not found' },
         { status: 404 },
       );
+    }
+
+    if (user.role === 'CITIZEN') {
+      const isOwnComplaint = complaint.citizenId === user.id;
+      if (!isOwnComplaint) {
+        return NextResponse.json({
+          ...complaint,
+          isOwnComplaint: false,
+          citizenId: undefined,
+          citizenName: 'Verified Citizen',
+          citizenMobile: undefined,
+        });
+      }
+      return NextResponse.json({
+        ...complaint,
+        isOwnComplaint: true,
+      });
     }
 
     return NextResponse.json(complaint);

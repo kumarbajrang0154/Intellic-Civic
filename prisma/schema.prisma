@@ -61,6 +61,8 @@ enum NotificationType {
   STATUS_CHANGED
   RESOLVED
   CLOSED
+  SLA_ESCALATED
+  COMPLAINT_REOPENED
 }
 
 // ==========================================
@@ -122,6 +124,7 @@ model User {
   statusChanges          StatusHistory[]
   notifications          Notification[]
   feedbacks              Feedback[]
+  complaintVotes         ComplaintVote[]
   auditLogs              AuditLog[]
   refreshTokens          RefreshToken[]
 
@@ -223,6 +226,8 @@ model Complaint {
   updatedAt                  DateTime        @updatedAt
   resolvedAt                 DateTime?
   closedAt                   DateTime?
+  escalatedAt                DateTime?
+  voteCount                  Int             @default(0)
 
   citizen                 User          @relation("CitizenComplaints", fields: [citizenId], references: [id], onDelete: Restrict)
   category                Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
@@ -241,11 +246,13 @@ model Complaint {
   statusHistory      StatusHistory[]
   notifications      Notification[]
   feedback           Feedback?
+  votes              ComplaintVote[]
 
   @@index([status])
   @@index([departmentId])
   @@index([citizenId])
   @@index([municipalityId])
+  @@index([escalatedAt])
   @@map("complaints")
 }
 
@@ -489,4 +496,32 @@ model RateLimitBucket {
   updatedAt   DateTime @updatedAt
 
   @@map("rate_limit_buckets")
+}
+
+model ComplaintVote {
+  id          String   @id @default(uuid())
+  complaintId String
+  citizenId   String
+  createdAt   DateTime @default(now())
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  citizen   User      @relation(fields: [citizenId], references: [id], onDelete: Cascade)
+
+  @@unique([complaintId, citizenId])
+  @@index([citizenId])
+  @@map("complaint_votes")
+}
+
+model EmailDelivery {
+  id            String   @id @default(uuid())
+  kind          String
+  recipientHash String
+  status        String
+  attempts      Int      @default(1)
+  lastError     String?  @db.VarChar(200)
+  createdAt     DateTime @default(now())
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("email_deliveries")
 }

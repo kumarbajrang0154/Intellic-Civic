@@ -8,6 +8,10 @@ import {
   ComplaintRoutingResult,
   CategoryInfo,
 } from '@/services/gemini-service';
+import {
+  submitComplaintFeedback,
+  reopenCitizenComplaint,
+} from '@/services/complaint-loop-service';
 
 export interface ComplaintCategory {
   id: string;
@@ -95,6 +99,9 @@ export interface Complaint {
   reopenedAt?: string;
   reopenReason?: string;
   resolutionNotes?: string;
+  voteCount?: number;
+  hasVoted?: boolean;
+  escalatedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   resolvedAt?: string;
@@ -291,6 +298,9 @@ function formatComplaint(raw: any): Complaint {
     reopenedAt: raw.reopenedAt ? (raw.reopenedAt instanceof Date ? raw.reopenedAt.toISOString() : new Date(raw.reopenedAt).toISOString()) : undefined,
     reopenReason: raw.reopenReason || undefined,
     resolutionNotes: raw.resolutionNotes || undefined,
+    voteCount: typeof raw.voteCount === 'number' ? raw.voteCount : 0,
+    hasVoted: Array.isArray(raw.votes) ? raw.votes.length > 0 : undefined,
+    escalatedAt: raw.escalatedAt ? (raw.escalatedAt instanceof Date ? raw.escalatedAt.toISOString() : new Date(raw.escalatedAt).toISOString()) : null,
     createdAt: raw.createdAt instanceof Date ? raw.createdAt.toISOString() : new Date(raw.createdAt).toISOString(),
     updatedAt: raw.updatedAt instanceof Date ? raw.updatedAt.toISOString() : new Date(raw.updatedAt).toISOString(),
     resolvedAt: raw.resolvedAt ? (raw.resolvedAt instanceof Date ? raw.resolvedAt.toISOString() : new Date(raw.resolvedAt).toISOString()) : undefined,
@@ -650,12 +660,22 @@ export async function createComplaint(data: {
   });
 }
 
-export async function getComplaintById(id: string): Promise<Complaint | null> {
+export async function getComplaintById(id: string, viewerId?: string): Promise<Complaint | null> {
   const raw = await prisma.complaint.findFirst({
     where: {
       OR: [{ id }, { ticketId: id }],
     },
-    include: DEFAULT_INCLUDE,
+    include: {
+      ...DEFAULT_INCLUDE,
+      ...(viewerId
+        ? {
+            votes: {
+              where: { citizenId: viewerId },
+              select: { id: true },
+            },
+          }
+        : {}),
+    },
   });
 
   return raw ? formatComplaint(raw) : null;
@@ -679,6 +699,7 @@ export async function listComplaints(filters?: {
   toDate?: string;
   needsTriage?: boolean;
   pendingAiConfirmation?: boolean;
+  viewerId?: string;
   page?: number;
   limit?: number;
 }): Promise<{ data: Complaint[]; meta: { total: number; page: number; limit: number; totalPages: number } }> {
@@ -768,7 +789,17 @@ export async function listComplaints(filters?: {
     prisma.complaint.count({ where }),
     prisma.complaint.findMany({
       where,
-      include: DEFAULT_INCLUDE,
+      include: {
+        ...DEFAULT_INCLUDE,
+        ...(filters?.viewerId
+          ? {
+              votes: {
+                where: { citizenId: filters.viewerId },
+                select: { id: true },
+              },
+            }
+          : {}),
+      },
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
@@ -979,45 +1010,17 @@ export async function reopenComplaint(
   citizenId: string,
   reason: string,
 ): Promise<{ ok: boolean; status: number; message: string; complaint?: Complaint }> {
-  const complaint = await getComplaintById(id);
-  if (!complaint) {
-    return { ok: false, status: 404, message: 'Complaint ticket not found.' };
+  const result = await reopenCitizenComplaint(id, citizenId, reason);
+  if (!result.ok) {
+    return { ok: false, status: result.status, message: result.message };
   }
-
-  if (complaint.citizenId !== citizenId) {
-    return { ok: false, status: 403, message: 'Forbidden: You do not own this complaint.' };
-  }
-
-  if (complaint.status !== 'RESOLVED') {
-    return { ok: false, status: 400, message: 'Only RESOLVED complaints can be reopened.' };
-  }
-
-  if (!reason || reason.trim().length < 10) {
-    return { ok: false, status: 400, message: 'A detailed reason (min 10 characters) is required to reopen.' };
-  }
-
-  const nextStatus = complaint.departmentId ? ComplaintStatus.IN_PROGRESS : ComplaintStatus.PENDING_DEPT_REVIEW;
-
-  const updated = await prisma.complaint.update({
-    where: { id: complaint.id },
-    data: {
-      status: nextStatus,
-      reopenCount: { increment: 1 },
-      reopenedAt: new Date(),
-      reopenReason: reason.trim(),
-      statusHistory: {
-        create: {
-          fromStatus: ComplaintStatus.RESOLVED,
-          toStatus: nextStatus,
-          changedByUserId: citizenId,
-          notes: `Citizen disputed resolution: "${reason.trim()}"`,
-        },
-      },
-    },
-    include: DEFAULT_INCLUDE,
-  });
-
-  return { ok: true, status: 200, message: 'Complaint reopened successfully.', complaint: formatComplaint(updated) };
+  const fullComplaint = await getComplaintById(id, citizenId);
+  return {
+    ok: true,
+    status: result.status,
+    message: result.message,
+    complaint: fullComplaint ?? undefined,
+  };
 }
 
 export async function addFeedbackToComplaint(
@@ -1026,46 +1029,12 @@ export async function addFeedbackToComplaint(
   rating: number,
   comment?: string,
 ): Promise<{ ok: boolean; status: number; message: string; feedback?: ComplaintFeedback }> {
-  const complaint = await getComplaintById(id);
-  if (!complaint) {
-    return { ok: false, status: 404, message: 'Complaint ticket not found.' };
-  }
-
-  if (complaint.citizenId !== citizenId) {
-    return { ok: false, status: 403, message: 'Forbidden: You do not own this complaint.' };
-  }
-
-  if (!['RESOLVED', 'CLOSED'].includes(complaint.status)) {
-    return { ok: false, status: 400, message: 'Feedback can only be submitted for RESOLVED or CLOSED complaints.' };
-  }
-
-  if (complaint.feedback) {
-    return { ok: false, status: 409, message: 'Feedback has already been submitted for this complaint.' };
-  }
-
-  if (!rating || rating < 1 || rating > 5) {
-    return { ok: false, status: 400, message: 'Rating must be an integer between 1 and 5.' };
-  }
-
-  const created = await prisma.feedback.create({
-    data: {
-      complaintId: complaint.id,
-      citizenId,
-      rating: Math.round(rating),
-      comment: comment?.trim() || undefined,
-    },
-  });
-
+  const result = await submitComplaintFeedback(id, citizenId, rating, comment);
   return {
-    ok: true,
-    status: 200,
-    message: 'Feedback submitted successfully.',
-    feedback: {
-      id: created.id,
-      rating: created.rating,
-      comment: created.comment || undefined,
-      createdAt: created.createdAt.toISOString(),
-    },
+    ok: result.ok,
+    status: result.status,
+    message: result.message,
+    feedback: result.feedback,
   };
 }
 

@@ -17,6 +17,8 @@ import {
   Trash2,
   Clock,
   AlertTriangle,
+  ThumbsUp,
+  Users,
 } from 'lucide-react';
 import { AppShell } from '@/components/shared/app-shell';
 import { Button } from '@/components/ui/button';
@@ -34,6 +36,10 @@ interface Complaint {
   description: string;
   status: string;
   createdAt: string;
+  voteCount?: number;
+  hasVoted?: boolean;
+  isOwnComplaint?: boolean;
+  citizenId?: string;
   category?: { id: string; name: string } | null;
   location?: { address?: string } | null;
   evidence?: { imageUrl: string }[];
@@ -56,6 +62,8 @@ export default function CitizenDashboardPage() {
   const [lastUpdated, setLastUpdated] = React.useState<string | null>(null);
 
   // Pagination & Filter state
+  const [scope, setScope] = React.useState<'mine' | 'community'>('mine');
+  const [votingId, setVotingId] = React.useState<string | null>(null);
   const [page, setPage] = React.useState(1);
   const [totalPages, setTotalPages] = React.useState(1);
   const [statusFilter, setStatusFilter] = React.useState<string>('ALL');
@@ -205,6 +213,7 @@ export default function CitizenDashboardPage() {
         const params = new URLSearchParams({
           page: String(page),
           limit: '10',
+          ...(scope === 'community' && { scope: 'community' }),
           ...(statusFilter !== 'ALL' && { status: statusFilter }),
           ...(debouncedSearch.trim() && { search: debouncedSearch.trim() }),
           ...(fromDate && { fromDate }),
@@ -229,8 +238,42 @@ export default function CitizenDashboardPage() {
         if (!isBackground) setLoading(false);
       }
     },
-    [page, statusFilter, debouncedSearch, fromDate, toDate],
+    [page, scope, statusFilter, debouncedSearch, fromDate, toDate],
   );
+
+  const handleToggleVote = async (complaint: Complaint) => {
+    if (votingId) return;
+    const isOwn = complaint.isOwnComplaint ?? (user.id && complaint.citizenId ? complaint.citizenId === user.id : false);
+    if (isOwn) return;
+
+    const currentlyVoted = Boolean(complaint.hasVoted);
+    setVotingId(complaint.id);
+    try {
+      const res = await fetch(`/api/complaints/${complaint.id}/vote`, {
+        method: currentlyVoted ? 'DELETE' : 'POST',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to update vote');
+      }
+      setComplaints((prev) =>
+        prev.map((item) =>
+          item.id === complaint.id
+            ? {
+                ...item,
+                hasVoted: Boolean(data.voted),
+                voteCount: typeof data.voteCount === 'number' ? data.voteCount : item.voteCount,
+              }
+            : item,
+        ),
+      );
+      toast.success(data.voted ? 'Added your "Me Too" vote.' : 'Removed your vote.');
+    } catch (err: any) {
+      toast.error(err.message || 'Error updating vote');
+    } finally {
+      setVotingId(null);
+    }
+  };
 
   fetchComplaintsRef.current = fetchComplaints;
 
@@ -506,6 +549,38 @@ export default function CitizenDashboardPage() {
           </Card>
         </div>
 
+        {/* View Switcher: My Complaints vs Community Issues */}
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Complaint Feed Scope">
+          <Button
+            type="button"
+            variant={scope === 'mine' ? 'default' : 'outline'}
+            size="sm"
+            aria-pressed={scope === 'mine'}
+            onClick={() => {
+              setScope('mine');
+              setPage(1);
+            }}
+            className="h-11 px-4 md:h-9 md:px-3 text-xs font-semibold gap-1.5"
+          >
+            <FileText className="h-4 w-4 shrink-0" />
+            <span>My Complaints</span>
+          </Button>
+          <Button
+            type="button"
+            variant={scope === 'community' ? 'default' : 'outline'}
+            size="sm"
+            aria-pressed={scope === 'community'}
+            onClick={() => {
+              setScope('community');
+              setPage(1);
+            }}
+            className="h-11 px-4 md:h-9 md:px-3 text-xs font-semibold gap-1.5"
+          >
+            <Users className="h-4 w-4 shrink-0" />
+            <span>Community Issues</span>
+          </Button>
+        </div>
+
         {/* Filter & Search Controls Card */}
         <Card className="border border-slate-200 shadow-xs bg-white rounded-xl min-w-0">
           <CardContent className="p-4 space-y-3 min-w-0">
@@ -641,13 +716,22 @@ export default function CitizenDashboardPage() {
           <div className="space-y-4 min-w-0">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
               {complaints.map((complaint) => {
+                const isOwn =
+                  complaint.isOwnComplaint ??
+                  (user.id && complaint.citizenId ? complaint.citizenId === user.id : scope === 'mine');
+                const voteCount = typeof complaint.voteCount === 'number' ? complaint.voteCount : 0;
+                const isVoted = Boolean(complaint.hasVoted);
+                const isVoting = votingId === complaint.id;
+
                 return (
-                  <Link
+                  <Card
                     key={complaint.id}
-                    href={`/citizen/complaints/${complaint.id}`}
-                    className="block group min-w-0"
+                    className="h-full hover:shadow-md transition-shadow border border-slate-200 bg-white rounded-xl hover:border-ic-blue/40 flex flex-col justify-between overflow-hidden min-w-0"
                   >
-                    <Card className="h-full hover:shadow-md transition-shadow border border-slate-200 bg-white rounded-xl hover:border-ic-blue/40 flex flex-col justify-between overflow-hidden min-w-0">
+                    <Link
+                      href={`/citizen/complaints/${complaint.id}`}
+                      className="block group flex-1 min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ic-blue"
+                    >
                       <CardHeader className="p-4 sm:p-5 pb-3 min-w-0">
                         <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
                           <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 shrink-0">
@@ -662,32 +746,60 @@ export default function CitizenDashboardPage() {
                         </CardTitle>
                       </CardHeader>
 
-                      <CardContent className="p-4 sm:p-5 pt-0 space-y-3 flex-1 flex flex-col justify-between min-w-0">
+                      <CardContent className="p-4 sm:p-5 pt-0 pb-3 min-w-0">
                         <p className="text-xs text-slate-600 line-clamp-2 break-words">
                           {complaint.description}
                         </p>
-
-                        <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs text-slate-500 gap-2 flex-wrap">
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <Calendar className="h-3.5 w-3.5 text-ic-blue" />
-                            <span>
-                              {new Date(complaint.createdAt).toLocaleDateString(undefined, {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric',
-                              })}
-                            </span>
-                          </div>
-
-                          {complaint.category && (
-                            <span className="bg-slate-50 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-semibold text-slate-700 truncate max-w-[150px]">
-                              {complaint.category.name}
-                            </span>
-                          )}
-                        </div>
                       </CardContent>
-                    </Card>
-                  </Link>
+                    </Link>
+
+                    <div className="px-4 sm:px-5 pb-4 sm:pb-5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Calendar className="h-3.5 w-3.5 text-ic-blue" />
+                          <span>
+                            {new Date(complaint.createdAt).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })}
+                          </span>
+                        </div>
+
+                        {complaint.category && (
+                          <span className="bg-slate-50 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-semibold text-slate-700 truncate max-w-[140px]">
+                            {complaint.category.name}
+                          </span>
+                        )}
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant={isVoted ? 'default' : 'outline'}
+                        size="sm"
+                        disabled={isOwn || isVoting}
+                        aria-pressed={isVoted}
+                        aria-label={
+                          isOwn
+                            ? `Me Too votes: ${voteCount} (own complaint)`
+                            : isVoted
+                            ? `Remove Me Too vote (${voteCount} votes)`
+                            : `Upvote complaint #${complaint.ticketId} (${voteCount} votes)`
+                        }
+                        title={isOwn ? 'You cannot vote on your own complaint' : 'Me Too: Upvote this issue'}
+                        onClick={() => handleToggleVote(complaint)}
+                        className="h-9 px-2.5 text-xs gap-1.5 font-semibold shrink-0"
+                      >
+                        {isVoting ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                        ) : (
+                          <ThumbsUp className="h-3.5 w-3.5 shrink-0" />
+                        )}
+                        <span>Me Too</span>
+                        <span className="font-mono">{voteCount}</span>
+                      </Button>
+                    </div>
+                  </Card>
                 );
               })}
             </div>

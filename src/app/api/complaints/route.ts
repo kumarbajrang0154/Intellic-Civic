@@ -35,15 +35,20 @@ export async function GET(request: NextRequest) {
     const needsTriage = searchParams.get('needsTriage') === 'true';
     const pendingAiConfirmation = searchParams.get('pendingAiConfirmation') === 'true';
     const assignedToMe = searchParams.get('assignedToMe') === 'true';
+    const scope = searchParams.get('scope') || undefined;
 
     // Role-based scope enforcement
     let citizenId: string | undefined = undefined;
     let assignedFieldWorkerId: string | undefined = undefined;
     let departmentOfficerId: string | undefined = undefined;
+    let authenticatedCitizenId: string | undefined = undefined;
     if (payload.role === 'CITIZEN') {
       const auth = await requireCitizen();
       if (!auth.authorized) return auth.response;
-      citizenId = auth.user.id;
+      authenticatedCitizenId = auth.user.id;
+      if (scope !== 'community') {
+        citizenId = auth.user.id;
+      }
     }
     let municipalityId = searchParams.get('municipalityId') || undefined;
 
@@ -84,9 +89,30 @@ export async function GET(request: NextRequest) {
       toDate,
       needsTriage,
       pendingAiConfirmation,
+      viewerId: payload.sub,
       page,
       limit,
     });
+
+    if (payload.role === 'CITIZEN') {
+      const sanitizedData = result.data.map((item) => {
+        const isOwnComplaint = item.citizenId === authenticatedCitizenId;
+        if (isOwnComplaint) {
+          return { ...item, isOwnComplaint: true };
+        }
+        return {
+          ...item,
+          isOwnComplaint: false,
+          citizenId: undefined,
+          citizenName: 'Verified Citizen',
+          citizenMobile: undefined,
+        };
+      });
+      return NextResponse.json({
+        data: sanitizedData,
+        meta: result.meta,
+      });
+    }
 
     return NextResponse.json(result);
   } catch (error: any) {

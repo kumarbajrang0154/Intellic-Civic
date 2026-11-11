@@ -1,10 +1,13 @@
-import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireStaff } from '@/lib/admin-auth';
+import { captureException } from '@/lib/error-monitoring';
 import prisma from '@/lib/prisma';
 import { ComplaintStatus } from '@prisma/client';
 
 import { createNotification } from '@/lib/notifications-store';
+import { checkRateLimit, rateLimitErrorResponse } from '@/lib/rate-limit';
+import { validateComplaintIdParam } from '@/lib/validation';
+import { buildAppUrl, sendTemplatedEmail } from '@/services/email-service';
 
 export async function PATCH(
   request: NextRequest,
@@ -16,16 +19,32 @@ export async function PATCH(
       return auth.response;
     }
 
-    const { id } = params;
-    const body = await request.json();
+    const rateLimit = await checkRateLimit(request, 'general', auth.user.id);
+    if (!rateLimit.success) {
+      return rateLimitErrorResponse(rateLimit);
+    }
+
+    const idValidation = validateComplaintIdParam(params?.id);
+    if (!idValidation.success) {
+      return NextResponse.json({ statusCode: 400, message: idValidation.error }, { status: 400 });
+    }
+    const id = idValidation.data!;
+    const body = await request.json().catch(() => ({}));
     const { status } = body;
-    const notes = body.notes || body.remarks;
+    const notes = typeof body.notes === 'string' ? body.notes : typeof body.remarks === 'string' ? body.remarks : undefined;
 
     if (!status || !Object.values(ComplaintStatus).includes(status as ComplaintStatus)) {
       return NextResponse.json({ statusCode: 400, message: 'Invalid complaint status' }, { status: 400 });
     }
 
-    const currentComplaint = await prisma.complaint.findUnique({ where: { id } });
+    const currentComplaint = await prisma.complaint.findUnique({
+      where: { id },
+      include: {
+        citizen: {
+          select: { id: true, email: true },
+        },
+      },
+    });
     if (!currentComplaint) {
       return NextResponse.json({ statusCode: 404, message: 'Complaint not found' }, { status: 404 });
     }
@@ -83,10 +102,33 @@ export async function PATCH(
       message: `Your complaint #${currentComplaint.ticketId} status was updated to ${statusLabel}. ${notes ? `Notes: ${notes}` : ''}`.trim(),
     }).catch(() => {});
 
+    // Post-commit email notification (non-blocking if missing API key or delivery fails)
+    const citizenEmail = currentComplaint.citizen?.email;
+    if (citizenEmail && status !== currentComplaint.status) {
+      if (status === 'RESOLVED') {
+        await sendTemplatedEmail('complaintResolved', citizenEmail, {
+          ticketId: updated.ticketId,
+          title: updated.title,
+          resolutionNotes: notes || updated.resolutionNotes,
+          feedbackUrl: buildAppUrl(`/citizen/complaints/${updated.id}#feedback`),
+        }).catch(() => {});
+      } else {
+        await sendTemplatedEmail('complaintStatusChanged', citizenEmail, {
+          ticketId: updated.ticketId,
+          title: updated.title,
+          previousStatus: currentComplaint.status,
+          newStatus: status,
+          notes: notes || null,
+          complaintUrl: buildAppUrl(`/citizen/complaints/${updated.id}`),
+        }).catch(() => {});
+      }
+    }
+
     return NextResponse.json({ success: true, complaint: updated });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    captureException(error, { route: 'PATCH /api/complaints/[id]/status' });
     return NextResponse.json(
-      { statusCode: 500, message: 'Internal server error', error: error.message },
+      { statusCode: 500, message: 'Internal server error' },
       { status: 500 },
     );
   }

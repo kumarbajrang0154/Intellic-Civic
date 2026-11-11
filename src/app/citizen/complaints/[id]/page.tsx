@@ -18,6 +18,7 @@ import {
   ThumbsUp,
   Sparkles,
   Trash2,
+  ShieldAlert,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -71,6 +72,11 @@ interface ComplaintDetail {
   reopenedAt?: string;
   reopenReason?: string;
   resolutionNotes?: string;
+  voteCount?: number;
+  hasVoted?: boolean;
+  isOwnComplaint?: boolean;
+  citizenId?: string;
+  escalatedAt?: string | null;
   feedback?: {
     id: string;
     rating: number;
@@ -78,6 +84,12 @@ interface ComplaintDetail {
     createdAt: string;
   };
 }
+
+const REOPEN_WINDOW_DAYS = 7;
+const MAX_REOPEN_COUNT = 1;
+const REOPEN_REASON_MIN_LENGTH = 10;
+const REOPEN_REASON_MAX_LENGTH = 500;
+const FEEDBACK_COMMENT_MAX_LENGTH = 500;
 
 function getStatusLabel(status?: string): string {
   switch (status) {
@@ -108,7 +120,7 @@ export default function CitizenComplaintDetailPage() {
   const router = useRouter();
   const id = params?.id as string;
 
-  const [user, setUser] = React.useState<{ name: string; role: 'CITIZEN' }>({
+  const [user, setUser] = React.useState<{ id?: string; name: string; role: 'CITIZEN' }>({
     name: 'Citizen',
     role: 'CITIZEN',
   });
@@ -118,7 +130,7 @@ export default function CitizenComplaintDetailPage() {
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.user?.name) {
-          setUser({ name: data.user.name, role: 'CITIZEN' });
+          setUser({ id: data.user.id, name: data.user.name, role: 'CITIZEN' });
         }
       })
       .catch(() => {});
@@ -135,12 +147,17 @@ export default function CitizenComplaintDetailPage() {
   const [reopenModalOpen, setReopenModalOpen] = React.useState(false);
   const [reopenReason, setReopenReason] = React.useState('');
   const [reopenError, setReopenError] = React.useState('');
+  const [reopenSuccess, setReopenSuccess] = React.useState('');
+
+  // Upvote state
+  const [voting, setVoting] = React.useState(false);
 
   // Feedback form state
   const [feedbackRating, setFeedbackRating] = React.useState<number>(5);
   const [feedbackComment, setFeedbackComment] = React.useState('');
   const [submittingFeedback, setSubmittingFeedback] = React.useState(false);
   const [feedbackError, setFeedbackError] = React.useState('');
+  const [feedbackSuccess, setFeedbackSuccess] = React.useState('');
   const [deleting, setDeleting] = React.useState(false);
 
   const handleDeleteComplaint = async () => {
@@ -233,24 +250,32 @@ export default function CitizenComplaintDetailPage() {
 
   const handleReopenComplaint = async () => {
     if (!complaint) return;
-    if (!reopenReason.trim() || reopenReason.trim().length < 10) {
-      setReopenError('Reopen reason must be at least 10 characters.');
+    const trimmedReason = reopenReason.trim();
+    if (!trimmedReason || trimmedReason.length < REOPEN_REASON_MIN_LENGTH) {
+      setReopenError(`Reopen reason must be at least ${REOPEN_REASON_MIN_LENGTH} characters.`);
+      return;
+    }
+    if (trimmedReason.length > REOPEN_REASON_MAX_LENGTH) {
+      setReopenError(`Reopen reason must not exceed ${REOPEN_REASON_MAX_LENGTH} characters.`);
       return;
     }
 
     setActionLoading(true);
     setReopenError('');
+    setReopenSuccess('');
     try {
       const res = await fetch(`/api/complaints/${complaint.id}/reopen`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: reopenReason.trim() }),
+        body: JSON.stringify({ reason: trimmedReason }),
       });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.message || 'Failed to reopen complaint');
       }
-      toast.success('Complaint reopened and routed back to handling department.');
+      const successMessage = 'Complaint reopened and routed back to the handling department.';
+      toast.success(successMessage);
+      setReopenSuccess(successMessage);
       setReopenModalOpen(false);
       setReopenReason('');
       fetchDetail();
@@ -261,11 +286,41 @@ export default function CitizenComplaintDetailPage() {
     }
   };
 
+  const handleToggleVote = async () => {
+    if (!complaint || voting) return;
+    const currentlyVoted = Boolean(complaint.hasVoted);
+    setVoting(true);
+    try {
+      const res = await fetch(`/api/complaints/${complaint.id}/vote`, {
+        method: currentlyVoted ? 'DELETE' : 'POST',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to update upvote');
+      }
+      setComplaint((prev) =>
+        prev
+          ? {
+              ...prev,
+              hasVoted: Boolean(data.voted),
+              voteCount: typeof data.voteCount === 'number' ? data.voteCount : prev.voteCount,
+            }
+          : prev,
+      );
+      toast.success(data.voted ? 'Added your "Me Too" vote.' : 'Removed your vote.');
+    } catch (err: any) {
+      toast.error(err.message || 'Error updating vote');
+    } finally {
+      setVoting(false);
+    }
+  };
+
   const handleSubmitFeedback = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!complaint) return;
     setSubmittingFeedback(true);
     setFeedbackError('');
+    setFeedbackSuccess('');
 
     try {
       const res = await fetch(`/api/complaints/${complaint.id}/feedback`, {
@@ -280,7 +335,9 @@ export default function CitizenComplaintDetailPage() {
       if (!res.ok) {
         throw new Error(data.message || 'Failed to submit feedback');
       }
-      toast.success('Thank you! Your rating and comments have been recorded.');
+      const successMsg = 'Thank you! Your rating and comments have been recorded.';
+      toast.success(successMsg);
+      setFeedbackSuccess(successMsg);
       fetchDetail();
     } catch (err: any) {
       setFeedbackError(err.message || 'Error submitting feedback');
@@ -360,6 +417,17 @@ export default function CitizenComplaintDetailPage() {
     complaint.statusHistory?.find((h) => h.notes && h.notes.length > 0)?.notes;
 
   const isDeletable = ['SUBMITTED', 'AI_PROCESSING', 'PENDING_DEPT_REVIEW'].includes(complaint.status);
+  const isOwner = complaint.isOwnComplaint ?? (user.id && complaint.citizenId ? complaint.citizenId === user.id : true);
+  const reopenLimitReached = (complaint.reopenCount ?? 0) >= MAX_REOPEN_COUNT;
+  const resolvedAnchor = complaint.resolvedAt || complaint.closedAt;
+  const reopenWindowExpired = resolvedAnchor
+    ? Date.now() - new Date(resolvedAnchor).getTime() > REOPEN_WINDOW_DAYS * 24 * 60 * 60 * 1000
+    : false;
+  const canReopen =
+    isOwner &&
+    !reopenLimitReached &&
+    !reopenWindowExpired &&
+    (complaint.status === 'RESOLVED' || complaint.status === 'CLOSED');
 
   return (
     <AppShell user={user}>
@@ -406,9 +474,34 @@ export default function CitizenComplaintDetailPage() {
           </div>
         </div>
 
-        {/* Live Auto-Refresh Status Pill & Delete Button */}
+        {/* Upvote ("Me Too"), Live Auto-Refresh Status Pill & Delete Button */}
         <div className="flex items-center gap-3 self-end sm:self-center flex-wrap">
-          {isDeletable && (
+          <Button
+            type="button"
+            variant={complaint.hasVoted ? 'default' : 'outline'}
+            size="sm"
+            onClick={handleToggleVote}
+            disabled={isOwner || voting}
+            aria-pressed={Boolean(complaint.hasVoted)}
+            aria-label={
+              isOwner
+                ? `Me Too votes: ${complaint.voteCount ?? 0} (you cannot vote on your own complaint)`
+                : complaint.hasVoted
+                ? `Remove Me Too vote (${complaint.voteCount ?? 0} votes)`
+                : `Upvote this complaint (${complaint.voteCount ?? 0} votes)`
+            }
+            title={isOwner ? 'You cannot upvote your own complaint' : 'Me Too: Signal this issue affects you too'}
+            className="h-11 px-3 md:h-9 md:px-3 text-xs gap-1.5 font-semibold shrink-0"
+          >
+            {voting ? (
+              <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+            ) : (
+              <ThumbsUp className="h-4 w-4 shrink-0" />
+            )}
+            <span>Me Too</span>
+            <span className="font-mono font-bold">({complaint.voteCount ?? 0})</span>
+          </Button>
+          {isOwner && isDeletable && (
             <Button
               variant="destructive"
               size="sm"
@@ -477,8 +570,27 @@ export default function CitizenComplaintDetailPage() {
             </div>
           )}
 
-          {/* Batch A: Post-Resolution Decision Bar (Shown when RESOLVED or CLOSED) */}
-          {(complaint.status === 'RESOLVED' || complaint.status === 'CLOSED') && (
+          {/* SLA Escalation Notice */}
+          {complaint.escalatedAt && (
+            <Alert className="border-amber-300 bg-amber-50 text-amber-900 min-w-0">
+              <ShieldAlert className="h-4 w-4 text-amber-700 shrink-0" />
+              <AlertTitle className="font-bold text-sm">Escalated to Department Head</AlertTitle>
+              <AlertDescription className="text-xs mt-0.5">
+                This complaint crossed its target SLA deadline and was escalated on{' '}
+                {new Date(complaint.escalatedAt).toLocaleDateString()}.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {reopenSuccess && (
+            <Alert className="border-emerald-300 bg-emerald-50 text-emerald-900 min-w-0">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+              <AlertDescription className="text-xs font-medium">{reopenSuccess}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Batch A: Post-Resolution Decision Bar (Shown to owner when RESOLVED or CLOSED) */}
+          {isOwner && (complaint.status === 'RESOLVED' || complaint.status === 'CLOSED') && (
             <div className="p-4 bg-emerald-500/10 border-2 border-emerald-500/30 rounded-xl space-y-3 min-w-0" data-testid="resolution-decision-bar">
               <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
@@ -486,9 +598,19 @@ export default function CitizenComplaintDetailPage() {
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed break-words">
                 {complaint.status === 'CLOSED'
-                  ? 'This complaint has been resolved and closed by municipal authorities. If the issue recurs, you may reopen this ticket.'
-                  : 'Please verify the work done. If satisfied, mark it satisfactory to close the ticket. If the issue persists, you may reopen this ticket.'}
+                  ? 'This complaint has been resolved and closed by municipal authorities.'
+                  : 'Please verify the work done. If satisfied, mark it satisfactory to close the ticket. If the issue persists, you may reopen this ticket once within 7 days of resolution.'}
               </p>
+              {reopenLimitReached && (
+                <p className="text-xs text-amber-800 font-medium">
+                  This ticket has already been reopened once (maximum 1 reopen allowed per complaint).
+                </p>
+              )}
+              {!reopenLimitReached && reopenWindowExpired && (
+                <p className="text-xs text-amber-800 font-medium">
+                  The {REOPEN_WINDOW_DAYS}-day reopen window after resolution has elapsed.
+                </p>
+              )}
               <div className="flex flex-col sm:flex-row items-center gap-3 pt-1">
                 {complaint.status === 'RESOLVED' && (
                   <Button
@@ -500,22 +622,27 @@ export default function CitizenComplaintDetailPage() {
                     {actionLoading ? 'Closing Ticket...' : 'Mark as Satisfactory & Close'}
                   </Button>
                 )}
-                <Button
-                  variant="outline"
-                  onClick={() => setReopenModalOpen(true)}
-                  disabled={actionLoading}
-                  className="w-full sm:w-auto h-11 md:h-9 border-amber-500 text-amber-700 hover:bg-amber-50 font-bold text-xs gap-1.5"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                  Reopen Complaint
-                </Button>
+                {(complaint.status === 'RESOLVED' || complaint.status === 'CLOSED') && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setReopenError('');
+                      setReopenModalOpen(true);
+                    }}
+                    disabled={actionLoading || !canReopen}
+                    className="w-full sm:w-auto h-11 md:h-9 border-amber-500 text-amber-700 hover:bg-amber-50 font-bold text-xs gap-1.5"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Reopen Complaint
+                  </Button>
+                )}
               </div>
             </div>
           )}
 
-          {/* Batch A: Feedback Rating Form (Shown when RESOLVED or CLOSED) */}
-          {['RESOLVED', 'CLOSED'].includes(complaint.status) && (
-            <Card className="border shadow-sm bg-muted/20">
+          {/* Batch A: Feedback Rating Form (Shown to owner when RESOLVED or CLOSED) */}
+          {isOwner && ['RESOLVED', 'CLOSED'].includes(complaint.status) && (
+            <Card id="feedback" className="border shadow-sm bg-muted/20">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-bold flex items-center gap-2">
                   <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
@@ -526,9 +653,15 @@ export default function CitizenComplaintDetailPage() {
                 {complaint.feedback ? (
                   /* Read-Only Submitted Feedback */
                   <div className="p-3 bg-background border rounded-lg text-xs space-y-1.5">
+                    {feedbackSuccess && (
+                      <Alert className="border-emerald-300 bg-emerald-50 text-emerald-900 mb-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                        <AlertDescription className="text-xs font-medium">{feedbackSuccess}</AlertDescription>
+                      </Alert>
+                    )}
                     <div className="flex items-center gap-1">
                       <span className="font-bold text-foreground">Your Rating:</span>
-                      <div className="flex items-center text-amber-500">
+                      <div className="flex items-center text-amber-500" aria-label={`Rated ${complaint.feedback.rating} out of 5 stars`}>
                         {[1, 2, 3, 4, 5].map((star) => (
                           <Star
                             key={star}
@@ -557,16 +690,30 @@ export default function CitizenComplaintDetailPage() {
                         <AlertDescription>{feedbackError}</AlertDescription>
                       </Alert>
                     )}
+                    {feedbackSuccess && (
+                      <Alert className="border-emerald-300 bg-emerald-50 text-emerald-900 text-xs">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                        <AlertDescription>{feedbackSuccess}</AlertDescription>
+                      </Alert>
+                    )}
                     <div className="space-y-1">
-                      <label className="font-semibold block">Rate overall resolution quality:</label>
-                      <div className="flex flex-wrap items-center gap-1.5 py-1 min-w-0">
+                      <label id="feedback-rating-label" className="font-semibold block">
+                        Rate overall resolution quality (1 to 5 stars):
+                      </label>
+                      <div
+                        role="radiogroup"
+                        aria-labelledby="feedback-rating-label"
+                        className="flex flex-wrap items-center gap-1.5 py-1 min-w-0"
+                      >
                         <div className="flex items-center gap-1 shrink-0">
                           {[1, 2, 3, 4, 5].map((star) => (
                             <button
                               key={star}
                               type="button"
+                              aria-label={`Rate ${star} out of 5 stars`}
+                              aria-pressed={feedbackRating === star}
                               onClick={() => setFeedbackRating(star)}
-                              className="p-1 sm:p-2 hover:scale-110 transition-transform focus:outline-none min-h-[44px] min-w-[38px] sm:min-w-[44px] inline-flex items-center justify-center shrink-0"
+                              className="p-1 sm:p-2 hover:scale-110 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded min-h-[44px] min-w-[38px] sm:min-w-[44px] inline-flex items-center justify-center shrink-0"
                             >
                               <Star
                                 className={`h-5 w-5 sm:h-6 sm:w-6 shrink-0 ${
@@ -587,11 +734,19 @@ export default function CitizenComplaintDetailPage() {
                     </div>
 
                     <div className="space-y-1">
-                      <label htmlFor="comment" className="font-semibold block">Comments / Review (Optional):</label>
+                      <div className="flex items-center justify-between gap-2">
+                        <label htmlFor="comment" className="font-semibold block">
+                          Comments / Review (Optional):
+                        </label>
+                        <span className="text-[11px] text-muted-foreground">
+                          {feedbackComment.length}/{FEEDBACK_COMMENT_MAX_LENGTH}
+                        </span>
+                      </div>
                       <Textarea
                         id="comment"
                         rows={2}
-                        placeholder="Share your thoughts on the resolution..."
+                        maxLength={FEEDBACK_COMMENT_MAX_LENGTH}
+                        placeholder="Share your feedback on the resolution..."
                         value={feedbackComment}
                         onChange={(e) => setFeedbackComment(e.target.value)}
                         className=""
@@ -801,14 +956,26 @@ export default function CitizenComplaintDetailPage() {
                 <AlertDescription>{reopenError}</AlertDescription>
               </Alert>
             )}
+            <Alert className="border-amber-200 bg-amber-50 text-amber-900 text-xs">
+              <AlertCircle className="h-4 w-4 text-amber-700 shrink-0" />
+              <AlertDescription>
+                Please confirm: a complaint can only be reopened once within {REOPEN_WINDOW_DAYS} days of resolution, and will notify the assigned officer and Department Head immediately.
+              </AlertDescription>
+            </Alert>
             <div className="space-y-1">
-              <label htmlFor="reopenReason" className="text-xs font-semibold text-foreground">
-                Detailed Reason for Reopening <span className="text-destructive">*</span>
-              </label>
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor="reopenReason" className="text-xs font-semibold text-foreground">
+                  Detailed Reason for Reopening <span className="text-destructive">*</span>
+                </label>
+                <span className="text-[11px] text-muted-foreground">
+                  {reopenReason.trim().length}/{REOPEN_REASON_MAX_LENGTH}
+                </span>
+              </div>
               <Textarea
                 id="reopenReason"
                 rows={4}
-                placeholder="Reason for reopening (min 10 characters)..."
+                maxLength={REOPEN_REASON_MAX_LENGTH}
+                placeholder="Reason for reopening (10 to 500 characters)..."
                 value={reopenReason}
                 onChange={(e) => setReopenReason(e.target.value)}
                 className=""
@@ -824,7 +991,7 @@ export default function CitizenComplaintDetailPage() {
               disabled={actionLoading}
               className="h-11 px-4 md:h-9 md:px-3 bg-amber-600 hover:bg-amber-700 text-white font-bold w-full sm:w-auto"
             >
-              {actionLoading ? 'Reopening...' : 'Confirm & Reopen Ticket'}
+              {actionLoading ? 'Reopening...' : 'Confirm Reopen'}
             </Button>
           </DialogFooter>
         </DialogContent>

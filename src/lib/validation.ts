@@ -8,40 +8,77 @@ export interface ValidationResult<T> {
   error?: string;
 }
 
+export const FEEDBACK_COMMENT_MAX_LENGTH = 500;
+export const REOPEN_REASON_MIN_LENGTH = 10;
+export const REOPEN_REASON_MAX_LENGTH = 500;
+
+export function validateComplaintIdParam(id: unknown): ValidationResult<string> {
+  if (typeof id !== 'string') {
+    return { success: false, error: 'Invalid complaint ID.' };
+  }
+  const trimmed = id.trim();
+  if (!trimmed || trimmed.length > 128 || /\s/.test(trimmed)) {
+    return { success: false, error: 'Invalid complaint ID format.' };
+  }
+  return { success: true, data: trimmed };
+}
+
 export function validateReopenInput(body: any): ValidationResult<{ reason: string }> {
-  if (!body || typeof body !== 'object') {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return { success: false, error: 'Request body must be a valid JSON object.' };
   }
 
   const { reason } = body;
-  if (!reason || typeof reason !== 'string' || reason.trim().length < 10) {
-    return { success: false, error: 'Reopen reason must be at least 10 characters long.' };
+  if (typeof reason !== 'string') {
+    return { success: false, error: 'Reopen reason must be a string.' };
   }
 
-  return { success: true, data: { reason: reason.trim() } };
+  const trimmed = reason.trim();
+  if (trimmed.length < REOPEN_REASON_MIN_LENGTH) {
+    return {
+      success: false,
+      error: `Reopen reason must be at least ${REOPEN_REASON_MIN_LENGTH} characters long.`,
+    };
+  }
+
+  if (trimmed.length > REOPEN_REASON_MAX_LENGTH) {
+    return {
+      success: false,
+      error: `Reopen reason must not exceed ${REOPEN_REASON_MAX_LENGTH} characters.`,
+    };
+  }
+
+  return { success: true, data: { reason: trimmed } };
 }
 
 export function validateFeedbackInput(body: any): ValidationResult<{ rating: number; comment?: string }> {
-  if (!body || typeof body !== 'object') {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return { success: false, error: 'Request body must be a valid JSON object.' };
   }
 
-  const { rating, comment } = body;
-  const numRating = Number(rating);
-
-  if (isNaN(numRating) || !Number.isInteger(numRating) || numRating < 1 || numRating > 5) {
+  const { rating, comment, comments } = body;
+  if (typeof rating !== 'number' || !Number.isInteger(rating) || rating < 1 || rating > 5) {
     return { success: false, error: 'Rating must be an integer between 1 and 5.' };
   }
 
-  if (comment !== undefined && typeof comment !== 'string') {
+  const rawComment = comment !== undefined ? comment : comments;
+  if (rawComment !== undefined && rawComment !== null && typeof rawComment !== 'string') {
     return { success: false, error: 'Comment must be a string if provided.' };
+  }
+
+  const trimmedComment = typeof rawComment === 'string' ? rawComment.trim() : undefined;
+  if (trimmedComment && trimmedComment.length > FEEDBACK_COMMENT_MAX_LENGTH) {
+    return {
+      success: false,
+      error: `Comment must not exceed ${FEEDBACK_COMMENT_MAX_LENGTH} characters.`,
+    };
   }
 
   return {
     success: true,
     data: {
-      rating: numRating,
-      comment: comment ? comment.trim() : undefined,
+      rating,
+      comment: trimmedComment || undefined,
     },
   };
 }
@@ -52,7 +89,7 @@ export function validateDuplicateCheckInput(body: any): ValidationResult<{
   latitude?: number;
   longitude?: number;
 }> {
-  if (!body || typeof body !== 'object') {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return { success: false, error: 'Request body must be a valid JSON object.' };
   }
 
