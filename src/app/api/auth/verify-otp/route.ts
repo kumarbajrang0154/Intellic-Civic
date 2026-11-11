@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createJwtToken } from '@/lib/auth-jwt';
-import { verifySavedOtp } from '@/lib/otp-store';
+import { isProductionOtpEnv, verifySavedOtp } from '@/lib/otp-store';
 import { getOrCreateCitizenProfile, normalizeMobileNumber } from '@/lib/user-store';
 import prisma from '@/lib/prisma';
 import { checkVerifyOtpRateLimit, rateLimitErrorResponse } from '@/lib/rate-limit';
@@ -184,7 +184,12 @@ export async function POST(req: NextRequest) {
         if (!isValid) {
           log('console-mode-otp-invalid');
           return NextResponse.json(
-            { statusCode: 401, message: 'Invalid or expired OTP code. Try 123456 or resend OTP.' },
+            {
+              statusCode: 401,
+              message: isProductionOtpEnv()
+                ? 'Invalid or expired OTP code. Please resend OTP.'
+                : 'Invalid or expired OTP code. Try 123456 or resend OTP.',
+            },
             { status: 401 },
           );
         }

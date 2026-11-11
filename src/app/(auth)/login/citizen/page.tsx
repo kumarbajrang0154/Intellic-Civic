@@ -134,12 +134,20 @@ export default function CitizenLoginPage() {
         }
 
         if (!res.ok) {
-          throw new Error(data.message || 'Failed to send OTP');
+          throw new Error(data.error || data.message || 'Failed to send OTP');
         }
 
-        const receivedOtp = data.otp || '123456';
-        setGeneratedOtp(receivedOtp);
-        toast.success(`Verification OTP generated: ${receivedOtp}`);
+        if (!data.otp) {
+          setGeneratedOtp(null);
+          throw new Error(
+            data.error ||
+              (data.success !== true ? data.message : undefined) ||
+              'OTP delivery is not available in this environment. Please contact support.',
+          );
+        }
+
+        setGeneratedOtp(data.otp);
+        toast.success(`Verification OTP generated: ${data.otp}`);
       }
 
       setStep('OTP');

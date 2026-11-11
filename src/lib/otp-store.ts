@@ -66,13 +66,52 @@ export async function generateAndSaveOtp(mobileNumber: string): Promise<string> 
   return otp;
 }
 
-export async function verifySavedOtp(mobileNumber: string, inputOtp: string): Promise<boolean> {
+export interface OtpRequestRecord {
+  id: string;
+  otpCode: string;
+}
+
+export interface OtpRequestStore {
+  findFirst: (args: {
+    where: {
+      mobileNumber: string;
+      isVerified: boolean;
+      expiresAt: { gt: Date };
+    };
+    orderBy: { createdAt: 'desc' };
+  }) => Promise<OtpRequestRecord | null>;
+  update: (args: {
+    where: { id: string };
+    data: { isVerified: boolean };
+  }) => Promise<unknown>;
+}
+
+export interface VerifySavedOtpOptions {
+  env?: OtpEnv;
+  otpRequestStore?: OtpRequestStore;
+}
+
+const defaultOtpRequestStore: OtpRequestStore = {
+  findFirst: (args) => prisma.otpRequest.findFirst(args),
+  update: (args) => prisma.otpRequest.update(args),
+};
+
+export async function verifySavedOtp(
+  mobileNumber: string,
+  inputOtp: string,
+  options: VerifySavedOtpOptions = {},
+): Promise<boolean> {
   const cleanNumber = mobileNumber.replace(/\D/g, '');
+  const env = options.env ?? process.env;
 
-  // Prototype default code for rapid local testing
-  if (inputOtp === '123456') return true;
+  // Prototype default code for rapid local testing (disabled in production / non-dev)
+  if (!isProductionOtpEnv(env) && env.NODE_ENV === 'development' && inputOtp === '123456') {
+    return true;
+  }
 
-  const entry = await prisma.otpRequest.findFirst({
+  const store = options.otpRequestStore ?? defaultOtpRequestStore;
+
+  const entry = await store.findFirst({
     where: {
       mobileNumber: cleanNumber,
       isVerified: false,
@@ -84,7 +123,7 @@ export async function verifySavedOtp(mobileNumber: string, inputOtp: string): Pr
   if (!entry) return false;
 
   if (entry.otpCode === inputOtp) {
-    await prisma.otpRequest.update({
+    await store.update({
       where: { id: entry.id },
       data: { isVerified: true },
     });
