@@ -1,5 +1,55 @@
 import prisma from '@/lib/prisma';
 
+export interface OtpEnv {
+  NODE_ENV?: string;
+  VERCEL_ENV?: string;
+}
+
+export interface ConsoleOtpResponsePayload {
+  success: true;
+  message: string;
+  otp?: string;
+  mobileNumber: string;
+  mode: 'console';
+}
+
+/** Returns true when running in Node or Vercel production environments. */
+export function isProductionOtpEnv(env: OtpEnv = process.env): boolean {
+  return env.NODE_ENV === 'production' || env.VERCEL_ENV === 'production';
+}
+
+/** Expose console OTP only in non-production development mode. */
+export function shouldExposeOtpInResponse(env: OtpEnv = process.env): boolean {
+  return !isProductionOtpEnv(env) && env.NODE_ENV === 'development';
+}
+
+/**
+ * Builds the send-otp JSON payload for console mode, omitting the `otp` key
+ * in production or any non-development environment.
+ */
+export function buildConsoleOtpResponsePayload(
+  mobileNumber: string,
+  otp: string,
+  env: OtpEnv = process.env,
+): ConsoleOtpResponsePayload {
+  if (shouldExposeOtpInResponse(env)) {
+    return {
+      success: true,
+      message: 'OTP sent successfully',
+      otp,
+      mobileNumber,
+      mode: 'console',
+    };
+  }
+
+  return {
+    success: true,
+    message: 'OTP sent successfully',
+    mobileNumber,
+    mode: 'console',
+  };
+}
+
 export async function generateAndSaveOtp(mobileNumber: string): Promise<string> {
   const cleanNumber = mobileNumber.replace(/\D/g, '');
   // Generate random 6-digit OTP

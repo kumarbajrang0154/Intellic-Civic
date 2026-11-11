@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
-import { generateAndSaveOtp } from '@/lib/otp-store';
+import {
+  buildConsoleOtpResponsePayload,
+  generateAndSaveOtp,
+  shouldExposeOtpInResponse,
+} from '@/lib/otp-store';
 import { normalizeMobileNumber } from '@/lib/user-store';
 import { checkSendOtpRateLimit, rateLimitErrorResponse } from '@/lib/rate-limit';
 
@@ -49,18 +53,14 @@ export async function POST(request: Request) {
       );
     }
 
-    // Console mode (Default for dev/testing): Generate OTP, save in Postgres, log to console.
+    // Console mode (Default for dev/testing): Generate OTP, save in Postgres, log to console in development only.
     const otp = await generateAndSaveOtp(cleanNumber);
-    console.log(`[CONSOLE OTP] Mobile: +91${cleanNumber} | Code: ${otp} | Timestamp: ${new Date().toISOString()}`);
+    if (shouldExposeOtpInResponse()) {
+      console.log(`[CONSOLE OTP] Mobile: +91${cleanNumber} | Code: ${otp} | Timestamp: ${new Date().toISOString()}`);
+    }
 
     return NextResponse.json(
-      {
-        success: true,
-        message: 'OTP sent successfully',
-        otp,
-        mobileNumber: cleanNumber,
-        mode: 'console',
-      },
+      buildConsoleOtpResponsePayload(cleanNumber, otp),
       { headers: { 'Content-Type': 'application/json' } },
     );
   } catch (error: any) {
