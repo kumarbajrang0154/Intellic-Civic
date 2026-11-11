@@ -256,6 +256,7 @@ model Complaint {
   @@index([escalatedAt])
   @@index([departmentId, status])
   @@index([municipalityId, status])
+  @@index([createdAt, departmentId])
   @@map("complaints")
 }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
 import { PageHeader } from '@/components/admin/page-header';
 import { StatCard } from '@/components/admin/stat-card';
@@ -135,16 +136,25 @@ export default function AnalyticsPage() {
           title="Analytics & Reports"
           description="Comprehensive complaint analytics and department performance insights"
           actions={
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                window.location.href = '/api/admin/reports/export';
-              }}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export Report
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/admin/reports"
+                className="inline-flex items-center justify-center h-9 px-3 rounded-lg border border-[#E5E2D9] bg-white hover:bg-[#F2EFE6] text-xs font-semibold text-[#131E20] transition-colors"
+              >
+                <BarChart3 className="w-4 h-4 mr-1.5 text-[#3468A1]" />
+                Department Performance
+              </Link>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  window.location.href = '/api/admin/reports/export';
+                }}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export Report
+              </Button>
+            </div>
           }
         />
 
