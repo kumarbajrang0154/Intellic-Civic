@@ -253,6 +253,8 @@ model Complaint {
   @@index([citizenId])
   @@index([municipalityId])
   @@index([escalatedAt])
+  @@index([departmentId, status])
+  @@index([municipalityId, status])
   @@map("complaints")
 }
 

@@ -452,7 +452,13 @@ export default function CitizenLoginPage() {
               )}
 
               {/* Helper Links at bottom */}
-              <div className="pt-2 border-t border-[#E5E2D9] flex items-center justify-center text-xs">
+              <div className="pt-2 border-t border-[#E5E2D9] flex items-center justify-between gap-4 text-xs">
+                <Link
+                  href="/public/transparency"
+                  className="text-[#3468A1] hover:underline font-semibold h-11 min-h-[44px] inline-flex items-center"
+                >
+                  Public Transparency
+                </Link>
                 <Link
                   href="/login/staff"
                   className="text-[#3468A1] hover:underline font-semibold h-11 min-h-[44px] inline-flex items-center"
