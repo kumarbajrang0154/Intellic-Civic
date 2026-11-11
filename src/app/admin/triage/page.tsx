@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { getStaffComplaintText } from '@/lib/complaint-language';
+import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface Department {
@@ -35,6 +36,7 @@ interface Complaint {
 }
 
 export default function AdminTriagePage() {
+  const staffLanguage = useStaffComplaintLanguage();
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
@@ -131,7 +133,7 @@ export default function AdminTriagePage() {
           <div className="grid grid-cols-1 gap-4">
             {complaints.map((c) => {
               const selectedDept = selectedDepts[c.id] || '';
-              const { displayTitle, displayDescription, isTitleFallback, isDescFallback } = getStaffComplaintText(c);
+              const { displayTitle, displayDescription, isTitleFallback, isDescFallback } = getStaffComplaintText(c, staffLanguage);
               return (
                 <Card key={c.id} className="border shadow-sm bg-white">
                   <CardHeader className="pb-3">

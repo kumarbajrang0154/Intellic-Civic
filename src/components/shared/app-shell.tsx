@@ -14,6 +14,7 @@ import {
   ClipboardList,
   Globe,
   Home,
+  Languages,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -26,6 +27,11 @@ import {
   Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { STAFF_LANGUAGE_OPTIONS } from '@/lib/complaint-language';
+import {
+  broadcastStaffLanguageChange,
+  useStaffComplaintLanguage,
+} from '@/lib/use-staff-language';
 import { OfflineBanner } from './OfflineBanner';
 
 export type UserRole =
@@ -567,6 +573,21 @@ export function AppShell({ children, user }: AppShellProps) {
   // Self-fetched avatarUrl — overlaid on whatever the page passes in.
   // This is the single fix point so every page automatically shows the photo.
   const [selfAvatarUrl, setSelfAvatarUrl] = React.useState<string | null | undefined>(undefined);
+  const staffLanguage = useStaffComplaintLanguage();
+
+  const handleStaffLanguageChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const next = e.target.value === 'original' ? 'original' : 'en';
+    broadcastStaffLanguageChange(next);
+    try {
+      await fetch('/api/staff/language', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preferredLanguage: next }),
+      });
+    } catch {
+      // Preference already persisted in localStorage
+    }
+  };
 
   const pathname = usePathname();
   const router = useRouter();
@@ -732,6 +753,27 @@ export function AppShell({ children, user }: AppShellProps) {
 
           {/* Right side header actions */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {effectiveUser.role !== 'CITIZEN' && (
+              <div className="flex items-center gap-1.5 h-10 px-2.5 rounded-full border border-[#E5E2D9] bg-white shadow-2xs shrink-0">
+                <Languages className="w-3.5 h-3.5 text-[#3468A1] shrink-0" aria-hidden="true" />
+                <label htmlFor="staff-language-select" className="sr-only">
+                  Complaint display language
+                </label>
+                <select
+                  id="staff-language-select"
+                  aria-label="Complaint display language"
+                  value={staffLanguage}
+                  onChange={handleStaffLanguageChange}
+                  className="bg-transparent text-xs font-semibold text-[#131E20] focus:outline-none cursor-pointer max-w-[105px] sm:max-w-none truncate"
+                >
+                  {STAFF_LANGUAGE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             {/* Notifications bell */}
             {(() => {
               const notifHref = getNotificationHref(effectiveUser.role);

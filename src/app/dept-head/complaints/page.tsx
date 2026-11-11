@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getStaffComplaintText } from '@/lib/complaint-language';
+import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface ComplaintItem {
@@ -60,6 +61,7 @@ interface ComplaintItem {
 
 export default function DepartmentQueuePage() {
   const router = useRouter();
+  const staffLanguage = useStaffComplaintLanguage();
 
   const [user, setUser] = React.useState<{ name: string; role: 'DEPARTMENT_HEAD'; departmentId?: string }>({
     name: 'Department Head',
@@ -324,8 +326,8 @@ export default function DepartmentQueuePage() {
                       </TableCell>
                       <TableCell className="font-medium text-foreground max-w-xs truncate">
                         <span className="flex items-center gap-1.5">
-                          <span>{getStaffComplaintText(item).displayTitle}</span>
-                          {getStaffComplaintText(item).isTitleFallback && <OriginalLanguageBadge />}
+                          <span>{getStaffComplaintText(item, staffLanguage).displayTitle}</span>
+                          {getStaffComplaintText(item, staffLanguage).isTitleFallback && <OriginalLanguageBadge />}
                         </span>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">

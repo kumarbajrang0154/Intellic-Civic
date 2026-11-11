@@ -31,6 +31,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { PhotoUpload } from '@/components/ui/photo-upload';
 import { getStaffComplaintText } from '@/lib/complaint-language';
+import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 // Valid Status Transition map per backend specification
@@ -92,6 +93,7 @@ interface ComplaintDetail {
 }
 
 export default function OfficerComplaintDetailPage() {
+  const staffLanguage = useStaffComplaintLanguage();
   const params = useParams();
   const router = useRouter();
   const complaintId = params?.id as string;
@@ -374,8 +376,8 @@ export default function OfficerComplaintDetailPage() {
               </Badge>
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-              <span>{getStaffComplaintText(complaint).displayTitle}</span>
-              {getStaffComplaintText(complaint).isTitleFallback && <OriginalLanguageBadge />}
+              <span>{getStaffComplaintText(complaint, staffLanguage).displayTitle}</span>
+              {getStaffComplaintText(complaint, staffLanguage).isTitleFallback && <OriginalLanguageBadge />}
             </h1>
           </div>
 
@@ -475,8 +477,8 @@ export default function OfficerComplaintDetailPage() {
               </CardHeader>
               <CardContent className="p-5 pt-0 space-y-4">
                 <p className="text-xs text-foreground/90 leading-relaxed whitespace-pre-line">
-                  {getStaffComplaintText(complaint).displayDescription}
-                  {getStaffComplaintText(complaint).isDescFallback && <span className="block mt-2"><OriginalLanguageBadge /></span>}
+                  {getStaffComplaintText(complaint, staffLanguage).displayDescription}
+                  {getStaffComplaintText(complaint, staffLanguage).isDescFallback && <span className="block mt-2"><OriginalLanguageBadge /></span>}
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t text-xs">

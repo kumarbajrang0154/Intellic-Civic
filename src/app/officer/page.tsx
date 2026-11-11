@@ -20,6 +20,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getStaffComplaintText } from '@/lib/complaint-language';
+import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface AssignedComplaint {
@@ -38,6 +39,7 @@ interface AssignedComplaint {
 }
 
 export default function OfficerDashboardPage() {
+  const staffLanguage = useStaffComplaintLanguage();
   const router = useRouter();
 
   const [user, setUser] = React.useState<{
@@ -276,8 +278,8 @@ export default function OfficerDashboardPage() {
                         </span>
                       </div>
                       <h3 className="font-semibold text-sm text-slate-900 flex items-center gap-1.5">
-                        <span>{getStaffComplaintText(item).displayTitle}</span>
-                        {getStaffComplaintText(item).isTitleFallback && <OriginalLanguageBadge />}
+                        <span>{getStaffComplaintText(item, staffLanguage).displayTitle}</span>
+                        {getStaffComplaintText(item, staffLanguage).isTitleFallback && <OriginalLanguageBadge />}
                       </h3>
                       <p className="text-xs text-slate-500">
                         {item.location?.address || 'Location provided'} &bull; Submitted {new Date(item.createdAt).toLocaleDateString()}

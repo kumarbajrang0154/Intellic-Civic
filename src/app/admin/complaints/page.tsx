@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { getStaffComplaintText } from '@/lib/complaint-language';
+import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface Department {
@@ -50,6 +51,7 @@ interface Complaint {
 }
 
 export default function AdminAllComplaintsPage() {
+  const staffLanguage = useStaffComplaintLanguage();
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -289,7 +291,7 @@ export default function AdminAllComplaintsPage() {
                 </thead>
                 <tbody className="divide-y">
                   {filteredComplaints.map((c) => {
-                    const { displayTitle, isTitleFallback } = getStaffComplaintText(c);
+                    const { displayTitle, isTitleFallback } = getStaffComplaintText(c, staffLanguage);
                     const isNeedsTriage = Boolean(c.needsTriage || !c.category || !c.department);
                     return (
                       <tr key={c.id} className="hover:bg-slate-50">

@@ -23,6 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AICard } from '@/components/ui/ai-card';
 import { getStaffComplaintText } from '@/lib/complaint-language';
+import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface AiSuggestedComplaint {
@@ -46,6 +47,7 @@ interface AiSuggestedComplaint {
 
 export default function AiSuggestionsPage() {
   const router = useRouter();
+  const staffLanguage = useStaffComplaintLanguage();
 
   const [user, setUser] = React.useState<{ name: string; role: 'DEPARTMENT_HEAD'; departmentId?: string }>({
     name: 'Department Head',
@@ -222,7 +224,7 @@ export default function AiSuggestionsPage() {
                 ? Math.round(item.aiSuggestion.confidenceScore * 100)
                 : 75;
 
-              const { displayTitle, displayDescription, isTitleFallback, isDescFallback } = getStaffComplaintText(item);
+              const { displayTitle, displayDescription, isTitleFallback, isDescFallback } = getStaffComplaintText(item, staffLanguage);
 
               return (
                 <AICard

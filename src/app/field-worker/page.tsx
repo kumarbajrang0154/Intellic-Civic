@@ -22,6 +22,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getStaffComplaintText } from '@/lib/complaint-language';
+import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface FieldWorkerComplaint {
@@ -43,6 +44,7 @@ interface FieldWorkerComplaint {
 }
 
 export default function FieldWorkerDashboardPage() {
+  const staffLanguage = useStaffComplaintLanguage();
   const router = useRouter();
 
   const [user, setUser] = React.useState<{
@@ -288,15 +290,15 @@ export default function FieldWorkerDashboardPage() {
                       {getStatusBadge(complaint)}
                     </div>
                     <CardTitle className="text-base font-bold text-slate-900 line-clamp-1 flex items-center gap-1.5">
-                      <span>{getStaffComplaintText(complaint).displayTitle}</span>
-                      {getStaffComplaintText(complaint).isTitleFallback && <OriginalLanguageBadge />}
+                      <span>{getStaffComplaintText(complaint, staffLanguage).displayTitle}</span>
+                      {getStaffComplaintText(complaint, staffLanguage).isTitleFallback && <OriginalLanguageBadge />}
                     </CardTitle>
                   </CardHeader>
 
                   <CardContent className="p-4 pt-2 space-y-3 flex-1 flex flex-col justify-between">
                     <p className="text-xs text-slate-600 line-clamp-2">
-                      {getStaffComplaintText(complaint).displayDescription}
-                      {getStaffComplaintText(complaint).isDescFallback && <OriginalLanguageBadge className="ml-1" />}
+                      {getStaffComplaintText(complaint, staffLanguage).displayDescription}
+                      {getStaffComplaintText(complaint, staffLanguage).isDescFallback && <OriginalLanguageBadge className="ml-1" />}
                     </p>
 
                     {complaint.location?.address && (

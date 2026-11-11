@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Bell, BellOff, CheckCheck, ExternalLink, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { getStaffComplaintText } from '@/lib/complaint-language';
+import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface NotificationItem {
@@ -29,6 +30,7 @@ interface NotificationItem {
 type FilterType = 'all' | 'critical' | 'high' | 'pending';
 
 export default function NotificationsPage() {
+  const staffLanguage = useStaffComplaintLanguage();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>('all');
@@ -192,8 +194,8 @@ export default function NotificationsPage() {
                       )}
                     </div>
                     <div className="text-sm font-semibold text-slate-800 mt-0.5 truncate flex items-center gap-1.5">
-                      <span>{getStaffComplaintText(item).displayTitle}</span>
-                      {getStaffComplaintText(item).isTitleFallback && <OriginalLanguageBadge />}
+                      <span>{getStaffComplaintText(item, staffLanguage).displayTitle}</span>
+                      {getStaffComplaintText(item, staffLanguage).isTitleFallback && <OriginalLanguageBadge />}
                     </div>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       <PriorityBadge priority={item.priority} />

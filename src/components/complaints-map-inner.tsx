@@ -7,6 +7,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapPinOff, ExternalLink, ShieldAlert, Tag, Calendar, MapPin } from 'lucide-react';
 import { getStaffComplaintText } from '@/lib/complaint-language';
+import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 export interface ComplaintMapItem {
@@ -121,6 +122,7 @@ export default function ComplaintsMapInner({
   defaultCenter = [12.9716, 77.5946], // Default: Bengaluru City
   defaultZoom = 12,
 }: ComplaintsMapInnerProps) {
+  const staffLanguage = useStaffComplaintLanguage();
   // Filter valid geographic coordinates (non-zero lat/lng)
   const validMapItems = React.useMemo(() => {
     return complaints.filter((c) => {
@@ -204,8 +206,8 @@ export default function ComplaintsMapInner({
                   </div>
 
                   <h5 className="font-semibold text-slate-900 text-sm leading-snug mb-2 line-clamp-2 flex items-center gap-1.5">
-                    <span>{getStaffComplaintText(complaint).displayTitle}</span>
-                    {getStaffComplaintText(complaint).isTitleFallback && <OriginalLanguageBadge />}
+                    <span>{getStaffComplaintText(complaint, staffLanguage).displayTitle}</span>
+                    {getStaffComplaintText(complaint, staffLanguage).isTitleFallback && <OriginalLanguageBadge />}
                   </h5>
 
                   <div className="space-y-1.5 text-xs text-slate-600 mb-3">

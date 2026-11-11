@@ -27,6 +27,7 @@ import { Select } from '@/components/ui/select';
 import { AICard } from '@/components/ui/ai-card';
 import { EvidenceTimeline, EvidenceItem } from '@/components/ui/evidence-timeline';
 import { getStaffComplaintText } from '@/lib/complaint-language';
+import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface Department {
@@ -98,6 +99,7 @@ const PRIORITY_BADGES: Record<string, { bg: string; text: string }> = {
 };
 
 export default function AdminComplaintDetailPage() {
+  const staffLanguage = useStaffComplaintLanguage();
   const params = useParams();
   const complaintId = params?.id as string;
 
@@ -198,7 +200,7 @@ export default function AdminComplaintDetailPage() {
   };
 
   const priorityBadge = complaint.priority ? PRIORITY_BADGES[complaint.priority] : null;
-  const { displayTitle, displayDescription, isTitleFallback, isDescFallback } = getStaffComplaintText(complaint);
+  const { displayTitle, displayDescription, isTitleFallback, isDescFallback } = getStaffComplaintText(complaint, staffLanguage);
 
   return (
     <AppShell user={{ name: 'Super Admin', role: 'ADMIN' }}>

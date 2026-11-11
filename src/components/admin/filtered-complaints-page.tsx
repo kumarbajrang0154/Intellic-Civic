@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { ComplaintsMap } from '@/components/complaints-map';
 import { getStaffComplaintText } from '@/lib/complaint-language';
+import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface Complaint {
@@ -59,6 +60,7 @@ export function FilteredComplaintsPage({
   emptyMessage,
   statusLabel,
 }: FilteredComplaintsPageProps) {
+  const staffLanguage = useStaffComplaintLanguage();
   const [complaints, setComplaints] = React.useState<Complaint[]>([]);
   const [filtered, setFiltered] = React.useState<Complaint[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -224,7 +226,7 @@ export function FilteredComplaintsPage({
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filtered.map((c) => {
-                    const { displayTitle, isTitleFallback } = getStaffComplaintText(c);
+                    const { displayTitle, isTitleFallback } = getStaffComplaintText(c, staffLanguage);
                     return (
                     <tr key={c.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3">

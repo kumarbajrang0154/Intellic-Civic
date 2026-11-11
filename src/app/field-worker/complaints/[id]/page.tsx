@@ -26,6 +26,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { PhotoUpload } from '@/components/ui/photo-upload';
 import { toast } from 'sonner';
 import { getStaffComplaintText } from '@/lib/complaint-language';
+import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface EvidenceItem {
@@ -63,6 +64,7 @@ interface ComplaintDetail {
 }
 
 export default function FieldWorkerComplaintDetailPage() {
+  const staffLanguage = useStaffComplaintLanguage();
   const params = useParams();
   const id = params?.id as string;
 
@@ -296,8 +298,8 @@ export default function FieldWorkerComplaintDetailPage() {
               )}
             </div>
             <h1 className="text-xl font-bold text-foreground line-clamp-1 flex items-center gap-2">
-              <span>{getStaffComplaintText(complaint).displayTitle}</span>
-              {getStaffComplaintText(complaint).isTitleFallback && <OriginalLanguageBadge />}
+              <span>{getStaffComplaintText(complaint, staffLanguage).displayTitle}</span>
+              {getStaffComplaintText(complaint, staffLanguage).isTitleFallback && <OriginalLanguageBadge />}
             </h1>
           </div>
         </div>
@@ -359,8 +361,8 @@ export default function FieldWorkerComplaintDetailPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
-                  {getStaffComplaintText(complaint).displayDescription}
-                  {getStaffComplaintText(complaint).isDescFallback && <span className="block mt-2"><OriginalLanguageBadge /></span>}
+                  {getStaffComplaintText(complaint, staffLanguage).displayDescription}
+                  {getStaffComplaintText(complaint, staffLanguage).isDescFallback && <span className="block mt-2"><OriginalLanguageBadge /></span>}
                 </p>
 
                 {complaint.location?.address && (

@@ -27,6 +27,7 @@ import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { getStaffComplaintText } from '@/lib/complaint-language';
+import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface AssignedComplaint {
@@ -49,6 +50,7 @@ interface AssignedComplaint {
 }
 
 export default function OfficerComplaintsPage() {
+  const staffLanguage = useStaffComplaintLanguage();
   const router = useRouter();
 
   const [user, setUser] = React.useState<{
@@ -303,12 +305,12 @@ export default function OfficerComplaintsPage() {
                     </div>
 
                     <h3 className="font-semibold text-base text-foreground flex items-center gap-2">
-                      <span>{getStaffComplaintText(item).displayTitle}</span>
-                      {getStaffComplaintText(item).isTitleFallback && <OriginalLanguageBadge />}
+                      <span>{getStaffComplaintText(item, staffLanguage).displayTitle}</span>
+                      {getStaffComplaintText(item, staffLanguage).isTitleFallback && <OriginalLanguageBadge />}
                     </h3>
                     <p className="text-xs text-muted-foreground line-clamp-2">
-                      {getStaffComplaintText(item).displayDescription}
-                      {getStaffComplaintText(item).isDescFallback && <OriginalLanguageBadge className="ml-1" />}
+                      {getStaffComplaintText(item, staffLanguage).displayDescription}
+                      {getStaffComplaintText(item, staffLanguage).isDescFallback && <OriginalLanguageBadge className="ml-1" />}
                     </p>
 
                     <div className="flex items-center gap-4 text-[11px] text-muted-foreground flex-wrap pt-1">

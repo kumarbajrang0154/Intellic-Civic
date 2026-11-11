@@ -23,6 +23,7 @@ import { PriorityBadge } from '@/components/admin/priority-badge';
 import { PageHeader } from '@/components/admin/page-header';
 import { Button } from '@/components/ui/button';
 import { getStaffComplaintText } from '@/lib/complaint-language';
+import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 interface SystemStats {
@@ -125,6 +126,7 @@ import { AICard } from '@/components/ui/ai-card';
 // ─── Dashboard Page ──────────────────────────────────────────────────────────
 
 export default function AdminDashboardPage() {
+  const staffLanguage = useStaffComplaintLanguage();
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [recentComplaints, setRecentComplaints] = useState<RecentComplaint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -412,7 +414,7 @@ export default function AdminDashboardPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {recentComplaints.map((c) => {
-                      const { displayTitle, isTitleFallback } = getStaffComplaintText(c);
+                      const { displayTitle, isTitleFallback } = getStaffComplaintText(c, staffLanguage);
                       return (
                       <tr
                         key={c.id}

@@ -28,6 +28,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { getStaffComplaintText } from '@/lib/complaint-language';
+import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -102,6 +103,7 @@ interface ComplaintDetail {
 }
 
 export default function StaffComplaintDetailPage() {
+  const staffLanguage = useStaffComplaintLanguage();
   const params = useParams();
   const router = useRouter();
   const id = params?.id as string;
@@ -276,8 +278,8 @@ export default function StaffComplaintDetailPage() {
               {complaint.priority && <Badge variant="secondary">{complaint.priority}</Badge>}
             </div>
             <h1 className="text-xl font-bold text-foreground line-clamp-1 flex items-center gap-2">
-              <span>{getStaffComplaintText(complaint).displayTitle}</span>
-              {getStaffComplaintText(complaint).isTitleFallback && <OriginalLanguageBadge />}
+              <span>{getStaffComplaintText(complaint, staffLanguage).displayTitle}</span>
+              {getStaffComplaintText(complaint, staffLanguage).isTitleFallback && <OriginalLanguageBadge />}
             </h1>
           </div>
         </div>
@@ -293,8 +295,8 @@ export default function StaffComplaintDetailPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-foreground whitespace-pre-line leading-relaxed">
-                {getStaffComplaintText(complaint).displayDescription}
-                {getStaffComplaintText(complaint).isDescFallback && <span className="block mt-2"><OriginalLanguageBadge /></span>}
+                {getStaffComplaintText(complaint, staffLanguage).displayDescription}
+                {getStaffComplaintText(complaint, staffLanguage).isDescFallback && <span className="block mt-2"><OriginalLanguageBadge /></span>}
               </p>
 
               {/* Location */}
