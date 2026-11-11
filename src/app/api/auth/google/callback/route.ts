@@ -1,27 +1,17 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  issueTwoFactorChallengeIfRequired,
+  TWO_FACTOR_CHALLENGE_COOKIE,
+  TWO_FACTOR_CHALLENGE_MAX_AGE_SEC,
+} from '@/lib/admin-2fa-gate';
 import prisma from '@/lib/prisma';
 import { createJwtToken } from '@/lib/auth-jwt';
+import { getPortalRouteForRole } from '@/lib/portal-routes';
 import { addUser, ensureSuperAdminUser, getUserByEmail, isSuperAdminEmail } from '@/lib/staff-dept-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-function getDashboardForRole(role: string | null | undefined): string {
-  switch (role) {
-    case 'ADMIN':
-    case 'SUPER_ADMIN':
-      return '/admin';
-    case 'DEPARTMENT_HEAD':
-      return '/dept-head';
-    case 'DEPARTMENT_OFFICER':
-      return '/officer';
-    case 'FIELD_WORKER':
-      return '/field-worker';
-    default:
-      return '/pending-approval';
-  }
-}
 
 export async function GET(req: NextRequest) {
   const frontendUrl = (process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000').replace(/\/+$/, '');
@@ -151,7 +141,25 @@ export async function GET(req: NextRequest) {
       return res;
     }
 
-    // Step 7: Issue JWT session cookies
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // Step 7a: Require Admin 2FA challenge if enabled on account
+    const challengeToken = await issueTwoFactorChallengeIfRequired(staffUser.id, staffUser.role);
+    if (challengeToken) {
+      const challengeRes = NextResponse.redirect(new URL('/login/staff?step=2fa', frontendUrl));
+      challengeRes.cookies.delete('ic_access_token');
+      challengeRes.cookies.delete('ic_refresh_token');
+      challengeRes.cookies.set(TWO_FACTOR_CHALLENGE_COOKIE, challengeToken, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: TWO_FACTOR_CHALLENGE_MAX_AGE_SEC,
+      });
+      return challengeRes;
+    }
+
+    // Step 7b: Issue JWT session cookies
     const jwtPayload = {
       sub: staffUser.id,
       email: staffUser.email,
@@ -165,7 +173,6 @@ export async function GET(req: NextRequest) {
     const jwtRefresh = await createJwtToken({ ...jwtPayload, type: 'refresh' }, '30d');
 
     const cookieStore = cookies();
-    const isProduction = process.env.NODE_ENV === 'production';
 
     cookieStore.set('ic_access_token', jwtAccess, {
       httpOnly: true,
@@ -184,7 +191,7 @@ export async function GET(req: NextRequest) {
     });
 
     // Step 8: Redirect to role-specific portal
-    const targetPortal = getDashboardForRole(staffUser.role);
+    const targetPortal = getPortalRouteForRole(staffUser.role);
     return NextResponse.redirect(new URL(targetPortal, frontendUrl));
   } catch (err: any) {
     console.error('Google OAuth callback error:', err);

@@ -128,6 +128,7 @@ model User {
   complaintVotes         ComplaintVote[]
   auditLogs              AuditLog[]
   refreshTokens          RefreshToken[]
+  adminTwoFactor         AdminTwoFactor?
 
   @@map("users")
 }
@@ -529,4 +530,20 @@ model EmailDelivery {
   @@index([status])
   @@index([createdAt])
   @@map("email_deliveries")
+}
+
+model AdminTwoFactor {
+  id                     String    @id @default(uuid())
+  userId                 String    @unique
+  enabled                Boolean   @default(false)
+  secretEncrypted        String?
+  pendingSecretEncrypted String?
+  verifiedAt             DateTime?
+  recoveryHashes         String[]  @default([])
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("admin_two_factor")
 }

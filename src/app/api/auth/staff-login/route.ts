@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
+import {
+  issueTwoFactorChallengeIfRequired,
+  TWO_FACTOR_CHALLENGE_COOKIE,
+  TWO_FACTOR_CHALLENGE_MAX_AGE_SEC,
+} from '@/lib/admin-2fa-gate';
 import prisma from '@/lib/prisma';
 import { createJwtToken } from '@/lib/auth-jwt';
+import { getPortalRouteForRole } from '@/lib/portal-routes';
 import { checkRateLimit, rateLimitErrorResponse } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
@@ -11,24 +17,6 @@ const ALLOWED_STAFF_ROLES = ['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER', 'FIELD_WOR
 
 // Pre-computed constant salt-10 bcrypt hash used to prevent timing attacks
 const DUMMY_BCRYPT_HASH = '$2a$10$e7eG/J.cWz.t70f5Zt4f2eZl76V1.V3p0.o73jZ0rF8s51oW8x2nO';
-
-function getPortalRouteForRole(role?: string | null): string {
-  switch (role) {
-    case 'ADMIN':
-    case 'SUPER_ADMIN':
-      return '/admin';
-    case 'DEPARTMENT_HEAD':
-      return '/dept-head';
-    case 'DEPARTMENT_OFFICER':
-      return '/officer';
-    case 'FIELD_WORKER':
-      return '/field-worker';
-    case 'CITIZEN':
-      return '/citizen';
-    default:
-      return '/pending-approval';
-  }
-}
 
 const GENERIC_ERROR_RESPONSE = {
   statusCode: 401,
@@ -58,6 +46,20 @@ export async function POST(req: NextRequest) {
           equals: rawEmail,
           mode: 'insensitive',
         },
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        departmentId: true,
+        municipalityId: true,
+        isAuthorized: true,
+        isSuspended: true,
+        deletedAt: true,
+        passwordHash: true,
+        failedLoginCount: true,
+        lockedUntil: true,
       },
     });
 
@@ -122,6 +124,33 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // Enforce Admin 2FA challenge before issuing session tokens
+    const challengeToken = await issueTwoFactorChallengeIfRequired(user.id, user.role);
+    if (challengeToken) {
+      const challengeResponse = NextResponse.json(
+        {
+          success: true,
+          requiresTwoFactor: true,
+          challengeExpiresInSec: TWO_FACTOR_CHALLENGE_MAX_AGE_SEC,
+          role: user.role,
+        },
+        { status: 200, headers: { 'Cache-Control': 'no-store' } },
+      );
+
+      challengeResponse.cookies.delete('ic_access_token');
+      challengeResponse.cookies.delete('ic_refresh_token');
+      challengeResponse.cookies.set(TWO_FACTOR_CHALLENGE_COOKIE, challengeToken, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: TWO_FACTOR_CHALLENGE_MAX_AGE_SEC,
+      });
+      return challengeResponse;
+    }
+
     // Issue the SAME session JWT cookies as Google login
     const userPayload = {
       sub: user.id,
@@ -135,8 +164,6 @@ export async function POST(req: NextRequest) {
 
     const accessToken = await createJwtToken(userPayload, '7d');
     const refreshToken = await createJwtToken({ ...userPayload, type: 'refresh' }, '30d');
-
-    const isProduction = process.env.NODE_ENV === 'production';
     const targetPortal = getPortalRouteForRole(user.role);
 
     const response = NextResponse.json({

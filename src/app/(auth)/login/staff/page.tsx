@@ -3,7 +3,18 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Building2, ShieldAlert, KeyRound, Eye, EyeOff, Lock, User, Loader2 } from 'lucide-react';
+import {
+  Building2,
+  ShieldAlert,
+  ShieldCheck,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Lock,
+  User,
+  Loader2,
+  ArrowLeft,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { showGlobalError } from '@/lib/api-client';
@@ -24,6 +35,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 function StaffLoginContent() {
   const searchParams = useSearchParams();
   const errorKey = searchParams.get('error');
+  const stepParam = searchParams.get('step');
   const googleErrorMessage = errorKey ? (ERROR_MESSAGES[errorKey] || 'An error occurred during Google sign-in.') : null;
 
   const [email, setEmail] = useState('');
@@ -31,6 +43,9 @@ function StaffLoginContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [requiresTwoFactor, setRequiresTwoFactor] = useState(stepParam === '2fa');
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [useRecoveryCode, setUseRecoveryCode] = useState(false);
 
   const handleCredentialsLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,6 +86,13 @@ function StaffLoginContent() {
         return;
       }
 
+      if (data?.requiresTwoFactor) {
+        setRequiresTwoFactor(true);
+        setTwoFactorCode('');
+        setUseRecoveryCode(false);
+        return;
+      }
+
       // Successful staff login: navigate to assigned portal route
       window.location.href = data.redirectUrl || '/admin';
     } catch (err: any) {
@@ -81,6 +103,40 @@ function StaffLoginContent() {
         message: msg,
         statusCode: 500,
       });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleTwoFactorVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError(null);
+
+    const cleaned = twoFactorCode.trim();
+    if (!cleaned) {
+      setLoginError(
+        useRecoveryCode ? 'Enter one of your backup recovery codes.' : 'Enter your 6-digit authenticator code.',
+      );
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/auth/staff-2fa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: cleaned, useRecoveryCode }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setLoginError(data?.message || 'Invalid verification code.');
+        return;
+      }
+
+      window.location.href = data.redirectUrl || '/admin';
+    } catch (err: unknown) {
+      setLoginError(err instanceof Error ? err.message : 'Unable to verify two-factor code.');
     } finally {
       setSubmitting(false);
     }
@@ -159,7 +215,89 @@ function StaffLoginContent() {
                 </div>
               )}
 
-              {/* Form: Email & Password */}
+              {/* Form: 2FA Challenge or Email & Password */}
+              {requiresTwoFactor ? (
+                <form onSubmit={handleTwoFactorVerify} className="space-y-4" id="staff-2fa-form">
+                  <div className="rounded-2xl border border-[#E5E2D9] bg-[#F2EFE6]/60 p-3.5 text-left">
+                    <div className="flex items-center gap-2 text-xs font-bold text-[#131E20]">
+                      <ShieldCheck className="h-4 w-4 text-[#3468A1]" aria-hidden="true" />
+                      <span>Two-Factor Verification Required</span>
+                    </div>
+                    <p className="mt-1 text-xs text-[#6E6B64]">
+                      {useRecoveryCode
+                        ? 'Enter one of your unused single-use backup recovery codes.'
+                        : 'Enter the 6-digit verification code from your authenticator app.'}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5 text-left">
+                    <label htmlFor="staff-2fa-code" className="text-xs font-bold text-[#131E20] block">
+                      {useRecoveryCode ? 'Recovery Code' : 'Authenticator Code'}{' '}
+                      <span className="text-rose-500">*</span>
+                    </label>
+                    <Input
+                      id="staff-2fa-code"
+                      name="code"
+                      type="text"
+                      inputMode={useRecoveryCode ? 'text' : 'numeric'}
+                      autoComplete="one-time-code"
+                      placeholder={useRecoveryCode ? 'ABCD-EFGH-23' : '123456'}
+                      value={twoFactorCode}
+                      onChange={(e) => setTwoFactorCode(e.target.value)}
+                      disabled={submitting}
+                      className="h-11 font-mono text-base tracking-widest rounded-xl border-[#E5E2D9] focus:border-[#3468A1] focus:ring-[#3468A1]"
+                      required
+                    />
+                  </div>
+
+                  <Button
+                    id="staff-2fa-submit"
+                    type="submit"
+                    size="lg"
+                    disabled={submitting}
+                    className="w-full h-11 flex items-center justify-center gap-2 bg-[#131E20] text-white hover:bg-[#131E20]/90 shadow-xs font-semibold text-sm rounded-full transition-colors min-h-[44px]"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                        <span>Verifying...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-4 h-4" aria-hidden="true" />
+                        <span>Verify &amp; Enter Portal</span>
+                      </>
+                    )}
+                  </Button>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUseRecoveryCode((prev) => !prev);
+                        setTwoFactorCode('');
+                        setLoginError(null);
+                      }}
+                      className="font-semibold text-[#3468A1] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3468A1] rounded"
+                    >
+                      {useRecoveryCode ? 'Use 6-digit authenticator code' : 'Use a backup recovery code'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRequiresTwoFactor(false);
+                        setTwoFactorCode('');
+                        setLoginError(null);
+                      }}
+                      className="inline-flex items-center gap-1 font-medium text-[#6E6B64] hover:text-[#131E20] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3468A1] rounded"
+                    >
+                      <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                      Back to sign-in
+                    </button>
+                  </div>
+                </form>
+              ) : (
               <form onSubmit={handleCredentialsLogin} className="space-y-4" id="staff-credentials-form">
                 <div className="space-y-1.5 text-left">
                   <label htmlFor="staff-email" className="text-xs font-bold text-[#131E20] block">
@@ -231,6 +369,7 @@ function StaffLoginContent() {
                   )}
                 </Button>
               </form>
+              )}
 
               {/* Divider */}
               <div className="relative flex items-center justify-center">

@@ -1,28 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  issueTwoFactorChallengeIfRequired,
+  TWO_FACTOR_CHALLENGE_COOKIE,
+  TWO_FACTOR_CHALLENGE_MAX_AGE_SEC,
+} from '@/lib/admin-2fa-gate';
 import prisma from '@/lib/prisma';
 import { createJwtToken } from '@/lib/auth-jwt';
+import { getPortalRouteForRole } from '@/lib/portal-routes';
 import { addUser, ensureSuperAdminUser, getUserByEmail, isSuperAdminEmail } from '@/lib/staff-dept-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-function getPortalRouteForRole(role?: string | null): string {
-  switch (role) {
-    case 'ADMIN':
-    case 'SUPER_ADMIN':
-      return '/admin';
-    case 'DEPARTMENT_HEAD':
-      return '/dept-head';
-    case 'DEPARTMENT_OFFICER':
-      return '/officer';
-    case 'FIELD_WORKER':
-      return '/field-worker';
-    case 'CITIZEN':
-      return '/citizen';
-    default:
-      return '/pending-approval';
-  }
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -136,6 +124,31 @@ export async function POST(req: NextRequest) {
       return res;
     }
 
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    const challengeToken = await issueTwoFactorChallengeIfRequired(user.id, user.role);
+    if (challengeToken) {
+      const challengeResponse = NextResponse.json(
+        {
+          success: true,
+          requiresTwoFactor: true,
+          challengeExpiresInSec: TWO_FACTOR_CHALLENGE_MAX_AGE_SEC,
+          role: user.role,
+        },
+        { status: 200, headers: { 'Cache-Control': 'no-store' } },
+      );
+      challengeResponse.cookies.delete('ic_access_token');
+      challengeResponse.cookies.delete('ic_refresh_token');
+      challengeResponse.cookies.set(TWO_FACTOR_CHALLENGE_COOKIE, challengeToken, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: TWO_FACTOR_CHALLENGE_MAX_AGE_SEC,
+      });
+      return challengeResponse;
+    }
+
     const userPayload = {
       sub: user.id,
       email: user.email,
@@ -149,7 +162,6 @@ export async function POST(req: NextRequest) {
     const accessToken = await createJwtToken(userPayload, '7d');
     const refreshToken = await createJwtToken({ ...userPayload, type: 'refresh' }, '30d');
 
-    const isProduction = process.env.NODE_ENV === 'production';
     const targetPortal = getPortalRouteForRole(user.role);
 
     const response = NextResponse.json({
