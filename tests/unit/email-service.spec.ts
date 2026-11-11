@@ -115,6 +115,33 @@ test.describe('Email Service — HTML Escaping, Missing Key Handling, HMAC Hashi
     expect(hashA).not.toBe(hashB);
   });
 
+  test('hashEmailRecipient in production without EMAIL_HMAC_SECRET warns cleanly without throwing or leaking email', () => {
+    const warnings: string[] = [];
+    const origWarn = console.warn;
+    console.warn = (...args: any[]) => {
+      warnings.push(args.map((a) => String(a)).join(' '));
+    };
+    try {
+      const recipient = 'prod.citizen@example.gov.in';
+      const hashed = hashEmailRecipient(recipient, {
+        NODE_ENV: 'production',
+        RATE_LIMIT_HMAC_SECRET: 'rate-limit-only-secret',
+      });
+      const rateLimitSecretHash = hashEmailRecipient(recipient, {
+        EMAIL_HMAC_SECRET: 'rate-limit-only-secret',
+      });
+      expect(hashed).toMatch(/^[a-f0-9]{64}$/);
+      expect(hashed).not.toContain('prod.citizen');
+      expect(hashed).not.toBe(rateLimitSecretHash);
+      expect(warnings.some((w) => w.includes('EMAIL_HMAC_SECRET'))).toBe(true);
+      for (const w of warnings) {
+        expect(w).not.toContain(recipient);
+      }
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
   test('failed send persists EmailDelivery record with FAILED status, hashed recipient, and <=200-char lastError', async () => {
     const records: any[] = [];
     const mockDb = {

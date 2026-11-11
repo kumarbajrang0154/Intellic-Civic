@@ -44,6 +44,7 @@ export function isWithinReopenWindow(
     return false;
   }
   const elapsedMs = now.getTime() - resolvedDate.getTime();
+  if (elapsedMs < 0) return false;
   return elapsedMs <= windowDays * 24 * 60 * 60 * 1000;
 }
 
@@ -431,12 +432,17 @@ export async function castComplaintVote(
       };
     }
 
+    const latest = await tx.complaint.findUnique({
+      where: { id: complaint.id },
+      select: { voteCount: true },
+    });
+
     return {
       ok: true,
       status: 200,
       message: 'Complaint already upvoted.',
       voted: true,
-      voteCount: complaint.voteCount,
+      voteCount: latest?.voteCount ?? complaint.voteCount,
     };
   });
 }
@@ -493,12 +499,17 @@ export async function removeComplaintVote(
       };
     }
 
+    const latest = await tx.complaint.findUnique({
+      where: { id: complaint.id },
+      select: { voteCount: true },
+    });
+
     return {
       ok: true,
       status: 200,
       message: 'Upvote already removed.',
       voted: false,
-      voteCount: complaint.voteCount,
+      voteCount: latest?.voteCount ?? complaint.voteCount,
     };
   });
 }

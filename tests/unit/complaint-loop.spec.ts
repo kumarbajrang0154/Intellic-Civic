@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { ComplaintStatus, NotificationType } from '@prisma/client';
 import {
   castComplaintVote,
+  isWithinReopenWindow,
   REOPEN_WINDOW_DAYS,
   removeComplaintVote,
   reopenCitizenComplaint,
@@ -52,6 +53,10 @@ function createMockLoopPrisma(seed: {
           copy.feedback = state.feedbacks.find((f) => f.complaintId === match.id) || null;
         }
         return copy;
+      },
+      findUnique: async (args: any) => {
+        const match = state.complaints.find((c) => c.id === args?.where?.id);
+        return match ? { ...match } : null;
       },
       update: async (args: any) => {
         const c = state.complaints.find((item) => item.id === args.where.id);
@@ -361,6 +366,40 @@ test.describe('Citizen Feedback, Reopen & "Me Too" Upvote Transactions', () => {
     expect(state.complaints[0].voteCount).toBe(
       state.votes.filter((v) => v.complaintId === 'c_3').length,
     );
+
+    // Concurrent duplicate vote reads latest count inside transaction instead of stale snapshot
+    const concurrentClient = {
+      ...client,
+      $transaction: async (fn: (tx: any) => Promise<any>) => {
+        const txProxy = {
+          ...client,
+          complaint: {
+            ...client.complaint,
+            findFirst: async (args: any) => {
+              const res = await client.complaint.findFirst(args);
+              // Simulate another citizen voting before createMany runs
+              state.complaints[0].voteCount = 9;
+              return res;
+            },
+          },
+        };
+        return fn(txProxy);
+      },
+    };
+    const concurrentDup = await castComplaintVote('c_3', 'citizen_b', concurrentClient as any);
+    expect(concurrentDup.ok).toBe(true);
+    expect(concurrentDup.voteCount).toBe(9);
+  });
+
+  test('isWithinReopenWindow enforces exact 7-day boundary and rejects future resolvedAt timestamps', () => {
+    const resolvedAt = new Date('2026-10-01T10:00:00.000Z');
+    const exactBoundary = new Date(resolvedAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const pastBoundary = new Date(exactBoundary.getTime() + 1);
+    const beforeResolved = new Date(resolvedAt.getTime() - 1000);
+
+    expect(isWithinReopenWindow(resolvedAt, exactBoundary)).toBe(true);
+    expect(isWithinReopenWindow(resolvedAt, pastBoundary)).toBe(false);
+    expect(isWithinReopenWindow(resolvedAt, beforeResolved)).toBe(false);
   });
 
   test('reopen still succeeds when post-commit email dispatch returns FAILED', async () => {

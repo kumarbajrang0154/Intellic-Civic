@@ -210,7 +210,11 @@ export async function runSlaEscalationJob(
     const priorityKey = (complaint.priority || PriorityLevel.MEDIUM) as PriorityLevel;
     const configuredRule = rulesByPriority.has(priorityKey)
       ? rulesByPriority.get(priorityKey)!
-      : { priority: priorityKey, resolutionHours: DEFAULT_SLA_HOURS[priorityKey], isActive: true };
+      : {
+          priority: priorityKey,
+          resolutionHours: DEFAULT_SLA_HOURS[priorityKey] ?? DEFAULT_SLA_HOURS.MEDIUM,
+          isActive: true,
+        };
 
     if (!isBreached(complaint, now, configuredRule)) {
       skipped++;
