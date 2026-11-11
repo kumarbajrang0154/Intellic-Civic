@@ -7,12 +7,16 @@ import type { ComplaintMapItem } from './complaints-map-inner';
 
 export type { ComplaintMapItem };
 
+export type MapViewMode = 'markers' | 'heatmap' | 'both';
+
 interface ComplaintsMapProps {
   complaints: ComplaintMapItem[];
   detailRoutePrefix?: string;
   className?: string;
   defaultCenter?: [number, number];
   defaultZoom?: number;
+  initialViewMode?: MapViewMode;
+  showLayerToggle?: boolean;
 }
 
 const ComplaintsMapInner = dynamic(() => import('./complaints-map-inner'), {

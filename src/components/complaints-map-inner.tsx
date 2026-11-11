@@ -5,10 +5,22 @@ import Link from 'next/link';
 import L from 'leaflet';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { MapPinOff, ExternalLink, ShieldAlert, Tag, Calendar, MapPin } from 'lucide-react';
+import {
+  MapPinOff,
+  ExternalLink,
+  ShieldAlert,
+  Tag,
+  Calendar,
+  MapPin,
+  Flame,
+  Layers,
+} from 'lucide-react';
 import { getStaffComplaintText } from '@/lib/complaint-language';
 import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
+import { extractHeatPoints, type HeatPoint } from '@/lib/gis-heatmap';
+
+export type MapViewMode = 'markers' | 'heatmap' | 'both';
 
 export interface ComplaintMapItem {
   id: string;
@@ -35,6 +47,133 @@ interface ComplaintsMapInnerProps {
   className?: string;
   defaultCenter?: [number, number];
   defaultZoom?: number;
+  initialViewMode?: MapViewMode;
+  showLayerToggle?: boolean;
+}
+
+const HEATMAP_GRADIENT_STOPS: ReadonlyArray<{ stop: number; rgb: [number, number, number] }> = [
+  { stop: 0.0, rgb: [52, 104, 161] }, // #3468A1 civic blue
+  { stop: 0.35, rgb: [59, 143, 104] }, // #3B8F68 civic emerald
+  { stop: 0.65, rgb: [217, 142, 43] }, // #D98E2B civic amber
+  { stop: 1.0, rgb: [220, 38, 38] }, // #DC2626 critical red
+];
+
+function buildHeatmapPalette(): Uint8ClampedArray {
+  const palette = new Uint8ClampedArray(256 * 4);
+  for (let i = 0; i < 256; i++) {
+    const t = i / 255;
+    let lower = HEATMAP_GRADIENT_STOPS[0];
+    let upper = HEATMAP_GRADIENT_STOPS[HEATMAP_GRADIENT_STOPS.length - 1];
+    for (let s = 0; s < HEATMAP_GRADIENT_STOPS.length - 1; s++) {
+      if (t >= HEATMAP_GRADIENT_STOPS[s].stop && t <= HEATMAP_GRADIENT_STOPS[s + 1].stop) {
+        lower = HEATMAP_GRADIENT_STOPS[s];
+        upper = HEATMAP_GRADIENT_STOPS[s + 1];
+        break;
+      }
+    }
+    const span = Math.max(0.0001, upper.stop - lower.stop);
+    const localT = (t - lower.stop) / span;
+    const base = i * 4;
+    palette[base] = Math.round(lower.rgb[0] + (upper.rgb[0] - lower.rgb[0]) * localT);
+    palette[base + 1] = Math.round(lower.rgb[1] + (upper.rgb[1] - lower.rgb[1]) * localT);
+    palette[base + 2] = Math.round(lower.rgb[2] + (upper.rgb[2] - lower.rgb[2]) * localT);
+    palette[base + 3] = i === 0 ? 0 : Math.min(215, Math.round(55 + t * 175));
+  }
+  return palette;
+}
+
+const HEATMAP_PALETTE = buildHeatmapPalette();
+
+function LeafletCanvasHeatmapLayer({ points }: { points: HeatPoint[] }) {
+  const map = useMap();
+
+  React.useEffect(() => {
+    const pane = map.getPanes().overlayPane;
+    if (!pane) return;
+
+    const canvas = L.DomUtil.create('canvas', 'leaflet-heatmap-layer') as HTMLCanvasElement;
+    canvas.style.position = 'absolute';
+    canvas.style.top = '0';
+    canvas.style.left = '0';
+    canvas.style.pointerEvents = 'none';
+    pane.appendChild(canvas);
+
+    const draw = () => {
+      const size = map.getSize();
+      if (size.x <= 0 || size.y <= 0) return;
+
+      canvas.width = size.x;
+      canvas.height = size.y;
+
+      const topLeft = map.containerPointToLayerPoint([0, 0]);
+      L.DomUtil.setPosition(canvas, topLeft);
+
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return;
+      ctx.clearRect(0, 0, size.x, size.y);
+
+      if (points.length === 0) return;
+
+      const zoom = map.getZoom();
+      const radius = Math.max(18, Math.min(44, Math.round(14 + zoom * 1.8)));
+
+      for (const pt of points) {
+        const containerPt = map.latLngToContainerPoint([pt.lat, pt.lng]);
+        if (
+          containerPt.x < -radius ||
+          containerPt.y < -radius ||
+          containerPt.x > size.x + radius ||
+          containerPt.y > size.y + radius
+        ) {
+          continue;
+        }
+
+        const alpha = Math.min(0.85, 0.22 + pt.weight * 0.24);
+        const grad = ctx.createRadialGradient(
+          containerPt.x,
+          containerPt.y,
+          0,
+          containerPt.x,
+          containerPt.y,
+          radius,
+        );
+        grad.addColorStop(0, `rgba(0, 0, 0, ${alpha.toFixed(3)})`);
+        grad.addColorStop(0.55, `rgba(0, 0, 0, ${(alpha * 0.45).toFixed(3)})`);
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(containerPt.x, containerPt.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const image = ctx.getImageData(0, 0, size.x, size.y);
+      const data = image.data;
+      for (let idx = 0; idx < data.length; idx += 4) {
+        const density = data[idx + 3];
+        if (density > 0) {
+          const pIdx = density * 4;
+          data[idx] = HEATMAP_PALETTE[pIdx];
+          data[idx + 1] = HEATMAP_PALETTE[pIdx + 1];
+          data[idx + 2] = HEATMAP_PALETTE[pIdx + 2];
+          data[idx + 3] = HEATMAP_PALETTE[pIdx + 3];
+        }
+      }
+      ctx.putImageData(image, 0, 0);
+    };
+
+    draw();
+    map.on('moveend zoomend viewreset resize', draw);
+
+    return () => {
+      map.off('moveend zoomend viewreset resize', draw);
+      if (canvas.parentNode === pane) {
+        pane.removeChild(canvas);
+      }
+    };
+  }, [map, points]);
+
+  return null;
 }
 
 // Helper component to adjust bounds to fit all visible markers
@@ -121,8 +260,12 @@ export default function ComplaintsMapInner({
   className = 'h-[500px] w-full rounded-xl overflow-hidden shadow-sm border border-slate-200',
   defaultCenter = [12.9716, 77.5946], // Default: Bengaluru City
   defaultZoom = 12,
+  initialViewMode = 'markers',
+  showLayerToggle = false,
 }: ComplaintsMapInnerProps) {
   const staffLanguage = useStaffComplaintLanguage();
+  const [viewMode, setViewMode] = React.useState<MapViewMode>(initialViewMode);
+
   // Filter valid geographic coordinates (non-zero lat/lng)
   const validMapItems = React.useMemo(() => {
     return complaints.filter((c) => {
@@ -138,9 +281,14 @@ export default function ComplaintsMapInner({
     });
   }, [complaints]);
 
+  const heatPoints = React.useMemo(() => extractHeatPoints(validMapItems), [validMapItems]);
+
   const markerCoords: [number, number][] = React.useMemo(() => {
     return validMapItems.map((c) => [c.location!.latitude, c.location!.longitude]);
   }, [validMapItems]);
+
+  const showHeatmap = viewMode === 'heatmap' || viewMode === 'both';
+  const showMarkers = viewMode === 'markers' || viewMode === 'both';
 
   if (validMapItems.length === 0) {
     return (
@@ -164,6 +312,57 @@ export default function ComplaintsMapInner({
 
   return (
     <div className={`${className} relative z-0 overflow-hidden rounded-xl min-w-0`}>
+      {showLayerToggle && (
+        <div
+          role="group"
+          aria-label="Map layer mode"
+          className="absolute top-3 right-3 z-[400] inline-flex items-center rounded-lg border border-[#E5E2D9] bg-[#F2EFE6]/95 p-0.5 shadow-sm backdrop-blur-sm"
+        >
+          {(
+            [
+              { id: 'markers', label: 'Pins', icon: MapPin },
+              { id: 'heatmap', label: 'Heatmap', icon: Flame },
+              { id: 'both', label: 'Both', icon: Layers },
+            ] as const
+          ).map((mode) => {
+            const Icon = mode.icon;
+            const active = viewMode === mode.id;
+            return (
+              <button
+                key={mode.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setViewMode(mode.id)}
+                className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3468A1] ${
+                  active
+                    ? 'bg-[#3468A1] text-white shadow-xs'
+                    : 'text-[#131E20] hover:bg-white/80'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>{mode.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {showHeatmap && (
+        <div className="absolute bottom-3 left-3 z-[400] rounded-lg border border-[#E5E2D9] bg-[#F2EFE6]/95 px-2.5 py-1.5 shadow-sm backdrop-blur-sm">
+          <div className="flex items-center gap-2 text-[11px] font-medium text-[#131E20]">
+            <span>Low</span>
+            <div
+              className="h-2 w-24 rounded-full"
+              style={{
+                background: 'linear-gradient(to right, #3468A1, #3B8F68, #D98E2B, #DC2626)',
+              }}
+              aria-hidden="true"
+            />
+            <span>Hotspot</span>
+          </div>
+        </div>
+      )}
+
       <MapContainer
         center={initialCenter}
         zoom={defaultZoom}
@@ -177,7 +376,10 @@ export default function ComplaintsMapInner({
 
         <MapBoundsAdjuster markers={markerCoords} />
 
-        {validMapItems.map((complaint) => {
+        {showHeatmap && <LeafletCanvasHeatmapLayer points={heatPoints} />}
+
+        {showMarkers &&
+          validMapItems.map((complaint) => {
           const lat = complaint.location!.latitude;
           const lng = complaint.location!.longitude;
           const icon = createPriorityMarkerIcon(complaint.priority);

@@ -281,6 +281,7 @@ model ComplaintLocation {
 
   complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
 
+  @@index([latitude, longitude])
   @@map("complaint_locations")
 }
 
