@@ -44,9 +44,9 @@ export function isDemoOtpNumber(
 export interface ConsoleOtpResponsePayload {
   success: true;
   message: string;
-  otp?: string;
   mobileNumber: string;
   mode: 'console';
+  otp: string;
 }
 
 /** Returns true when running in Node or Vercel production environments. */
@@ -54,35 +54,33 @@ export function isProductionOtpEnv(env: OtpEnv = process.env): boolean {
   return env.NODE_ENV === 'production' || env.VERCEL_ENV === 'production';
 }
 
-/** Expose console OTP only in non-production development mode. */
+/** Console mode exposes OTP in responses across all environments for testing builds. */
 export function shouldExposeOtpInResponse(env: OtpEnv = process.env): boolean {
+  void env;
+  return true;
+}
+
+/** Log `[CONSOLE OTP]` on the server only in local non-production development mode. */
+export function shouldLogConsoleOtp(env: OtpEnv = process.env): boolean {
   return !isProductionOtpEnv(env) && env.NODE_ENV === 'development';
 }
 
 /**
- * Builds the send-otp JSON payload for console mode, omitting the `otp` key
- * in production or any non-development environment.
+ * Builds the send-otp JSON payload for console mode, including `otp`
+ * across both development and production environments for testing builds.
  */
 export function buildConsoleOtpResponsePayload(
   mobileNumber: string,
   otp: string,
   env: OtpEnv = process.env,
 ): ConsoleOtpResponsePayload {
-  if (shouldExposeOtpInResponse(env)) {
-    return {
-      success: true,
-      message: 'OTP sent successfully',
-      otp,
-      mobileNumber,
-      mode: 'console',
-    };
-  }
-
+  void shouldExposeOtpInResponse(env);
   return {
     success: true,
     message: 'OTP sent successfully',
     mobileNumber,
     mode: 'console',
+    otp,
   };
 }
 

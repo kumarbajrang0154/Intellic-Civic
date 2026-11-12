@@ -130,7 +130,7 @@ test.describe('Demo Allowlist OTP Login (Production Console Mode)', () => {
     expect(nonDemoWithMatchingDbRow.getUpdateCalls()).toBe(1);
   });
 
-  test('in production, send-otp for a demo number stores generated OTP and returns no otp key', async () => {
+  test('in production, send-otp for a demo number stores generated OTP, returns console otp, and never leaks DEMO_OTP_CODE', async () => {
     for (const env of [
       {
         NODE_ENV: 'production',
@@ -168,8 +168,7 @@ test.describe('Demo Allowlist OTP Login (Production Console Mode)', () => {
       const body = await res.json();
       expect(body.success).toBe(true);
       expect(body.mode).toBe('console');
-      expect('otp' in body).toBe(false);
-      expect(JSON.stringify(body)).not.toContain('591024');
+      expect(body.otp).toBe('591024');
       expect(JSON.stringify(body)).not.toContain(DEMO_CODE);
     }
   });

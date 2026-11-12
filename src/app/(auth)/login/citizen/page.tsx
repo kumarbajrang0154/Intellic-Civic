@@ -232,7 +232,10 @@ export default function CitizenLoginPage() {
       }
 
       if (!res.ok) {
-        throw new Error(data.message || 'Invalid or expired verification code');
+        throw new Error(
+          data.message ||
+            (data.statusCode ? `Verification failed (status ${data.statusCode})` : 'Invalid or expired verification code'),
+        );
       }
 
       if (data.isFirstTime || !data.user?.isProfileComplete) {
@@ -300,7 +303,7 @@ export default function CitizenLoginPage() {
 
           {/* Right Column: White rounded-3xl Card */}
           <div className="order-1 lg:order-2 lg:col-span-6 w-full max-w-md mx-auto">
-            <div className="bg-white rounded-3xl p-6 sm:p-8 md:p-10 border border-[#E5E2D9] shadow-[0_8px_30px_rgba(19,30,32,0.06)] space-y-6">
+            <div className="bg-white rounded-3xl p-5 sm:p-8 md:p-10 border border-[#E5E2D9] shadow-[0_8px_30px_rgba(19,30,32,0.06)] space-y-6">
               {/* Card Header */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -334,7 +337,7 @@ export default function CitizenLoginPage() {
               </div>
 
               {error && (
-                <Alert variant="destructive" className="rounded-2xl border-rose-200 bg-rose-50 text-rose-950 p-4">
+                <Alert variant="destructive" role="alert" className="rounded-2xl border-rose-200 bg-rose-50 text-rose-950 p-4">
                   <AlertTitle className="text-xs font-bold text-rose-950">Authentication Error</AlertTitle>
                   <AlertDescription className="text-xs text-rose-900 font-medium">{error}</AlertDescription>
                 </Alert>
@@ -353,6 +356,8 @@ export default function CitizenLoginPage() {
                       <Input
                         id="mobileNumber"
                         type="tel"
+                        inputMode="numeric"
+                        autoComplete="tel-national"
                         placeholder="9876543210"
                         value={mobileNumber}
                         onChange={(e) => setMobileNumber(e.target.value)}
@@ -381,11 +386,14 @@ export default function CitizenLoginPage() {
                 </form>
               ) : (
                 <form onSubmit={handleVerifyOtp} className="space-y-5">
-                  {authMode === 'console' && generatedOtp && (
-                    <div className="p-3.5 bg-[#C9DFDC]/30 border border-[#C9DFDC] rounded-2xl text-center space-y-1.5">
+                  {authMode !== 'firebase' && generatedOtp && (
+                    <div
+                      aria-live="polite"
+                      className="p-3.5 bg-[#C9DFDC]/30 border border-[#C9DFDC] rounded-2xl text-center space-y-1.5"
+                    >
                       <div className="flex items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#131E20]">
                         <KeyRound className="h-3.5 w-3.5 text-[#3468A1]" />
-                        <span>Development Code</span>
+                        <span>Your test OTP</span>
                       </div>
                       <div className="text-2xl font-bold font-mono tracking-widest text-[#131E20] select-all py-0.5">
                         {generatedOtp}
@@ -395,21 +403,27 @@ export default function CitizenLoginPage() {
                           type="button"
                           variant="outline"
                           size="sm"
+                          disabled={loading}
                           onClick={() => setOtp(generatedOtp)}
-                          className="h-10 px-3 border-[#C9DFDC] text-[#131E20] bg-white hover:bg-[#F2EFE6] font-semibold gap-1 text-xs rounded-full"
+                          className="h-10 px-4 border-[#C9DFDC] text-[#131E20] bg-white hover:bg-[#F2EFE6] font-semibold gap-1.5 text-xs rounded-full"
                         >
                           <Check className="h-3.5 w-3.5 text-[#3B8F68]" />
-                          Auto-fill OTP ({generatedOtp})
+                          Auto-fill
                         </Button>
                       </div>
                     </div>
                   )}
 
-                  <div className="space-y-2 text-center">
-                    <label className="text-[11px] font-bold uppercase tracking-wider text-[#6E6B64] block">
+                  <div className="space-y-2 text-center" role="group" aria-labelledby="otp-input-label">
+                    <label
+                      id="otp-input-label"
+                      htmlFor="otp-digit-0"
+                      className="text-[11px] font-bold uppercase tracking-wider text-[#6E6B64] block"
+                    >
                       Enter 6-Digit OTP Code
                     </label>
                     <OtpInput
+                      idPrefix="otp-digit"
                       value={otp}
                       onChange={setOtp}
                       disabled={loading}
@@ -431,16 +445,17 @@ export default function CitizenLoginPage() {
                     )}
                   </Button>
 
-                  <div className="flex items-center justify-between text-xs pt-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1">
                     <button
                       type="button"
+                      disabled={loading}
                       onClick={() => {
                         setStep('PHONE');
                         setError(null);
                         setOtp('');
                         setConfirmationResult(null);
                       }}
-                      className="hover:underline text-[#3468A1] font-semibold h-11 min-h-[44px] inline-flex items-center"
+                      className="hover:underline text-[#3468A1] font-semibold h-11 min-h-[44px] inline-flex items-center disabled:opacity-50"
                     >
                       Change Mobile Number
                     </button>
@@ -449,8 +464,9 @@ export default function CitizenLoginPage() {
                       {canResend ? (
                         <button
                           type="button"
+                          disabled={loading}
                           onClick={() => handleSendOtp()}
-                          className="hover:underline text-[#3468A1] font-semibold h-11 min-h-[44px] inline-flex items-center"
+                          className="hover:underline text-[#3468A1] font-semibold h-11 min-h-[44px] inline-flex items-center disabled:opacity-50"
                         >
                           Resend OTP
                         </button>
@@ -463,7 +479,7 @@ export default function CitizenLoginPage() {
               )}
 
               {/* Helper Links at bottom */}
-              <div className="pt-2 border-t border-[#E5E2D9] flex items-center justify-between gap-4 text-xs">
+              <div className="pt-2 border-t border-[#E5E2D9] flex flex-wrap items-center justify-between gap-3 text-xs">
                 <Link
                   href="/public/transparency"
                   className="text-[#3468A1] hover:underline font-semibold h-11 min-h-[44px] inline-flex items-center"

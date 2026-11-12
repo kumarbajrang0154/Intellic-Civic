@@ -4,8 +4,20 @@ import {
   isProductionOtpEnv,
   OtpRequestStore,
   shouldExposeOtpInResponse,
+  shouldLogConsoleOtp,
   verifySavedOtp,
 } from '@/lib/otp-store';
+import { handleSendOtpRequest } from '@/lib/send-otp-handler';
+import type { RateLimitResult } from '@/lib/rate-limit';
+
+const ALLOW_RATE_LIMIT: RateLimitResult = {
+  success: true,
+  limit: 3,
+  remaining: 2,
+  reset: Date.now() + 600_000,
+  retryAfterSeconds: 600,
+  source: 'memory',
+};
 
 async function withOtpEnv<T>(
   overrides: { NODE_ENV?: string; VERCEL_ENV?: string },
@@ -41,82 +53,131 @@ async function withOtpEnv<T>(
   }
 }
 
-test.describe('send-otp OTP response exposure guard', () => {
-  test('never includes otp key when NODE_ENV is production', () => {
-    const env = { NODE_ENV: 'production', VERCEL_ENV: undefined };
-    expect(isProductionOtpEnv(env)).toBe(true);
-    expect(shouldExposeOtpInResponse(env)).toBe(false);
-
-    const payload = buildConsoleOtpResponsePayload('9999999999', '482910', env);
-    expect('otp' in payload).toBe(false);
-    expect(Object.prototype.hasOwnProperty.call(payload, 'otp')).toBe(false);
-    expect(payload).toEqual({
-      success: true,
-      message: 'OTP sent successfully',
-      mobileNumber: '9999999999',
-      mode: 'console',
-    });
-  });
-
-  test('never includes otp key when VERCEL_ENV is production even if NODE_ENV is development', () => {
-    const env = { NODE_ENV: 'development', VERCEL_ENV: 'production' };
-    expect(isProductionOtpEnv(env)).toBe(true);
-    expect(shouldExposeOtpInResponse(env)).toBe(false);
-
-    const payload = buildConsoleOtpResponsePayload('9999999999', '482910', env);
-    expect('otp' in payload).toBe(false);
-    expect(Object.prototype.hasOwnProperty.call(payload, 'otp')).toBe(false);
-  });
-
-  test('omits otp key in non-development environments such as test or unset', () => {
+test.describe('send-otp OTP response behaviour across console and sms modes', () => {
+  test('includes otp key in console mode across production, preview, and development environments', () => {
     for (const env of [
-      { NODE_ENV: 'test', VERCEL_ENV: undefined },
-      { NODE_ENV: undefined, VERCEL_ENV: 'preview' },
-      { NODE_ENV: 'staging', VERCEL_ENV: undefined },
+      { NODE_ENV: 'production', VERCEL_ENV: undefined, expectedProd: true, expectedLog: false },
+      { NODE_ENV: 'development', VERCEL_ENV: 'production', expectedProd: true, expectedLog: false },
+      { NODE_ENV: 'test', VERCEL_ENV: undefined, expectedProd: false, expectedLog: false },
+      { NODE_ENV: undefined, VERCEL_ENV: 'preview', expectedProd: false, expectedLog: false },
+      { NODE_ENV: 'development', VERCEL_ENV: undefined, expectedProd: false, expectedLog: true },
+      { NODE_ENV: 'development', VERCEL_ENV: 'preview', expectedProd: false, expectedLog: true },
     ]) {
-      expect(shouldExposeOtpInResponse(env)).toBe(false);
-      const payload = buildConsoleOtpResponsePayload('9999999999', '482910', env);
-      expect('otp' in payload).toBe(false);
-    }
-  });
-
-  test('includes otp key in development when VERCEL_ENV is not production', () => {
-    for (const env of [
-      { NODE_ENV: 'development', VERCEL_ENV: undefined },
-      { NODE_ENV: 'development', VERCEL_ENV: 'development' },
-      { NODE_ENV: 'development', VERCEL_ENV: 'preview' },
-    ]) {
-      expect(isProductionOtpEnv(env)).toBe(false);
+      expect(isProductionOtpEnv(env)).toBe(env.expectedProd);
       expect(shouldExposeOtpInResponse(env)).toBe(true);
+      expect(shouldLogConsoleOtp(env)).toBe(env.expectedLog);
 
       const payload = buildConsoleOtpResponsePayload('9999999999', '482910', env);
       expect('otp' in payload).toBe(true);
       expect(payload).toEqual({
         success: true,
         message: 'OTP sent successfully',
-        otp: '482910',
         mobileNumber: '9999999999',
         mode: 'console',
+        otp: '482910',
       });
     }
   });
 
-  test('reads live process.env by default without leaking otp in production', async () => {
+  test('reads live process.env by default and returns console otp in both production and development', async () => {
     await withOtpEnv({ NODE_ENV: 'production' }, () => {
       const prodPayload = buildConsoleOtpResponsePayload('9999999999', '482910');
-      expect('otp' in prodPayload).toBe(false);
+      expect(prodPayload.otp).toBe('482910');
+      expect(prodPayload.mode).toBe('console');
+      expect(shouldLogConsoleOtp()).toBe(false);
     });
 
     await withOtpEnv({ NODE_ENV: 'development', VERCEL_ENV: 'production' }, () => {
       const vercelProdPayload = buildConsoleOtpResponsePayload('9999999999', '482910');
-      expect('otp' in vercelProdPayload).toBe(false);
+      expect(vercelProdPayload.otp).toBe('482910');
+      expect(vercelProdPayload.mode).toBe('console');
+      expect(shouldLogConsoleOtp()).toBe(false);
     });
 
     await withOtpEnv({ NODE_ENV: 'development' }, () => {
       const devPayload = buildConsoleOtpResponsePayload('9999999999', '482910');
-      expect('otp' in devPayload).toBe(true);
       expect(devPayload.otp).toBe('482910');
+      expect(shouldLogConsoleOtp()).toBe(true);
     });
+  });
+
+  test('console mode send-otp returns a 6-digit otp string in production and development while logging only in dev', async () => {
+    for (const scenario of [
+      { env: { NODE_ENV: 'production', OTP_AUTH_MODE: 'console' }, expectConsoleLog: false },
+      { env: { NODE_ENV: 'development', VERCEL_ENV: 'production', OTP_AUTH_MODE: 'console' }, expectConsoleLog: false },
+      { env: { NODE_ENV: 'development', OTP_AUTH_MODE: 'console' }, expectConsoleLog: true },
+    ]) {
+      let saveCalls = 0;
+      const logs: string[] = [];
+      const origLog = console.log;
+      console.log = (...args: unknown[]) => {
+        logs.push(args.map(String).join(' '));
+      };
+
+      try {
+        const req = new Request('http://localhost/api/auth/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mobileNumber: '9999999999' }),
+        });
+
+        const res = await handleSendOtpRequest(req, {
+          env: scenario.env,
+          checkRateLimit: async () => ALLOW_RATE_LIMIT,
+          generateOtp: async () => {
+            saveCalls += 1;
+            return '639284';
+          },
+        });
+
+        expect(res.status).toBe(200);
+        expect(saveCalls).toBe(1);
+
+        const body = await res.json();
+        expect(body.success).toBe(true);
+        expect(body.mode).toBe('console');
+        expect(body.mobileNumber).toBe('9999999999');
+        expect(typeof body.otp).toBe('string');
+        expect(body.otp).toMatch(/^\d{6}$/);
+        expect(logs.some((line) => line.includes('[CONSOLE OTP]'))).toBe(scenario.expectConsoleLog);
+      } finally {
+        console.log = origLog;
+      }
+    }
+  });
+
+  test('in sms mode, send-otp returns no otp key in production or development', async () => {
+    for (const env of [
+      { NODE_ENV: 'production', OTP_AUTH_MODE: 'sms' },
+      { NODE_ENV: 'development', VERCEL_ENV: 'production', OTP_AUTH_MODE: 'sms' },
+      { NODE_ENV: 'development', OTP_AUTH_MODE: 'sms' },
+    ]) {
+      let sentOtp = '';
+      const req = new Request('http://localhost/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobileNumber: '9999999999' }),
+      });
+
+      const res = await handleSendOtpRequest(req, {
+        env,
+        checkRateLimit: async () => ALLOW_RATE_LIMIT,
+        generateOtp: async () => '753190',
+        smsProvider: {
+          send: async (_phone, otp) => {
+            sentOtp = otp;
+            return { ok: true, providerRef: 'mock_ref' };
+          },
+        },
+      });
+
+      expect(res.status).toBe(200);
+      expect(sentOtp).toBe('753190');
+
+      const body = await res.json();
+      expect(body).toEqual({ success: true, mode: 'sms' });
+      expect('otp' in body).toBe(false);
+    }
   });
 });
 

@@ -3,7 +3,7 @@ import {
   buildConsoleOtpResponsePayload,
   generateAndSaveOtp,
   isProductionOtpEnv,
-  shouldExposeOtpInResponse,
+  shouldLogConsoleOtp,
   type DemoOtpEnv,
 } from '@/lib/otp-store';
 import { normalizeMobileNumber } from '@/lib/user-store';
@@ -110,7 +110,7 @@ export async function handleSendOtpRequest(
 
     // Console mode (Default for dev/testing): Generate OTP, save in Postgres, log to console in development only.
     const otp = await saveOtp(cleanNumber);
-    if (shouldExposeOtpInResponse(env)) {
+    if (shouldLogConsoleOtp(env)) {
       console.log(`[CONSOLE OTP] Mobile: +91${cleanNumber} | Code: ${otp} | Timestamp: ${new Date().toISOString()}`);
     }
 
