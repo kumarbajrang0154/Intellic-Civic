@@ -146,5 +146,81 @@ test.describe('Public Transparency Dashboard Service & Privacy Guarantees', () =
     expect(res.status).toBe(200);
     expect(res.headers.get('location')).toBeNull();
   });
+
+  test('extractWardLabel maps coordinate strings and Location fragments to Unspecified while keeping normal wards', () => {
+    expect(
+      extractWardLabel('Location at (12.9352, 77.6245)', {
+        name: 'Coimbatore Municipal Corp',
+        city: 'Coimbatore',
+      }),
+    ).toBe('Unspecified');
+    expect(extractWardLabel('Location at (12.9352')).toBe('Unspecified');
+    expect(extractWardLabel('12.9352, 77.6245', { city: 'Coimbatore' })).toBe('Unspecified');
+    expect(extractWardLabel('Near Junction (East)')).toBe('Unspecified');
+    expect(extractWardLabel('Ward 12, Coimbatore', { city: 'Coimbatore' })).toBe('Ward 12');
+  });
+
+  test('aggregatePublicTransparencyStats excludes Dept Z test departments and unassigned records while preserving normal data', () => {
+    const fixedNow = new Date('2026-11-12T00:00:00.000Z');
+    const records: TransparencySourceRecord[] = [
+      {
+        status: 'RESOLVED',
+        priority: 'HIGH',
+        createdAt: '2026-11-01T00:00:00.000Z',
+        resolvedAt: '2026-11-01T12:00:00.000Z',
+        departmentId: 'dept_water',
+        department: { id: 'dept_water', name: 'Water Supply' },
+        municipality: { id: 'm_1', name: 'City Corp', city: 'Coimbatore', state: 'Tamil Nadu' },
+        location: { address: 'Ward 12, Coimbatore' },
+      },
+      {
+        status: 'OPEN',
+        priority: 'MEDIUM',
+        createdAt: '2026-11-02T00:00:00.000Z',
+        resolvedAt: null,
+        departmentId: 'dept_test_z',
+        department: { id: 'dept_test_z', name: 'Dept Z 1792301868892' },
+        municipality: { id: 'm_1', name: 'City Corp', city: 'Coimbatore', state: 'Tamil Nadu' },
+        location: { address: 'Location at (12.9352, 77.6245)' },
+      },
+      {
+        status: 'OPEN',
+        priority: 'LOW',
+        createdAt: '2026-11-03T00:00:00.000Z',
+        resolvedAt: null,
+        departmentId: null,
+        department: null,
+        municipality: { id: 'm_1', name: 'City Corp', city: 'Coimbatore', state: 'Tamil Nadu' },
+        location: { address: '12.9352, 77.6245' },
+      },
+      {
+        status: 'OPEN',
+        priority: 'LOW',
+        createdAt: '2026-11-04T00:00:00.000Z',
+        resolvedAt: null,
+        departmentId: 'orphaned_dept_id',
+        department: null,
+        municipality: { id: 'm_1', name: 'City Corp', city: 'Coimbatore', state: 'Tamil Nadu' },
+        location: { address: 'RS Puram, Coimbatore' },
+      },
+    ];
+
+    const report = aggregatePublicTransparencyStats(records, {
+      clock: () => fixedNow,
+    });
+
+    expect(report.availableDepartments).toEqual([{ id: 'dept_water', name: 'Water Supply' }]);
+    expect(report.byDepartment).toHaveLength(1);
+    expect(report.byDepartment[0].departmentName).toBe('Water Supply');
+    expect(report.availableWards).toContain('Ward 12');
+    expect(report.availableWards).toContain('RS Puram');
+    expect(report.availableWards).toContain('Unspecified');
+
+    const serialized = JSON.stringify(report);
+    expect(serialized).not.toContain('Dept Z');
+    expect(serialized).not.toContain('Unassigned');
+    expect(serialized).not.toContain('Location at');
+    expect(serialized).not.toContain('12.9352');
+  });
 });
 

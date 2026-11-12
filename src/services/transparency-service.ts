@@ -85,7 +85,24 @@ export interface PublicTransparencyReport {
   byWard: WardTransparencyRow[];
 }
 
+function isCoordinateOrFragmentLabel(label: string): boolean {
+  return /[()]/.test(label) || /\d{2,}\.\d+/.test(label) || /^\s*location at/i.test(label);
+}
+
+function isPublicDepartmentEligible(rec: TransparencySourceRecord): boolean {
+  const deptId = rec.department?.id?.trim();
+  const deptName = rec.department?.name?.trim();
+  if (!deptId || !deptName || deptId.toLowerCase() === 'unassigned') {
+    return false;
+  }
+  if (/^Dept Z \d+/.test(deptName)) {
+    return false;
+  }
+  return true;
+}
+
 function hasSensitivePattern(segment: string): boolean {
+  if (isCoordinateOrFragmentLabel(segment)) return true;
   if (segment.includes('@')) return true;
   if (/\d{6,}/.test(segment)) return true; // phone numbers or postal codes
   if (/^\s*(?:\d+[A-Za-z/-]*|no\.?\s*\d+|plot\b|flat\b|door\b|house\b|#\s*\d+)/i.test(segment)) {
@@ -103,11 +120,16 @@ export function extractWardLabel(
   municipality?: { name?: string | null; city?: string | null; state?: string | null } | null,
 ): string {
   const cleaned = (address || '').trim();
-  const fallback =
+  const rawFallback =
     municipality?.city?.trim() || municipality?.name?.trim() || 'General Civic Zone';
+  const fallback = isCoordinateOrFragmentLabel(rawFallback) ? 'Unspecified' : rawFallback;
 
   if (!cleaned) {
     return fallback;
+  }
+
+  if (/^\s*location at/i.test(cleaned)) {
+    return 'Unspecified';
   }
 
   const wardMatch = cleaned.match(
@@ -116,7 +138,8 @@ export function extractWardLabel(
   if (wardMatch) {
     const prefix = wardMatch[1].charAt(0).toUpperCase() + wardMatch[1].slice(1).toLowerCase();
     const token = wardMatch[2].toUpperCase();
-    return `${prefix} ${token}`;
+    const candidate = `${prefix} ${token}`;
+    return isCoordinateOrFragmentLabel(candidate) ? 'Unspecified' : candidate;
   }
 
   const segments = cleaned
@@ -138,7 +161,7 @@ export function extractWardLabel(
     }
   }
 
-  return fallback;
+  return isCoordinateOrFragmentLabel(cleaned) ? 'Unspecified' : fallback;
 }
 
 function toRatePct(resolved: number, total: number): number {
@@ -165,16 +188,19 @@ export function aggregatePublicTransparencyStats(
   const wardCatalog = new Set<string>();
 
   const enriched = records.map((rec) => {
-    const deptId = rec.department?.id || rec.departmentId || 'unassigned';
-    const deptName = rec.department?.name?.trim() || 'Unassigned';
+    const includeDept = isPublicDepartmentEligible(rec);
+    const deptId = includeDept ? rec.department!.id!.trim() : rec.departmentId || 'unassigned';
+    const deptName = includeDept ? rec.department!.name!.trim() : 'Unassigned';
     const wardLabel = extractWardLabel(rec.location?.address, rec.municipality);
-    deptCatalog.set(deptId, deptName);
+    if (includeDept) {
+      deptCatalog.set(deptId, deptName);
+    }
     wardCatalog.add(wardLabel);
-    return { rec, deptId, deptName, wardLabel };
+    return { rec, deptId, deptName, wardLabel, includeDept };
   });
 
   const filtered = enriched.filter((item) => {
-    if (departmentFilter && item.deptId !== departmentFilter) return false;
+    if (departmentFilter && (!item.includeDept || item.deptId !== departmentFilter)) return false;
     if (wardFilter && item.wardLabel.toLowerCase() !== wardFilter.toLowerCase()) return false;
     return true;
   });
@@ -202,7 +228,7 @@ export function aggregatePublicTransparencyStats(
     { ward: string; total: number; resolved: number; pending: number; inProgress: number; other: number }
   >();
 
-  for (const { rec, deptId, deptName, wardLabel } of filtered) {
+  for (const { rec, deptId, deptName, wardLabel, includeDept } of filtered) {
     const status = (rec.status || '').toUpperCase();
     const isResolved = RESOLVED_STATUSES.has(status);
     const isPending = PENDING_STATUSES.has(status);
@@ -230,23 +256,25 @@ export function aggregatePublicTransparencyStats(
       priorityBreakdown[pKey]++;
     }
 
-    if (!deptBuckets.has(deptId)) {
-      deptBuckets.set(deptId, {
-        departmentId: deptId,
-        departmentName: deptName,
-        total: 0,
-        resolved: 0,
-        pending: 0,
-        inProgress: 0,
-        other: 0,
-      });
+    if (includeDept) {
+      if (!deptBuckets.has(deptId)) {
+        deptBuckets.set(deptId, {
+          departmentId: deptId,
+          departmentName: deptName,
+          total: 0,
+          resolved: 0,
+          pending: 0,
+          inProgress: 0,
+          other: 0,
+        });
+      }
+      const db = deptBuckets.get(deptId)!;
+      db.total++;
+      if (isResolved) db.resolved++;
+      else if (isPending) db.pending++;
+      else if (isInProgress) db.inProgress++;
+      else db.other++;
     }
-    const db = deptBuckets.get(deptId)!;
-    db.total++;
-    if (isResolved) db.resolved++;
-    else if (isPending) db.pending++;
-    else if (isInProgress) db.inProgress++;
-    else db.other++;
 
     if (!wardBuckets.has(wardLabel)) {
       wardBuckets.set(wardLabel, {
