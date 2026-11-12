@@ -21,6 +21,7 @@ import {
   Users,
 } from 'lucide-react';
 import { AppShell } from '@/components/shared/app-shell';
+import { CitizenChatPanel } from '@/components/citizen/citizen-chat-panel';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -838,6 +839,9 @@ export default function CitizenDashboardPage() {
             )}
           </div>
         )}
+
+        {/* Citizen Complaint Assistant */}
+        <CitizenChatPanel />
       </div>
     </AppShell>
   );

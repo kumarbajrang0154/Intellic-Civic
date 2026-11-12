@@ -1212,3 +1212,38 @@ export async function checkAiHealth(): Promise<AiHealthResult> {
 
   return geminiHealth;
 }
+
+/**
+ * Generates a plain-text reply for the citizen assistant using the configured Gemini model
+ * with a separate system instruction and timeout guard.
+ */
+export async function generateCitizenChatReply(params: {
+  systemInstruction: string;
+  userPrompt: string;
+  timeoutMs?: number;
+  maxOutputTokens?: number;
+}): Promise<string | null> {
+  const genAI = getGeminiClient();
+  if (!genAI) {
+    return null;
+  }
+
+  const timeoutMs = params.timeoutMs ?? 8000;
+  const model = genAI.getGenerativeModel({
+    model: getGeminiModel(),
+    systemInstruction: params.systemInstruction,
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: params.maxOutputTokens ?? 320,
+    },
+  });
+
+  const result = await withTimeout(
+    model.generateContent(params.userPrompt),
+    timeoutMs,
+    'Citizen chatbot Gemini request timed out after 8s',
+  );
+
+  const text = result?.response?.text?.();
+  return typeof text === 'string' && text.trim().length > 0 ? text.trim() : null;
+}
