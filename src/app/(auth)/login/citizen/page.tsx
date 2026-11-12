@@ -137,17 +137,20 @@ export default function CitizenLoginPage() {
           throw new Error(data.error || data.message || 'Failed to send OTP');
         }
 
-        if (!data.otp) {
+        if (data.otp) {
+          setGeneratedOtp(data.otp);
+          toast.success(`Verification OTP generated: ${data.otp}`);
+        } else if (data.success === true && (data.mode === 'console' || data.mode === 'sms')) {
+          setGeneratedOtp(null);
+          toast.success('Verification code requested. Enter the 6-digit OTP to continue.');
+        } else {
           setGeneratedOtp(null);
           throw new Error(
             data.error ||
-              (data.success !== true ? data.message : undefined) ||
+              data.message ||
               'OTP delivery is not available in this environment. Please contact support.',
           );
         }
-
-        setGeneratedOtp(data.otp);
-        toast.success(`Verification OTP generated: ${data.otp}`);
       }
 
       setStep('OTP');
