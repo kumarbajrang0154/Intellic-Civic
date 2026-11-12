@@ -338,3 +338,4 @@ test.describe('Duplicate Detection Service — Similarity Scoring & Staff Review
     expect(capturedWheres[0].departmentId).toBe('dept-roads');
   });
 });
+

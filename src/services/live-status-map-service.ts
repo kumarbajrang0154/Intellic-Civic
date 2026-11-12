@@ -243,3 +243,4 @@ export async function getAreaStatusCounts(
 
   return aggregateAreaStatusCounts(rows, MIN_AREA_GROUP_SIZE);
 }
+

@@ -288,3 +288,4 @@ test.describe('Smart Assignment Service — Candidate Scoring, Ranking & Privacy
     expect(assignmentSuggestionsQuerySchema.safeParse({ limit: 10 }).success).toBe(false);
   });
 });
+
