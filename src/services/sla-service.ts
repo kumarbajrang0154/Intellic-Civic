@@ -325,3 +325,162 @@ export async function runSlaEscalationJob(
     ranAt: now.toISOString(),
   };
 }
+
+export const SLA_ESCALATION_ALLOWED_ROLES = [
+  'SUPER_ADMIN',
+  'ADMIN',
+  'DEPARTMENT_HEAD',
+] as const;
+
+export const DEFAULT_SLA_ESCALATION_PAGE_SIZE = 20;
+export const MAX_SLA_ESCALATION_PAGE_SIZE = 50;
+
+export interface SlaEscalationActor {
+  role: string;
+  departmentId?: string | null;
+}
+
+export interface SlaEscalationListQuery {
+  page?: number;
+  limit?: number;
+}
+
+export interface SlaEscalationListItem {
+  id: string;
+  ticketId: string;
+  title: string;
+  status: ComplaintStatus;
+  priority: PriorityLevel | null;
+  department: { id: string; name: string } | null;
+  escalatedAt: Date | null;
+}
+
+export interface SlaEscalationListResult {
+  items: SlaEscalationListItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface SlaEscalationDbClient {
+  complaint: {
+    findMany: (args: {
+      where: Record<string, unknown>;
+      select: Record<string, unknown>;
+      orderBy: { escalatedAt: 'desc' };
+      skip: number;
+      take: number;
+    }) => Promise<SlaEscalationListItem[]>;
+    count: (args: { where: Record<string, unknown> }) => Promise<number>;
+  };
+}
+
+export function normalizeSlaEscalationPagination(query?: SlaEscalationListQuery): {
+  page: number;
+  limit: number;
+  skip: number;
+} {
+  const rawPage =
+    typeof query?.page === 'number' && Number.isFinite(query.page) ? Math.trunc(query.page) : 1;
+  const page = Math.max(1, rawPage);
+
+  const rawLimit =
+    typeof query?.limit === 'number' && Number.isFinite(query.limit)
+      ? Math.trunc(query.limit)
+      : DEFAULT_SLA_ESCALATION_PAGE_SIZE;
+  const limit = Math.min(MAX_SLA_ESCALATION_PAGE_SIZE, Math.max(1, rawLimit));
+
+  return {
+    page,
+    limit,
+    skip: (page - 1) * limit,
+  };
+}
+
+/**
+ * Lists SLA-escalated complaints scoped cleanly by role without exposing any citizen PII.
+ * DEPARTMENT_HEAD actors only see escalations assigned to their own departmentId.
+ */
+export async function listEscalatedComplaints(
+  actor: SlaEscalationActor,
+  query?: SlaEscalationListQuery,
+  db: SlaEscalationDbClient = prisma as unknown as SlaEscalationDbClient,
+): Promise<SlaEscalationListResult> {
+  if (
+    !SLA_ESCALATION_ALLOWED_ROLES.includes(
+      actor.role as (typeof SLA_ESCALATION_ALLOWED_ROLES)[number],
+    )
+  ) {
+    throw new Error('Forbidden: insufficient permissions to view SLA escalations');
+  }
+
+  const { page, limit, skip } = normalizeSlaEscalationPagination(query);
+
+  if (actor.role === 'DEPARTMENT_HEAD' && !actor.departmentId) {
+    return {
+      items: [],
+      pagination: {
+        page,
+        limit,
+        total: 0,
+        totalPages: 0,
+      },
+    };
+  }
+
+  const where: Record<string, unknown> = {
+    escalatedAt: { not: null },
+  };
+  if (actor.role === 'DEPARTMENT_HEAD') {
+    where.departmentId = actor.departmentId;
+  }
+
+  const select = {
+    id: true,
+    ticketId: true,
+    title: true,
+    status: true,
+    priority: true,
+    escalatedAt: true,
+    department: {
+      select: {
+        id: true,
+        name: true,
+      },
+    },
+  } as const;
+
+  const [rows, total] = await Promise.all([
+    db.complaint.findMany({
+      where,
+      select,
+      orderBy: { escalatedAt: 'desc' },
+      skip,
+      take: limit,
+    }),
+    db.complaint.count({ where }),
+  ]);
+
+  const items: SlaEscalationListItem[] = rows.map((row) => ({
+    id: row.id,
+    ticketId: row.ticketId,
+    title: row.title,
+    status: row.status,
+    priority: row.priority,
+    department: row.department ? { id: row.department.id, name: row.department.name } : null,
+    escalatedAt: row.escalatedAt,
+  }));
+
+  return {
+    items,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    },
+  };
+}

@@ -4,8 +4,12 @@ import { ComplaintStatus, NotificationType, PriorityLevel } from '@prisma/client
 import {
   computeSlaDeadline,
   isBreached,
+  listEscalatedComplaints,
+  MAX_SLA_ESCALATION_PAGE_SIZE,
+  normalizeSlaEscalationPagination,
   runSlaEscalationJob,
   verifyCronSecret,
+  type SlaEscalationDbClient,
 } from '@/services/sla-service';
 import {
   GET as cronGetHandler,
@@ -293,6 +297,202 @@ test.describe('SLA Service — Pure Computation & Auto-Escalation Idempotency', 
     } finally {
       if (prevCronSecret === undefined) delete process.env.CRON_SECRET;
       else process.env.CRON_SECRET = prevCronSecret;
+    }
+  });
+});
+
+test.describe('listEscalatedComplaints role scoping, pagination cap, and PII safety', () => {
+  const sampleRows = [
+    {
+      id: 'c-1',
+      ticketId: 'IC-2026-101',
+      title: 'Substation feeder trip',
+      status: ComplaintStatus.IN_PROGRESS,
+      priority: PriorityLevel.CRITICAL,
+      departmentId: 'dept-power',
+      department: { id: 'dept-power', name: 'Power Supply' },
+      escalatedAt: new Date('2026-11-10T10:00:00.000Z'),
+      // Extra PII fields to verify strict projection/stripping
+      citizenId: 'cit-1',
+      citizenName: 'Sensitive Citizen',
+      citizenMobile: '9999999999',
+      email: 'citizen@example.com',
+      location: '123 Private Street',
+    },
+    {
+      id: 'c-2',
+      ticketId: 'IC-2026-102',
+      title: 'Water main rupture',
+      status: ComplaintStatus.ASSIGNED,
+      priority: PriorityLevel.HIGH,
+      departmentId: 'dept-water',
+      department: { id: 'dept-water', name: 'Water Supply' },
+      escalatedAt: new Date('2026-11-09T09:00:00.000Z'),
+      citizenId: 'cit-2',
+      citizenMobile: '8888888888',
+    },
+    {
+      id: 'c-3',
+      ticketId: 'IC-2026-103',
+      title: 'Non-escalated draft',
+      status: ComplaintStatus.SUBMITTED,
+      priority: PriorityLevel.LOW,
+      departmentId: 'dept-power',
+      department: { id: 'dept-power', name: 'Power Supply' },
+      escalatedAt: null,
+    },
+  ];
+
+  function createEscalationListMockDb() {
+    const capturedCalls: Array<{
+      where: Record<string, unknown>;
+      select: Record<string, unknown>;
+      skip: number;
+      take: number;
+    }> = [];
+
+    const db: SlaEscalationDbClient = {
+      complaint: {
+        findMany: async (args) => {
+          capturedCalls.push({
+            where: args.where,
+            select: args.select,
+            skip: args.skip,
+            take: args.take,
+          });
+          const filtered = sampleRows.filter((row) => {
+            if (args.where.escalatedAt && row.escalatedAt === null) return false;
+            if (
+              typeof args.where.departmentId === 'string' &&
+              row.departmentId !== args.where.departmentId
+            ) {
+              return false;
+            }
+            return true;
+          });
+          return filtered.slice(args.skip, args.skip + args.take) as any;
+        },
+        count: async (args) =>
+          sampleRows.filter((row) => {
+            if (args.where.escalatedAt && row.escalatedAt === null) return false;
+            if (
+              typeof args.where.departmentId === 'string' &&
+              row.departmentId !== args.where.departmentId
+            ) {
+              return false;
+            }
+            return true;
+          }).length,
+      },
+    };
+
+    return { db, capturedCalls };
+  }
+
+  test('ADMIN and SUPER_ADMIN see escalated complaints across all departments', async () => {
+    for (const role of ['ADMIN', 'SUPER_ADMIN'] as const) {
+      const { db, capturedCalls } = createEscalationListMockDb();
+      const result = await listEscalatedComplaints({ role }, {}, db);
+
+      expect(result.items.map((item) => item.ticketId)).toEqual(['IC-2026-101', 'IC-2026-102']);
+      expect(result.pagination.total).toBe(2);
+      expect(capturedCalls).toHaveLength(1);
+      expect(capturedCalls[0].where).toEqual({ escalatedAt: { not: null } });
+    }
+  });
+
+  test('DEPARTMENT_HEAD is scoped strictly to own departmentId and fails closed if missing', async () => {
+    const { db, capturedCalls } = createEscalationListMockDb();
+    const scoped = await listEscalatedComplaints(
+      { role: 'DEPARTMENT_HEAD', departmentId: 'dept-power' },
+      {},
+      db,
+    );
+
+    expect(scoped.items.map((item) => item.ticketId)).toEqual(['IC-2026-101']);
+    expect(scoped.pagination.total).toBe(1);
+    expect(capturedCalls[0].where).toEqual({
+      escalatedAt: { not: null },
+      departmentId: 'dept-power',
+    });
+
+    const unassigned = await listEscalatedComplaints(
+      { role: 'DEPARTMENT_HEAD', departmentId: null },
+      {},
+      db,
+    );
+    expect(unassigned.items).toEqual([]);
+    expect(unassigned.pagination.total).toBe(0);
+    // Unassigned dept head must fail closed without issuing an unfiltered query
+    expect(capturedCalls).toHaveLength(1);
+  });
+
+  test('disallowed roles are rejected', async () => {
+    const { db } = createEscalationListMockDb();
+    for (const role of ['DEPARTMENT_OFFICER', 'FIELD_WORKER', 'CITIZEN']) {
+      await expect(listEscalatedComplaints({ role }, {}, db)).rejects.toThrow(/Forbidden/);
+    }
+  });
+
+  test('pagination limit is capped at 50 and non-positive values clamp safely', async () => {
+    expect(MAX_SLA_ESCALATION_PAGE_SIZE).toBe(50);
+    expect(normalizeSlaEscalationPagination({ page: 2, limit: 250 })).toEqual({
+      page: 2,
+      limit: 50,
+      skip: 50,
+    });
+    expect(normalizeSlaEscalationPagination({ page: -3, limit: 0 })).toEqual({
+      page: 1,
+      limit: 1,
+      skip: 0,
+    });
+
+    const { db, capturedCalls } = createEscalationListMockDb();
+    const result = await listEscalatedComplaints(
+      { role: 'SUPER_ADMIN' },
+      { page: 2, limit: 200 },
+      db,
+    );
+
+    expect(capturedCalls[0].take).toBe(50);
+    expect(capturedCalls[0].skip).toBe(50);
+    expect(result.pagination.limit).toBe(50);
+    expect(result.pagination.page).toBe(2);
+  });
+
+  test('selects operational SLA fields only and strips all citizen PII', async () => {
+    const { db, capturedCalls } = createEscalationListMockDb();
+    const result = await listEscalatedComplaints({ role: 'ADMIN' }, {}, db);
+
+    const select = capturedCalls[0].select;
+    expect(select.ticketId).toBe(true);
+    expect(select.title).toBe(true);
+    expect(select.priority).toBe(true);
+    expect(select.escalatedAt).toBe(true);
+    expect(select.department).toEqual({ select: { id: true, name: true } });
+    for (const piiField of [
+      'citizen',
+      'citizenId',
+      'citizenName',
+      'citizenMobile',
+      'email',
+      'location',
+      'description',
+    ]) {
+      expect(select[piiField]).toBeUndefined();
+    }
+
+    expect(result.items).toHaveLength(2);
+    for (const item of result.items) {
+      expect(Object.keys(item).sort()).toEqual([
+        'department',
+        'escalatedAt',
+        'id',
+        'priority',
+        'status',
+        'ticketId',
+        'title',
+      ]);
     }
   });
 });

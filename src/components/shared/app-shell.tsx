@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
+  AlertTriangle,
   BarChart3,
   Bell,
   Brain,
@@ -129,6 +130,7 @@ const SUPER_ADMIN_NAV: NavSection[] = [
     items: [
       { type: 'leaf', title: 'Analytics & Reports', href: '/admin/analytics', icon: BarChart3 },
       { type: 'leaf', title: 'Department Performance', href: '/admin/reports', icon: ClipboardList },
+      { type: 'leaf', title: 'SLA Escalations', href: '/admin/sla', icon: AlertTriangle },
       { type: 'leaf', title: 'Notifications', href: '/admin/notifications', icon: Bell },
     ],
   },
@@ -154,6 +156,7 @@ const DEPT_HEAD_NAV: NavSection[] = [
     label: 'MY DEPARTMENT',
     items: [
       { type: 'leaf', title: 'Department Queue', href: '/dept-head/complaints', icon: ClipboardList },
+      { type: 'leaf', title: 'SLA Escalations', href: '/dept-head/sla', icon: AlertTriangle },
       { type: 'leaf', title: 'AI Suggestions', href: '/dept-head/ai-suggestions', icon: Sparkles },
       { type: 'leaf', title: 'Team Roster', href: '/dept-head/team', icon: Users },
     ],
@@ -285,6 +288,9 @@ function getPageTitle(pathname: string, _role: UserRole): string {
   if (pathname.startsWith('/admin/staff')) return 'Staff & User Directory';
   if (pathname.startsWith('/admin/security')) return 'Security & Access Logs';
   if (pathname.startsWith('/admin/reports')) return 'Department Performance Reports';
+  if (pathname.startsWith('/admin/sla') || pathname.startsWith('/dept-head/sla')) {
+    return 'SLA Escalations';
+  }
   if (pathname.startsWith('/admin/settings')) return 'Platform Settings';
   if (pathname === '/citizen') return 'Citizen Dashboard';
   if (pathname.startsWith('/citizen/complaints/new')) return 'File a New Complaint';
