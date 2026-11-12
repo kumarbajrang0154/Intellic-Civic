@@ -129,6 +129,7 @@ model User {
   auditLogs              AuditLog[]
   refreshTokens          RefreshToken[]
   adminTwoFactor         AdminTwoFactor?
+  recordedMaterialEntries ComplaintMaterialEntry[] @relation("RecordedMaterialEntries")
 
   @@map("users")
 }
@@ -249,6 +250,7 @@ model Complaint {
   notifications      Notification[]
   feedback           Feedback?
   votes              ComplaintVote[]
+  materialEntries    ComplaintMaterialEntry[]
 
   @@index([status])
   @@index([departmentId])
@@ -546,4 +548,22 @@ model AdminTwoFactor {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("admin_two_factor")
+}
+
+model ComplaintMaterialEntry {
+  id               String   @id @default(uuid())
+  complaintId      String
+  name             String   @db.VarChar(120)
+  quantity         Decimal  @db.Decimal(10, 2)
+  unit             String   @db.VarChar(20)
+  unitCostPaise    Int
+  recordedByUserId String
+  createdAt        DateTime @default(now())
+
+  complaint      Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  recordedByUser User      @relation("RecordedMaterialEntries", fields: [recordedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([complaintId])
+  @@index([createdAt])
+  @@map("complaint_material_entries")
 }
