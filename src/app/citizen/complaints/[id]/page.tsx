@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/dialog';
 import { AppShell } from '@/components/layout/app-shell';
 import { toast } from 'sonner';
+import { ComplaintTranslatorCard } from '@/components/complaints/complaint-translator-card';
 
 interface ComplaintDetail {
   id: string;
@@ -935,6 +936,8 @@ export default function CitizenComplaintDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          <ComplaintTranslatorCard complaintId={complaint.id} />
         </div>
       </div>
 

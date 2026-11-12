@@ -30,6 +30,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { getStaffComplaintText } from '@/lib/complaint-language';
 import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
+import { BeforeAfterVerifierCard } from '@/components/complaints/before-after-verifier-card';
+import { ComplaintTranslatorCard } from '@/components/complaints/complaint-translator-card';
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   SUBMITTED: ['AI_PROCESSING', 'PENDING_DEPT_REVIEW', 'ASSIGNED', 'REJECTED', 'DUPLICATE'],
@@ -565,6 +567,9 @@ export default function StaffComplaintDetailPage() {
               </form>
             </CardContent>
           </Card>
+
+          <BeforeAfterVerifierCard complaintId={complaint.id} />
+          <ComplaintTranslatorCard complaintId={complaint.id} />
         </div>
       </div>
     </div>

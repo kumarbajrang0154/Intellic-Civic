@@ -29,6 +29,7 @@ import { getStaffComplaintText } from '@/lib/complaint-language';
 import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
 import { enqueueFieldWorkerAction } from '@/lib/field-worker-offline';
+import { ComplaintTranslatorCard } from '@/components/complaints/complaint-translator-card';
 
 interface EvidenceItem {
   id: string;
@@ -610,6 +611,8 @@ export default function FieldWorkerComplaintDetailPage() {
                 </div>
               </CardContent>
             </Card>
+
+            <ComplaintTranslatorCard complaintId={complaint.id} />
           </div>
         </div>
       </div>

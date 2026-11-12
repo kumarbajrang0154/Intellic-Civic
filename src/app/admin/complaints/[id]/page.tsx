@@ -29,6 +29,8 @@ import { EvidenceTimeline, EvidenceItem } from '@/components/ui/evidence-timelin
 import { getStaffComplaintText } from '@/lib/complaint-language';
 import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
+import { BeforeAfterVerifierCard } from '@/components/complaints/before-after-verifier-card';
+import { ComplaintTranslatorCard } from '@/components/complaints/complaint-translator-card';
 
 interface Department {
   id: string;
@@ -446,6 +448,9 @@ export default function AdminComplaintDetailPage() {
                 </CardContent>
               </Card>
             )}
+
+            <BeforeAfterVerifierCard complaintId={complaint.id} />
+            <ComplaintTranslatorCard complaintId={complaint.id} />
           </div>
         </div>
       </div>

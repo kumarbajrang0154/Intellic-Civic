@@ -104,6 +104,7 @@ const SUPER_ADMIN_NAV: NavSection[] = [
           { type: 'leaf', title: 'Dept. Officers', href: '/admin/departments/officers' },
         ],
       },
+      { type: 'leaf', title: 'Contractors', href: '/admin/contractors', icon: Building2 },
       {
         type: 'group',
         title: 'Users',
@@ -141,6 +142,7 @@ const SUPER_ADMIN_NAV: NavSection[] = [
     label: 'ADMINISTRATION',
     items: [
       { type: 'leaf', title: 'Security & Access', href: '/admin/security', icon: ShieldCheck },
+      { type: 'leaf', title: 'Municipalities', href: '/admin/municipalities', icon: Globe },
       { type: 'leaf', title: 'System Management', href: '/admin/system', icon: Settings },
       { type: 'leaf', title: 'Organization Settings', href: '/admin/settings', icon: Globe },
       { type: 'leaf', title: 'My Profile', href: '/admin/profile', icon: User },
@@ -289,6 +291,8 @@ function getPageTitle(pathname: string, _role: UserRole): string {
   if (pathname.startsWith('/admin/complaints')) return 'Complaint Management';
   if (pathname.startsWith('/admin/triage')) return 'AI Complaint Triage';
   if (pathname.startsWith('/admin/departments')) return 'Department Administration';
+  if (pathname.startsWith('/admin/contractors')) return 'Contractor Management';
+  if (pathname.startsWith('/admin/municipalities')) return 'Multi-Municipality Onboarding';
   if (pathname.startsWith('/admin/staff')) return 'Staff & User Directory';
   if (pathname.startsWith('/admin/security')) return 'Security & Access Logs';
   if (pathname.startsWith('/admin/reports/exports')) return 'Scheduled Report Exports';

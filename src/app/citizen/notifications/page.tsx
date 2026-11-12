@@ -35,6 +35,84 @@ export default function CitizenNotificationsPage() {
   const [unreadCount, setUnreadCount] = React.useState(0);
   const [loading, setLoading] = React.useState(true);
   const [markingAll, setMarkingAll] = React.useState(false);
+  const [pushSupported, setPushSupported] = React.useState(false);
+  const [pushSubscribed, setPushSubscribed] = React.useState(false);
+  const [pushBusy, setPushBusy] = React.useState(false);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    setPushSupported(true);
+    navigator.serviceWorker.ready
+      .then((reg) => reg.pushManager.getSubscription())
+      .then((sub) => {
+        if (sub) setPushSubscribed(true);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleTogglePush = async () => {
+    if (!pushSupported) return;
+    setPushBusy(true);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) {
+        const res = await fetch('/api/citizen/push-subscribe', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: existing.endpoint }),
+        });
+        await existing.unsubscribe().catch(() => {});
+        if (res.ok) {
+          setPushSubscribed(false);
+          toast.success('Browser push notifications disabled');
+        } else {
+          const data = await res.json().catch(() => ({}));
+          toast.error(data?.message || 'Unable to disable push notifications');
+        }
+        return;
+      }
+
+      if (typeof Notification !== 'undefined') {
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') {
+          toast.error('Browser notification permission was not granted.');
+          return;
+        }
+      }
+
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true });
+      const json = sub.toJSON();
+      const res = await fetch('/api/citizen/push-subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: sub.endpoint,
+          keys: {
+            p256dh: json.keys?.p256dh || '',
+            auth: json.keys?.auth || '',
+          },
+          userAgent: navigator.userAgent.slice(0, 250),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data?.message || 'Unable to register browser push alerts.');
+        return;
+      }
+      setPushSubscribed(true);
+      toast.success('Browser push alerts enabled for complaint updates');
+    } catch (err) {
+      toast.error(
+        err instanceof Error && err.message
+          ? `Push registration unavailable: ${err.message}`
+          : 'Browser push alerts could not be enabled right now.',
+      );
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   React.useEffect(() => {
     async function loadUser() {
@@ -128,25 +206,44 @@ export default function CitizenNotificationsPage() {
             </p>
           </div>
 
-          {unreadCount > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleMarkAllAsRead}
-              disabled={markingAll}
-              className="h-11 px-3 md:h-9 md:px-3 text-xs gap-1.5 self-start sm:self-auto shrink-0"
-              aria-label="Mark All as Read"
-              title="Mark All as Read"
-            >
-              {markingAll ? (
-                <Loader2 className="h-4 w-4 md:h-3.5 md:h-3.5 animate-spin shrink-0" />
-              ) : (
-                <CheckCheck className="h-4 w-4 md:h-3.5 md:h-3.5 text-ic-action shrink-0" />
-              )}
-              <span className="hidden md:inline">Mark All as Read</span>
-              <span className="sr-only md:hidden">Mark All as Read</span>
-            </Button>
-          )}
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
+            {pushSupported && (
+              <Button
+                variant={pushSubscribed ? 'secondary' : 'outline'}
+                size="sm"
+                onClick={handleTogglePush}
+                disabled={pushBusy}
+                className="h-11 px-3 md:h-9 md:px-3 text-xs gap-1.5"
+              >
+                {pushBusy ? (
+                  <Loader2 className="h-4 w-4 md:h-3.5 md:h-3.5 animate-spin shrink-0" />
+                ) : (
+                  <Bell className="h-4 w-4 md:h-3.5 md:h-3.5 text-ic-action shrink-0" />
+                )}
+                <span>{pushSubscribed ? 'Push Alerts Enabled' : 'Enable Push Alerts'}</span>
+              </Button>
+            )}
+
+            {unreadCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleMarkAllAsRead}
+                disabled={markingAll}
+                className="h-11 px-3 md:h-9 md:px-3 text-xs gap-1.5"
+                aria-label="Mark All as Read"
+                title="Mark All as Read"
+              >
+                {markingAll ? (
+                  <Loader2 className="h-4 w-4 md:h-3.5 md:h-3.5 animate-spin shrink-0" />
+                ) : (
+                  <CheckCheck className="h-4 w-4 md:h-3.5 md:h-3.5 text-ic-action shrink-0" />
+                )}
+                <span className="hidden md:inline">Mark All as Read</span>
+                <span className="sr-only md:hidden">Mark All as Read</span>
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Content Section */}
