@@ -24,6 +24,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { getStaffComplaintText } from '@/lib/complaint-language';
 import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
+import { RoutePlanPanel } from '@/components/field-worker/route-plan-panel';
+import { FieldWorkerOfflineSyncBanner } from '@/components/field-worker/offline-sync-banner';
 
 interface FieldWorkerComplaint {
   id: string;
@@ -160,6 +162,9 @@ export default function FieldWorkerDashboardPage() {
             </span>
           )}
         </div>
+
+        <FieldWorkerOfflineSyncBanner onSynced={() => fetchData(true)} />
+        <RoutePlanPanel />
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

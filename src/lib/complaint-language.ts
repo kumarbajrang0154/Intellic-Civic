@@ -24,6 +24,15 @@ export const STAFF_LANGUAGE_OPTIONS: Array<{ value: 'en' | 'original'; label: st
   { value: 'original', label: 'Original Language' },
 ];
 
+export const SUPPORTED_AUTO_TRANSLATION_LANGUAGES: Array<{
+  code: 'en' | 'hi' | 'ta';
+  label: string;
+}> = [
+  { code: 'en', label: 'English' },
+  { code: 'hi', label: 'हिन्दी (Hindi)' },
+  { code: 'ta', label: 'தமிழ் (Tamil)' },
+];
+
 export function normalizeStaffLanguage(lang?: string | null): string {
   const normalized = (lang || 'en').toLowerCase().trim();
   if (!normalized || normalized === 'english') return 'en';

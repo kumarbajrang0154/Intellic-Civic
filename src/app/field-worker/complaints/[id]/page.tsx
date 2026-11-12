@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import { getStaffComplaintText } from '@/lib/complaint-language';
 import { useStaffComplaintLanguage } from '@/lib/use-staff-language';
 import { OriginalLanguageBadge } from '@/components/ui/original-language-badge';
+import { enqueueFieldWorkerAction } from '@/lib/field-worker-offline';
 
 interface EvidenceItem {
   id: string;
@@ -137,6 +138,18 @@ export default function FieldWorkerComplaintDetailPage() {
     if (!complaint) return;
     setStartingWork(true);
     try {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        await enqueueFieldWorkerAction({
+          idempotencyKey: `fw-start-${complaint.id}-${Date.now()}`,
+          userId: 'current',
+          complaintId: complaint.id,
+          ticketId: complaint.ticketId,
+          actionType: 'START_WORK',
+        });
+        toast.success('Offline mode: Start Work queued and will sync automatically when online.');
+        return;
+      }
+
       const res = await fetch(`/api/field-worker/complaints/${complaint.id}/start`, {
         method: 'POST',
       });
@@ -163,6 +176,20 @@ export default function FieldWorkerComplaintDetailPage() {
     if (newUrl) {
       setUploadingStage('BEFORE');
       try {
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          await enqueueFieldWorkerAction({
+            idempotencyKey: `fw-before-${complaint.id}-${Date.now()}`,
+            userId: 'current',
+            complaintId: complaint.id,
+            ticketId: complaint.ticketId,
+            actionType: 'UPLOAD_EVIDENCE',
+            stage: 'BEFORE',
+            imageUrl: newUrl,
+          });
+          toast.success('Offline mode: BEFORE photo queued for auto-sync.');
+          return;
+        }
+
         const res = await fetch(`/api/field-worker/complaints/${complaint.id}/evidence`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -199,6 +226,20 @@ export default function FieldWorkerComplaintDetailPage() {
     if (newUrl) {
       setUploadingStage('AFTER');
       try {
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          await enqueueFieldWorkerAction({
+            idempotencyKey: `fw-after-${complaint.id}-${Date.now()}`,
+            userId: 'current',
+            complaintId: complaint.id,
+            ticketId: complaint.ticketId,
+            actionType: 'UPLOAD_EVIDENCE',
+            stage: 'AFTER',
+            imageUrl: newUrl,
+          });
+          toast.success('Offline mode: AFTER photo queued for auto-sync.');
+          return;
+        }
+
         const res = await fetch(`/api/field-worker/complaints/${complaint.id}/evidence`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

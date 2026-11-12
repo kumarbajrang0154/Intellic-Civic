@@ -28,6 +28,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { BeforeAfterVerifierCard } from '@/components/complaints/before-after-verifier-card';
+import { ComplaintTranslatorCard } from '@/components/complaints/complaint-translator-card';
 import { Textarea } from '@/components/ui/textarea';
 import { PhotoUpload } from '@/components/ui/photo-upload';
 import { getStaffComplaintText } from '@/lib/complaint-language';
@@ -808,6 +810,9 @@ export default function OfficerComplaintDetailPage() {
                 )}
               </CardContent>
             </Card>
+
+            <BeforeAfterVerifierCard complaintId={complaint.id} />
+            <ComplaintTranslatorCard complaintId={complaint.id} />
           </div>
         </div>
       </div>

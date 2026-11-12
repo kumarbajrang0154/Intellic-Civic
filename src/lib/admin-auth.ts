@@ -172,6 +172,7 @@ export interface StaffPayload {
   email: string;
   role: string;
   departmentId?: string | null;
+  municipalityId?: string | null;
 }
 
 type RequireStaffResult =
@@ -237,6 +238,7 @@ export async function requireStaff(allowedRoles?: string[]): Promise<RequireStaf
       email: storeUser?.email ?? payload.email,
       role: effectiveRole,
       departmentId: storeUser?.departmentId ?? payload.departmentId ?? null,
+      municipalityId: storeUser?.municipalityId ?? payload.municipalityId ?? null,
     },
   };
 }

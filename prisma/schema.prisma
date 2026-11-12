@@ -81,6 +81,7 @@ model Municipality {
   users       User[]
   complaints  Complaint[]
   departments Department[]
+  contractors Contractor[]
 
   @@map("municipalities")
 }
@@ -128,8 +129,10 @@ model User {
   complaintVotes         ComplaintVote[]
   auditLogs              AuditLog[]
   refreshTokens          RefreshToken[]
-  adminTwoFactor         AdminTwoFactor?
+  adminTwoFactor          AdminTwoFactor?
   recordedMaterialEntries ComplaintMaterialEntry[] @relation("RecordedMaterialEntries")
+  pushSubscriptions       PushSubscription[]
+  contractorWorkOrders    ContractorWorkOrder[]    @relation("AssignedContractorWorkOrders")
 
   @@map("users")
 }
@@ -177,6 +180,7 @@ model Department {
   aiRecommendedComplaints Complaint[]    @relation("AiRecommendedDepartmentComplaints")
   aiPredictions           AiPrediction[]
   fieldWorkers            FieldWorker[]
+  contractors             Contractor[]
 
   @@map("departments")
 }
@@ -251,6 +255,8 @@ model Complaint {
   feedback           Feedback?
   votes              ComplaintVote[]
   materialEntries    ComplaintMaterialEntry[]
+  contractorOrders   ContractorWorkOrder[]
+  aiProcessingJobs   AiProcessingJob[]
 
   @@index([status])
   @@index([departmentId])
@@ -566,4 +572,102 @@ model ComplaintMaterialEntry {
   @@index([complaintId])
   @@index([createdAt])
   @@map("complaint_material_entries")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  endpoint  String   @unique @db.Text
+  p256dh    String   @db.Text
+  auth      String   @db.Text
+  userAgent String?  @db.VarChar(255)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@map("push_subscriptions")
+}
+
+model NotificationDeliveryLog {
+  id            String   @id @default(uuid())
+  complaintId   String?
+  recipientHash String
+  channel       String   @db.VarChar(30)
+  status        String   @db.VarChar(30)
+  providerRef   String?  @db.VarChar(120)
+  lastError     String?  @db.VarChar(200)
+  createdAt     DateTime @default(now())
+
+  @@index([complaintId])
+  @@index([channel, status])
+  @@index([createdAt])
+  @@map("notification_delivery_logs")
+}
+
+model Contractor {
+  id               String   @id @default(uuid())
+  name             String   @db.VarChar(120)
+  companyName      String   @db.VarChar(160)
+  registrationCode String   @unique @db.VarChar(60)
+  specialty        String   @db.VarChar(120)
+  contactEmail     String?  @db.VarChar(160)
+  municipalityId   String?
+  departmentId     String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  municipality Municipality?         @relation(fields: [municipalityId], references: [id], onDelete: SetNull)
+  department   Department?           @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  workOrders   ContractorWorkOrder[]
+
+  @@index([municipalityId, isActive])
+  @@index([departmentId])
+  @@map("contractors")
+}
+
+model ContractorWorkOrder {
+  id                 String    @id @default(uuid())
+  contractorId       String
+  complaintId        String
+  status             String    @default("ASSIGNED") @db.VarChar(30)
+  estimatedCostPaise Int       @default(0)
+  notes              String?   @db.Text
+  assignedByUserId   String
+  completedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  contractor Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  complaint  Complaint  @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  assignedBy User       @relation("AssignedContractorWorkOrders", fields: [assignedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([contractorId, status])
+  @@index([complaintId])
+  @@map("contractor_work_orders")
+}
+
+model AiProcessingJob {
+  id          String    @id @default(uuid())
+  complaintId String
+  jobType     String    @db.VarChar(40)
+  status      String    @default("PENDING") @db.VarChar(30)
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  lastError   String?   @db.VarChar(255)
+  payload     Json?
+  result      Json?
+  scheduledAt DateTime  @default(now())
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledAt])
+  @@index([complaintId])
+  @@map("ai_processing_jobs")
 }

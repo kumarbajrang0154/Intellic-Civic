@@ -39,6 +39,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Unit Tests
+        run: npx playwright test --config=playwright.unit.config.ts
+
       - name: Production Build
         run: npm run build
         env:

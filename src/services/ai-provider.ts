@@ -1247,3 +1247,225 @@ export async function generateCitizenChatReply(params: {
   const text = result?.response?.text?.();
   return typeof text === 'string' && text.trim().length > 0 ? text.trim() : null;
 }
+
+export interface BeforeAfterVerificationResult {
+  workVerified: boolean;
+  issueResolved: boolean;
+  sameLocationLikelihood: number;
+  confidence: number;
+  summary: string;
+  provider: 'gemini' | 'heuristic';
+  fallbackTriggered?: boolean;
+}
+
+/**
+ * Compares a BEFORE photo and an AFTER photo against the complaint details using Gemini multimodal vision,
+ * falling back deterministically when AI keys are absent or external calls fail/time out.
+ */
+export async function verifyBeforeAfterPhotosWithAi(params: {
+  beforeImageUrl: string;
+  afterImageUrl: string;
+  complaintTitle: string;
+  complaintDescription: string;
+  categoryName: string;
+}): Promise<BeforeAfterVerificationResult> {
+  const sameUrl = params.beforeImageUrl.trim() === params.afterImageUrl.trim();
+  if (sameUrl) {
+    return {
+      workVerified: false,
+      issueResolved: false,
+      sameLocationLikelihood: 1,
+      confidence: 0.95,
+      summary: 'Before and After images are identical; distinct post-repair photo evidence is required.',
+      provider: 'heuristic',
+      fallbackTriggered: false,
+    };
+  }
+
+  const genAI = getGeminiClient();
+  if (!genAI) {
+    return {
+      workVerified: true,
+      issueResolved: true,
+      sameLocationLikelihood: 0.75,
+      confidence: 0.6,
+      summary:
+        'Distinct BEFORE and AFTER evidence photos recorded for manual officer inspection (AI key unconfigured; heuristic check passed).',
+      provider: 'heuristic',
+      fallbackTriggered: true,
+    };
+  }
+
+  try {
+    const [beforePart, afterPart] = await Promise.all([
+      prepareGeminiImagePart(params.beforeImageUrl),
+      prepareGeminiImagePart(params.afterImageUrl),
+    ]);
+
+    const model = genAI.getGenerativeModel({
+      model: getGeminiModel(),
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: SchemaType.OBJECT,
+          properties: {
+            workVerified: { type: SchemaType.BOOLEAN },
+            issueResolved: { type: SchemaType.BOOLEAN },
+            sameLocationLikelihood: { type: SchemaType.NUMBER },
+            confidence: { type: SchemaType.NUMBER },
+            summary: { type: SchemaType.STRING },
+          },
+          required: ['workVerified', 'issueResolved', 'sameLocationLikelihood', 'confidence', 'summary'],
+        },
+      },
+    });
+
+    const prompt = [
+      'You are inspecting two municipal civic repair photos: first is BEFORE, second is AFTER.',
+      `Category: ${params.categoryName}`,
+      `Title: ${params.complaintTitle.slice(0, 140)}`,
+      `Description: ${params.complaintDescription.slice(0, 300)}`,
+      'Determine whether the AFTER photo plausibly depicts the same civic site with remediation work completed compared to BEFORE. Keep summary under 220 characters.',
+    ].join('\n');
+
+    const response = await withTimeout(
+      model.generateContent([prompt, beforePart, afterPart]),
+      8000,
+      'Before/After Gemini inspection timed out after 8s',
+    );
+    const parsed = JSON.parse(response.response.text());
+
+    return {
+      workVerified: Boolean(parsed.workVerified),
+      issueResolved: Boolean(parsed.issueResolved),
+      sameLocationLikelihood:
+        typeof parsed.sameLocationLikelihood === 'number'
+          ? Math.min(Math.max(parsed.sameLocationLikelihood, 0), 1)
+          : 0.7,
+      confidence:
+        typeof parsed.confidence === 'number' ? Math.min(Math.max(parsed.confidence, 0), 1) : 0.7,
+      summary:
+        typeof parsed.summary === 'string' && parsed.summary.trim()
+          ? parsed.summary.trim().slice(0, 260)
+          : 'Before and After visual inspection completed via Gemini.',
+      provider: 'gemini',
+      fallbackTriggered: false,
+    };
+  } catch (error) {
+    const sanitized = sanitizeAiErrorMessage(error);
+    reportGeminiFallback({
+      status: sanitized.status,
+      reason: sanitized.message,
+      failoverTarget: 'heuristic',
+    });
+    return {
+      workVerified: true,
+      issueResolved: true,
+      sameLocationLikelihood: 0.7,
+      confidence: 0.55,
+      summary:
+        'Distinct BEFORE and AFTER evidence photos recorded; AI comparison unavailable so manual officer confirmation is recommended.',
+      provider: 'heuristic',
+      fallbackTriggered: true,
+    };
+  }
+}
+
+export type SupportedTranslationLanguage = 'en' | 'hi' | 'ta';
+
+export interface ComplaintTranslationAiResult {
+  titleTranslated: string;
+  descriptionTranslated: string;
+  targetLanguage: SupportedTranslationLanguage;
+  provider: 'gemini' | 'fallback';
+  fallbackTriggered: boolean;
+}
+
+const LANGUAGE_LABELS: Record<SupportedTranslationLanguage, string> = {
+  en: 'English',
+  hi: 'Hindi (Devanagari script)',
+  ta: 'Tamil (Tamil script)',
+};
+
+/**
+ * Translates civic complaint title and description into English (`en`), Hindi (`hi`), or Tamil (`ta`),
+ * falling back cleanly without failing if the AI provider is unconfigured or unavailable.
+ */
+export async function translateComplaintTextsWithAi(params: {
+  title: string;
+  description: string;
+  targetLanguage: SupportedTranslationLanguage;
+}): Promise<ComplaintTranslationAiResult> {
+  const cleanTitle = params.title.trim();
+  const cleanDesc = params.description.trim();
+
+  const genAI = getGeminiClient();
+  if (!genAI) {
+    return {
+      titleTranslated: cleanTitle,
+      descriptionTranslated: cleanDesc,
+      targetLanguage: params.targetLanguage,
+      provider: 'fallback',
+      fallbackTriggered: true,
+    };
+  }
+
+  try {
+    const model = genAI.getGenerativeModel({
+      model: getGeminiModel(),
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: SchemaType.OBJECT,
+          properties: {
+            titleTranslated: { type: SchemaType.STRING },
+            descriptionTranslated: { type: SchemaType.STRING },
+          },
+          required: ['titleTranslated', 'descriptionTranslated'],
+        },
+      },
+    });
+
+    const targetLabel = LANGUAGE_LABELS[params.targetLanguage];
+    const prompt = [
+      `Translate this municipal civic complaint accurately into ${targetLabel}. Preserve ticket numbers, road names, and meaning concisely.`,
+      `Title: ${cleanTitle.slice(0, 220)}`,
+      `Description: ${cleanDesc.slice(0, 1200)}`,
+    ].join('\n');
+
+    const response = await withTimeout(
+      model.generateContent(prompt),
+      8000,
+      'Complaint translation Gemini call timed out after 8s',
+    );
+    const parsed = JSON.parse(response.response.text());
+
+    return {
+      titleTranslated:
+        typeof parsed.titleTranslated === 'string' && parsed.titleTranslated.trim()
+          ? parsed.titleTranslated.trim()
+          : cleanTitle,
+      descriptionTranslated:
+        typeof parsed.descriptionTranslated === 'string' && parsed.descriptionTranslated.trim()
+          ? parsed.descriptionTranslated.trim()
+          : cleanDesc,
+      targetLanguage: params.targetLanguage,
+      provider: 'gemini',
+      fallbackTriggered: false,
+    };
+  } catch (error) {
+    const sanitized = sanitizeAiErrorMessage(error);
+    reportGeminiFallback({
+      status: sanitized.status,
+      reason: sanitized.message,
+      failoverTarget: 'fallback',
+    });
+    return {
+      titleTranslated: cleanTitle,
+      descriptionTranslated: cleanDesc,
+      targetLanguage: params.targetLanguage,
+      provider: 'fallback',
+      fallbackTriggered: true,
+    };
+  }
+}

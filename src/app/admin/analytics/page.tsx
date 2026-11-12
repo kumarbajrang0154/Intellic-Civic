@@ -6,6 +6,7 @@ import { AppShell } from '@/components/layout/app-shell';
 import { PageHeader } from '@/components/admin/page-header';
 import { StatCard } from '@/components/admin/stat-card';
 import { ComplaintsMap, type ComplaintMapItem } from '@/components/complaints-map';
+import { PredictiveAnalyticsCard } from '@/components/admin/predictive-analytics-card';
 import type { HeatClusterCell } from '@/lib/gis-heatmap';
 import {
   AlertCircle,
@@ -555,6 +556,8 @@ export default function AnalyticsPage() {
             </div>
           )}
         </section>
+
+        <PredictiveAnalyticsCard />
       </div>
     </AppShell>
   );
