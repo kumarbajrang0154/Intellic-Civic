@@ -4,6 +4,7 @@ import {
   generateAndSaveOtp,
   isProductionOtpEnv,
   shouldExposeOtpInResponse,
+  type DemoOtpEnv,
 } from '@/lib/otp-store';
 import { normalizeMobileNumber } from '@/lib/user-store';
 import {
@@ -14,9 +15,10 @@ import {
 import { getSmsProvider, type SmsEnv, type SmsProvider } from '@/lib/sms';
 import type { FetchLike } from '@/lib/sms/msg91';
 
-export type SendOtpEnv = SmsEnv & {
-  OTP_AUTH_MODE?: string;
-};
+export type SendOtpEnv = SmsEnv &
+  DemoOtpEnv & {
+    OTP_AUTH_MODE?: string;
+  };
 
 export interface SendOtpHandlerDeps {
   env?: SendOtpEnv;

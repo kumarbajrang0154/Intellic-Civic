@@ -5,6 +5,42 @@ export interface OtpEnv {
   VERCEL_ENV?: string;
 }
 
+export type DemoOtpEnv = OtpEnv & {
+  DEMO_OTP_NUMBERS?: string;
+  DEMO_OTP_CODE?: string;
+};
+
+/** Parses a comma-separated list of 10-digit mobile numbers, dropping empty/invalid entries. */
+export function parseDemoOtpNumbers(raw: string | undefined): Set<string> {
+  const numbers = new Set<string>();
+  if (!raw) return numbers;
+
+  for (const part of raw.split(',')) {
+    const digits = part.trim().replace(/\D/g, '');
+    if (digits.length === 10) {
+      numbers.add(digits);
+    }
+  }
+
+  return numbers;
+}
+
+/** Returns DEMO_OTP_CODE when it is exactly 6 numeric digits, otherwise null. */
+export function getDemoOtpCode(env: DemoOtpEnv = process.env): string | null {
+  const code = (env.DEMO_OTP_CODE ?? '').trim();
+  return /^\d{6}$/.test(code) ? code : null;
+}
+
+/** Returns true when mobileNumber (10 digits) is listed in DEMO_OTP_NUMBERS. */
+export function isDemoOtpNumber(
+  mobileNumber: string,
+  env: DemoOtpEnv = process.env,
+): boolean {
+  const digits = mobileNumber.replace(/\D/g, '');
+  if (digits.length !== 10) return false;
+  return parseDemoOtpNumbers(env.DEMO_OTP_NUMBERS).has(digits);
+}
+
 export interface ConsoleOtpResponsePayload {
   success: true;
   message: string;
@@ -87,7 +123,7 @@ export interface OtpRequestStore {
 }
 
 export interface VerifySavedOtpOptions {
-  env?: OtpEnv;
+  env?: DemoOtpEnv;
   otpRequestStore?: OtpRequestStore;
 }
 
@@ -103,6 +139,12 @@ export async function verifySavedOtp(
 ): Promise<boolean> {
   const cleanNumber = mobileNumber.replace(/\D/g, '');
   const env = options.env ?? process.env;
+
+  // Allowlisted demo numbers may verify using configured 6-digit DEMO_OTP_CODE in both prod & dev
+  const demoCode = getDemoOtpCode(env);
+  if (demoCode !== null && isDemoOtpNumber(cleanNumber, env) && inputOtp === demoCode) {
+    return true;
+  }
 
   // Prototype default code for rapid local testing (disabled in production / non-dev)
   if (!isProductionOtpEnv(env) && env.NODE_ENV === 'development' && inputOtp === '123456') {
