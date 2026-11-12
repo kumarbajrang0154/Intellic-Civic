@@ -18,6 +18,7 @@ import {
   Languages,
   LayoutDashboard,
   LogOut,
+  MapPin,
   Menu,
   PlusCircle,
   Settings,
@@ -216,6 +217,7 @@ const CITIZEN_NAV: NavSection[] = [
     label: 'PORTAL',
     items: [
       { type: 'leaf', title: 'Dashboard', href: '/citizen', icon: Home },
+      { type: 'leaf', title: 'Live Status Map', href: '/citizen/map', icon: MapPin },
       { type: 'leaf', title: 'Report Complaint', href: '/citizen/complaints/new', icon: PlusCircle },
     ],
   },
@@ -293,6 +295,7 @@ function getPageTitle(pathname: string, _role: UserRole): string {
   }
   if (pathname.startsWith('/admin/settings')) return 'Platform Settings';
   if (pathname === '/citizen') return 'Citizen Dashboard';
+  if (pathname.startsWith('/citizen/map')) return 'Live Status Map';
   if (pathname.startsWith('/citizen/complaints/new')) return 'File a New Complaint';
   if (pathname.startsWith('/citizen/complaints')) return 'Complaint Tracking';
   if (pathname.startsWith('/citizen/profile')) return 'Citizen Profile';
