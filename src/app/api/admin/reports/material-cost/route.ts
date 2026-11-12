@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireStaff } from '@/lib/admin-auth';
 import { captureException } from '@/lib/error-monitoring';
 import { checkRateLimit, rateLimitErrorResponse } from '@/lib/rate-limit';
+import { handleScheduledReportDownload } from '@/lib/scheduled-report-http';
 import {
   getDepartmentMaterialCostSummary,
   materialCostReportQuerySchema,
@@ -12,6 +13,11 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
+    const requestedFormat = request.nextUrl.searchParams.get('format');
+    if (requestedFormat === 'csv' || requestedFormat === 'html') {
+      return handleScheduledReportDownload(request, 'material-cost');
+    }
+
     const auth = await requireStaff(['SUPER_ADMIN', 'ADMIN']);
     if (!auth.authorized) {
       return auth.response;

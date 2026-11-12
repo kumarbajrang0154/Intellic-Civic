@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardList,
+  Download,
   Globe,
   Home,
   Languages,
@@ -131,6 +132,7 @@ const SUPER_ADMIN_NAV: NavSection[] = [
     items: [
       { type: 'leaf', title: 'Analytics & Reports', href: '/admin/analytics', icon: BarChart3 },
       { type: 'leaf', title: 'Department Performance', href: '/admin/reports', icon: ClipboardList },
+      { type: 'leaf', title: 'Scheduled Exports', href: '/admin/reports/exports', icon: Download },
       { type: 'leaf', title: 'SLA Escalations', href: '/admin/sla', icon: AlertTriangle },
       { type: 'leaf', title: 'Notifications', href: '/admin/notifications', icon: Bell },
     ],
@@ -289,6 +291,7 @@ function getPageTitle(pathname: string, _role: UserRole): string {
   if (pathname.startsWith('/admin/departments')) return 'Department Administration';
   if (pathname.startsWith('/admin/staff')) return 'Staff & User Directory';
   if (pathname.startsWith('/admin/security')) return 'Security & Access Logs';
+  if (pathname.startsWith('/admin/reports/exports')) return 'Scheduled Report Exports';
   if (pathname.startsWith('/admin/reports')) return 'Department Performance Reports';
   if (pathname.startsWith('/admin/sla') || pathname.startsWith('/dept-head/sla')) {
     return 'SLA Escalations';
