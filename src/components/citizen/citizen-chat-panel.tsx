@@ -151,7 +151,7 @@ export function CitizenChatPanel() {
               size="sm"
               disabled={sending}
               onClick={() => void sendMessage(q)}
-              className="h-auto min-h-[36px] py-1.5 px-2.5 text-xs text-left whitespace-normal"
+              className="h-auto min-h-[40px] py-1.5 px-2.5 text-xs text-left whitespace-normal"
             >
               {q}
             </Button>
@@ -208,7 +208,7 @@ export function CitizenChatPanel() {
               onKeyDown={handleKeyDown}
               disabled={sending}
               placeholder="Ask about a ticket ID (e.g. INC-20261112-0001) or your recent complaints..."
-              className="w-full min-h-[56px] resize-y rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3468A1] disabled:opacity-60"
+              className="w-full min-h-[56px] resize-y rounded-lg border border-slate-300 bg-white px-3 py-2 text-base md:text-sm text-slate-900 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3468A1] disabled:opacity-60"
             />
             <Button
               type="submit"

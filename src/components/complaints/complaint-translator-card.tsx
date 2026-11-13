@@ -60,7 +60,7 @@ export function ComplaintTranslatorCard({ complaintId }: { complaintId: string }
               variant={selectedLang === opt.code ? 'default' : 'outline'}
               disabled={loading}
               onClick={() => handleTranslate(opt.code)}
-              className="h-7 px-2.5 text-xs"
+              className="h-11 px-3 md:h-8 md:px-2.5 text-xs"
             >
               {loading && selectedLang === opt.code ? (
                 <Loader2 className="h-3 w-3 animate-spin mr-1" />
