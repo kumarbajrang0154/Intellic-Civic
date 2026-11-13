@@ -200,7 +200,7 @@ export function initGlobalErrorInterceptor() {
     } catch (err: any) {
       const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
       const skipPopup = headers.get('x-skip-global-error') === 'true' || headers.get('x-handled-inline') === 'true' || isOffline;
-      if (!skipPopup && err?.name !== 'AbortError' && !urlStr.includes('polling=true')) {
+      if (!skipPopup && err?.name !== 'AbortError' && !urlStr.includes('polling=true') && urlStr.includes('/api/')) {
         showGlobalError({
           title: 'Network Error',
           message: err?.message || 'Unable to connect to the server.',
