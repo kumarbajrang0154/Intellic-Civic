@@ -31,6 +31,7 @@ import { PhotoUpload } from '@/components/ui/photo-upload';
 import { AppShell } from '@/components/shared/app-shell';
 import { LocationPicker } from '@/components/location-picker';
 import { compressPhoto, saveDraft, registerBackgroundSync } from '@/lib/offline-queue';
+import { appendTranscript } from '@/lib/voice-transcript';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -112,6 +113,22 @@ export default function NewComplaintPage() {
   const activeTargetRef = React.useRef<'title' | 'description' | 'address' | 'full' | null>(null);
   const sessionIdRef = React.useRef<number>(0);
   const fullTranscriptRef = React.useRef<string>('');
+  const lastProcessedIndexRef = React.useRef<number>(-1);
+  const titleRef = React.useRef<string>('');
+  const descriptionRef = React.useRef<string>('');
+  const addressRef = React.useRef<string>('');
+
+  React.useEffect(() => {
+    titleRef.current = title;
+  }, [title]);
+
+  React.useEffect(() => {
+    descriptionRef.current = description;
+  }, [description]);
+
+  React.useEffect(() => {
+    addressRef.current = address;
+  }, [address]);
 
   // Duplicate Check State
   const [duplicateWarning, setDuplicateWarning] = React.useState<PotentialDuplicate[] | null>(null);
@@ -365,6 +382,7 @@ export default function NewComplaintPage() {
     const currentSessionId = ++sessionIdRef.current;
     activeTargetRef.current = target;
     isListeningRef.current = true;
+    lastProcessedIndexRef.current = -1;
     finalTextRef.current = '';
     fullTranscriptRef.current = '';
 
@@ -390,36 +408,36 @@ export default function NewComplaintPage() {
     recognition.onresult = (event: any) => {
       if (sessionIdRef.current !== currentSessionId) return;
 
-      let interim = '';
-      // Build text from event.results starting at event.resultIndex
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const item = event.results[i];
-        const transcript = item[0]?.transcript || '';
-        if (item.isFinal) {
-          const trimmed = transcript.trim();
-          if (trimmed) {
-            finalTextRef.current = finalTextRef.current
-              ? `${finalTextRef.current} ${trimmed}`
-              : trimmed;
-          }
-        } else {
-          // For interim preview use only the LAST interim result, never concatenate interims
-          interim = transcript;
-        }
+      const currentTarget = activeTargetRef.current;
+      if (!currentTarget) return;
+
+      if (currentTarget === 'full') {
+        const result = appendTranscript(fullTranscriptRef.current, event, lastProcessedIndexRef.current);
+        lastProcessedIndexRef.current = result.lastProcessedIndex;
+        fullTranscriptRef.current = result.text;
+        finalTextRef.current = result.text;
+        setTranscriptPreview(result.interimText);
+        return;
       }
 
-      // Interim text in separate state shown only as a preview, never appended to final
-      setTranscriptPreview(interim);
-      fullTranscriptRef.current = finalTextRef.current;
-
-      const currentTarget = activeTargetRef.current;
-      const finalVal = finalTextRef.current;
       if (currentTarget === 'title') {
-        setTitle(finalVal);
+        const result = appendTranscript(titleRef.current, event, lastProcessedIndexRef.current);
+        lastProcessedIndexRef.current = result.lastProcessedIndex;
+        titleRef.current = result.text;
+        setTitle(result.text);
+        setTranscriptPreview(result.interimText);
       } else if (currentTarget === 'description') {
-        setDescription(finalVal);
+        const result = appendTranscript(descriptionRef.current, event, lastProcessedIndexRef.current);
+        lastProcessedIndexRef.current = result.lastProcessedIndex;
+        descriptionRef.current = result.text;
+        setDescription(result.text);
+        setTranscriptPreview(result.interimText);
       } else if (currentTarget === 'address') {
-        setAddress(finalVal);
+        const result = appendTranscript(addressRef.current, event, lastProcessedIndexRef.current);
+        lastProcessedIndexRef.current = result.lastProcessedIndex;
+        addressRef.current = result.text;
+        setAddress(result.text);
+        setTranscriptPreview(result.interimText);
       }
     };
 
@@ -619,6 +637,7 @@ export default function NewComplaintPage() {
         evidence: evidenceUrls,
         isVoiceInput: usedVoiceInput || Boolean(fullTranscriptRef.current || finalTextRef.current),
         voiceTranscript: fullTranscriptRef.current || finalTextRef.current || undefined,
+        language: voiceLang ? voiceLang.slice(0, 2) : undefined,
       };
 
       if (categoryId) {
