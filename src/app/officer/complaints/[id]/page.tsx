@@ -19,6 +19,8 @@ import {
   Camera,
   ShieldCheck,
   UploadCloud,
+  AlertTriangle,
+  Brain,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
@@ -85,6 +87,13 @@ interface ComplaintDetail {
   readyForReview?: boolean;
   fieldWorkerRemarks?: string;
   assignedFieldWorker?: { name: string };
+  aiPrediction?: {
+    confidenceScore?: number;
+    suggestedCategoryId?: string;
+    suggestedDepartmentId?: string;
+    suggestedPriority?: string;
+    rawResponse?: any;
+  } | null;
   statusHistory?: Array<{
     id: string;
     fromStatus?: string;
@@ -353,6 +362,7 @@ export default function OfficerComplaintDetailPage() {
   if (!complaint) return null;
 
   const validNextTransitions = VALID_STATUS_TRANSITIONS[complaint.status] || [];
+  const rawAi = complaint.aiPrediction?.rawResponse || {};
 
   return (
     <AppShell user={user}>
@@ -506,6 +516,74 @@ export default function OfficerComplaintDetailPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Staff AI Verification Details */}
+            {complaint.aiPrediction && (
+              <Card className="shadow-sm border-primary/20 bg-primary/5">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base font-semibold flex items-center gap-2 text-primary">
+                      <Brain className="h-5 w-5" />
+                      <span>Gemini AI Triage Analysis (Staff View)</span>
+                    </CardTitle>
+                    {(rawAi?.provider === 'fallback' ||
+                      rawAi?.aiRouting?.provider === 'fallback' ||
+                      rawAi?.aiRouting?.fallbackTriggered ||
+                      rawAi?.needsManualTriage ||
+                      (rawAi?.aiRouting?.reasoning || rawAi?.reasoning || '').toLowerCase().includes('fallback used')) && (
+                      <Badge variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-700 font-semibold gap-1 text-xs">
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                        AI unavailable - fallback used
+                      </Badge>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3 text-xs">
+                  {(rawAi?.provider === 'fallback' ||
+                    rawAi?.aiRouting?.provider === 'fallback' ||
+                    rawAi?.aiRouting?.fallbackTriggered ||
+                    rawAi?.needsManualTriage ||
+                    (rawAi?.aiRouting?.reasoning || rawAi?.reasoning || '').toLowerCase().includes('fallback used')) && (
+                    <div className="p-2.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-800 text-xs font-semibold flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                      <span>AI unavailable - fallback used</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <div className="p-2.5 rounded border bg-background">
+                      <span className="text-muted-foreground block text-[10px] uppercase">Confidence</span>
+                      <span className="font-bold text-sm text-primary">
+                        {complaint.aiPrediction.confidenceScore
+                          ? `${Math.round(complaint.aiPrediction.confidenceScore * 100)}%`
+                          : 'N/A'}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded border bg-background">
+                      <span className="text-muted-foreground block text-[10px] uppercase">Recommendation</span>
+                      <span className="font-bold text-sm text-foreground">
+                        {rawAi?.recommendation || 'MANUAL_REVIEW'}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded border bg-background">
+                      <span className="text-muted-foreground block text-[10px] uppercase">Routing Decision</span>
+                      <span className="font-bold text-sm text-foreground">
+                        {rawAi?.routing_decision || 'SUGGEST_ONLY'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {(rawAi?.aiRouting?.reasoning || rawAi?.reasoning) && (
+                    <div className="p-3 rounded border bg-background text-foreground/90 space-y-1">
+                      <span className="font-semibold block">AI Classification Reasoning:</span>
+                      <p className="italic leading-normal">&quot;{rawAi?.aiRouting?.reasoning || rawAi?.reasoning}&quot;</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Field Worker Assignment Control (Restricted to Field Workers assigned to this Officer) */}
             <Card className="border-primary/30 shadow-sm">

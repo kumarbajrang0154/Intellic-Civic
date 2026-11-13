@@ -334,12 +334,35 @@ export default function StaffComplaintDetailPage() {
           {complaint.aiPrediction && (
             <Card className="shadow-sm border-primary/20 bg-primary/5">
               <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold flex items-center gap-2 text-primary">
-                  <Brain className="h-5 w-5" />
-                  <span>Gemini AI Triage Analysis (Staff Unsanitized View)</span>
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2 text-primary">
+                    <Brain className="h-5 w-5" />
+                    <span>Gemini AI Triage Analysis (Staff Unsanitized View)</span>
+                  </CardTitle>
+                  {(rawAi?.provider === 'fallback' ||
+                    rawAi?.aiRouting?.provider === 'fallback' ||
+                    rawAi?.aiRouting?.fallbackTriggered ||
+                    rawAi?.needsManualTriage ||
+                    (rawAi?.aiRouting?.reasoning || rawAi?.reasoning || '').toLowerCase().includes('fallback used')) && (
+                    <Badge variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-700 font-semibold gap-1 text-xs">
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                      AI unavailable - fallback used
+                    </Badge>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="space-y-3 text-xs">
+                {(rawAi?.provider === 'fallback' ||
+                  rawAi?.aiRouting?.provider === 'fallback' ||
+                  rawAi?.aiRouting?.fallbackTriggered ||
+                  rawAi?.needsManualTriage ||
+                  (rawAi?.aiRouting?.reasoning || rawAi?.reasoning || '').toLowerCase().includes('fallback used')) && (
+                  <div className="p-2.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-800 text-xs font-semibold flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                    <span>AI unavailable - fallback used</span>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <div className="p-2.5 rounded border bg-background">
                     <span className="text-muted-foreground block text-[10px] uppercase">Confidence</span>
@@ -365,10 +388,10 @@ export default function StaffComplaintDetailPage() {
                   </div>
                 </div>
 
-                {complaint.aiSuggestion?.reasoning && (
+                {(rawAi?.aiRouting?.reasoning || rawAi?.reasoning || complaint.aiSuggestion?.reasoning) && (
                   <div className="p-3 rounded border bg-background text-foreground/90 space-y-1">
                     <span className="font-semibold block">AI Classification Reasoning:</span>
-                    <p className="italic leading-normal">&quot;{complaint.aiSuggestion.reasoning}&quot;</p>
+                    <p className="italic leading-normal">&quot;{rawAi?.aiRouting?.reasoning || rawAi?.reasoning || complaint.aiSuggestion?.reasoning}&quot;</p>
                   </div>
                 )}
               </CardContent>
