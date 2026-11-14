@@ -11,8 +11,9 @@ test.describe('UI Admin Staff Delete and Reassign Flows for exact screenshot sta
     await ensureSuperAdminUser();
 
     // 1. Authenticate as SUPER_ADMIN
+    const adminEmail = process.env.DEV_LOGIN_ADMIN_EMAIL || process.env.ROOT_ADMIN_EMAIL || process.env.DEV_LOGIN_ALLOWED_EMAILS?.split(',')[0]?.trim() || 'superadmin.test@smartcity.gov.in';
     const loginRes = await request.post(`${BASE}/api/auth/dev-login`, {
-      data: { email: 'kumarbajrang325@gmail.com', role: 'ADMIN' },
+      data: { email: adminEmail, role: 'ADMIN' },
     });
     expect(loginRes.ok()).toBe(true);
 
@@ -239,8 +240,9 @@ test.describe('UI Admin Staff Delete and Reassign Flows for exact screenshot sta
     await ensureSuperAdminUser();
 
     // 1. Authenticate as SUPER_ADMIN
+    const adminEmail = process.env.DEV_LOGIN_ADMIN_EMAIL || process.env.ROOT_ADMIN_EMAIL || process.env.DEV_LOGIN_ALLOWED_EMAILS?.split(',')[0]?.trim() || 'superadmin.test@smartcity.gov.in';
     const loginRes = await request.post(`${BASE}/api/auth/dev-login`, {
-      data: { email: 'kumarbajrang325@gmail.com', role: 'ADMIN' },
+      data: { email: adminEmail, role: 'ADMIN' },
     });
     expect(loginRes.ok()).toBe(true);
 

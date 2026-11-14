@@ -5,8 +5,9 @@ import { getDefaultMunicipality, ensureSuperAdminUser } from '@/lib/staff-dept-s
 const BASE = 'http://localhost:3000';
 
 async function getAdminContext(request: APIRequestContext): Promise<string> {
+  const adminEmail = process.env.DEV_LOGIN_ADMIN_EMAIL || process.env.ROOT_ADMIN_EMAIL || process.env.DEV_LOGIN_ALLOWED_EMAILS?.split(',')[0]?.trim() || 'superadmin.test@smartcity.gov.in';
   const res = await request.post(`${BASE}/api/auth/dev-login`, {
-    data: { email: 'kumarbajrang325@gmail.com', role: 'ADMIN' },
+    data: { email: adminEmail, role: 'ADMIN' },
   });
   if (!res.ok()) {
     throw new Error(`dev-login failed (${res.status()}): ${await res.text()}`);

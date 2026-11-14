@@ -22,8 +22,9 @@ test.describe('Platform & Organization Settings Module Tests', () => {
 
   test('3. Super Admin can access & update settings via PATCH /api/admin/settings', async ({ request }) => {
     // 1. Authenticate as Super Admin via dev-login
+    const adminEmail = process.env.DEV_LOGIN_ADMIN_EMAIL || process.env.ROOT_ADMIN_EMAIL || process.env.DEV_LOGIN_ALLOWED_EMAILS?.split(',')[0]?.trim() || 'superadmin.test@smartcity.gov.in';
     const authRes = await request.post(`${baseURL}/api/auth/dev-login`, {
-      data: { email: 'kumarbajrang325@gmail.com', role: 'SUPER_ADMIN' },
+      data: { email: adminEmail, role: 'SUPER_ADMIN' },
     });
     expect(authRes.status()).toBe(200);
 
@@ -64,8 +65,9 @@ test.describe('Platform & Organization Settings Module Tests', () => {
     await page.setViewportSize({ width: 1280, height: 900 });
 
     // Login as Super Admin
+    const adminEmail = process.env.DEV_LOGIN_ADMIN_EMAIL || process.env.ROOT_ADMIN_EMAIL || process.env.DEV_LOGIN_ALLOWED_EMAILS?.split(',')[0]?.trim() || 'superadmin.test@smartcity.gov.in';
     const devRes = await page.request.post(`${baseURL}/api/auth/dev-login`, {
-      data: { email: 'kumarbajrang325@gmail.com', role: 'SUPER_ADMIN' },
+      data: { email: adminEmail, role: 'SUPER_ADMIN' },
     });
     expect(devRes.status()).toBe(200);
 

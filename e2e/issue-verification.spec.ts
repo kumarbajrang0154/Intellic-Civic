@@ -3,8 +3,9 @@ import { test, expect } from '@playwright/test';
 const BASE = 'http://localhost:3000';
 
 async function setAdminAuthCookie(page: any, context: any) {
+  const adminEmail = process.env.DEV_LOGIN_ADMIN_EMAIL || process.env.ROOT_ADMIN_EMAIL || process.env.DEV_LOGIN_ALLOWED_EMAILS?.split(',')[0]?.trim() || 'superadmin.test@smartcity.gov.in';
   const res = await page.request.post(`${BASE}/api/auth/dev-login`, {
-    data: { email: 'kumarbajrang325@gmail.com' },
+    data: { email: adminEmail },
   });
   const cookiesHeader = res.headers()['set-cookie'] || '';
   const match = cookiesHeader.match(/ic_access_token=([^;]+)/);

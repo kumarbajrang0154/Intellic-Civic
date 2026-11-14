@@ -6,8 +6,9 @@ const BASE = 'http://localhost:3000';
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'intellicivic-super-secret-jwt-key-2026');
 
 async function getAdminCookie(request: APIRequestContext): Promise<string> {
+  const adminEmail = process.env.DEV_LOGIN_ADMIN_EMAIL || process.env.ROOT_ADMIN_EMAIL || process.env.DEV_LOGIN_ALLOWED_EMAILS?.split(',')[0]?.trim() || 'superadmin.test@smartcity.gov.in';
   const res = await request.post(`${BASE}/api/auth/dev-login`, {
-    data: { email: 'kumarbajrang325@gmail.com', role: 'ADMIN' },
+    data: { email: adminEmail, role: 'ADMIN' },
   });
   const cookies = res.headers()['set-cookie'] ?? '';
   const match = cookies.match(/ic_access_token=([^;]+)/);

@@ -2,32 +2,38 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createJwtToken } from '@/lib/auth-jwt';
 import { getUser, getUserByEmail } from '@/lib/staff-dept-store';
 
-const ALLOWED_DEV_USER_IDS = new Set([
-  'usr_super_admin',
-  'usr_dept_head_roads',
-  'usr_officer_roads_1',
-  'fw-demo-1',
-  'fw-demo-other',
-  'citizen_9876543210',
-  'd86d46dc-0d8b-4726-a151-bd7ab4e13ead',
-  '0cecd3fc-e75f-440f-b790-0ea7ecd9c196',
-  'citizen_9123456789',
-]);
+export function getAllowedDevUserIds(env: Record<string, string | undefined> = process.env): Set<string> {
+  const raw = env.DEV_LOGIN_ALLOWED_IDS || '';
+  return new Set(
+    raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+}
 
-const ALLOWED_DEV_EMAILS = new Set([
-  'kumarbajrang325@gmail.com',
-  'superadmin.test@smartcity.gov.in',
-  'head.roads@smartcity.gov.in',
-  'officer.roads@smartcity.gov.in',
-  'fieldworker@intellicivic.gov.in',
-  'otherfieldworker@intellicivic.gov.in',
-  'kumarbajrang0154@gmail.com',
-]);
+export function getAllowedDevEmails(env: Record<string, string | undefined> = process.env): Set<string> {
+  const raw = env.DEV_LOGIN_ALLOWED_EMAILS || '';
+  return new Set(
+    raw
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
 
-export async function POST(req: NextRequest) {
+export async function handleDevLoginRequest(
+  req: NextRequest,
+  deps: {
+    getUser?: (id: string) => Promise<any>;
+    getUserByEmail?: (email: string) => Promise<any>;
+    env?: Record<string, string | undefined>;
+  } = {},
+) {
+  const env = deps.env || process.env;
   const isProduction =
-    process.env.NODE_ENV === 'production' ||
-    process.env.VERCEL_ENV === 'production';
+    env.NODE_ENV === 'production' ||
+    env.VERCEL_ENV === 'production';
 
   if (isProduction) {
     return NextResponse.json({ message: 'Not Found' }, { status: 404 });
@@ -45,23 +51,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const getUserFn = deps.getUser || getUser;
+    const getUserByEmailFn = deps.getUserByEmail || getUserByEmail;
+
     let targetUser: any = null;
 
     if (requestedId) {
-      targetUser = await getUser(requestedId);
-      if (!targetUser && requestedId === 'usr_super_admin') {
-        targetUser = (await getUserByEmail('superadmin.test@smartcity.gov.in')) ||
-                     (await getUserByEmail('kumarbajrang325@gmail.com'));
-      }
-      if (!targetUser && requestedId === 'citizen_9876543210') {
-        targetUser = await getUser('0cecd3fc-e75f-440f-b790-0ea7ecd9c196');
-      }
+      targetUser = await getUserFn(requestedId);
     } else if (requestedEmail) {
-      targetUser = await getUserByEmail(requestedEmail);
+      targetUser = await getUserByEmailFn(requestedEmail);
     }
 
-    const isAllowedId = targetUser && ALLOWED_DEV_USER_IDS.has(targetUser.id);
-    const isAllowedEmail = targetUser?.email && ALLOWED_DEV_EMAILS.has(targetUser.email.toLowerCase());
+    const allowedUserIds = getAllowedDevUserIds(env);
+    const allowedEmails = getAllowedDevEmails(env);
+
+    const isAllowedId = Boolean(
+      (requestedId && allowedUserIds.has(requestedId)) ||
+      (targetUser?.id && allowedUserIds.has(targetUser.id))
+    );
+    const isAllowedEmail = Boolean(
+      (requestedEmail && allowedEmails.has(requestedEmail)) ||
+      (targetUser?.email && allowedEmails.has(targetUser.email.toLowerCase()))
+    );
 
     if (!targetUser || (!isAllowedId && !isAllowedEmail)) {
       return NextResponse.json(
@@ -132,3 +143,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function POST(req: NextRequest) {
+  return handleDevLoginRequest(req);
+}

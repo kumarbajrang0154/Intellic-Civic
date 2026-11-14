@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Dev-Login Security Hardening Tests', () => {
   const baseURL = 'http://localhost:3000';
+  const superAdminId = process.env.DEV_LOGIN_ALLOWED_IDS?.split(',')[0]?.trim() || 'usr_super_admin';
 
   test('1. Rejects non-allowlisted user IDs with 400 Bad Request', async ({ request }) => {
     const res = await request.post(`${baseURL}/api/auth/dev-login`, {
@@ -31,7 +32,7 @@ test.describe('Dev-Login Security Hardening Tests', () => {
   test('3. Allows valid allowlisted user ID (usr_super_admin) in dev mode', async ({ request }) => {
     const res = await request.post(`${baseURL}/api/auth/dev-login`, {
       data: {
-        id: 'usr_super_admin',
+        id: superAdminId,
       },
     });
 
@@ -96,7 +97,7 @@ test.describe('Dev-Login Security Hardening Tests', () => {
         'x-simulated-env': 'production',
       },
       data: {
-        id: 'usr_super_admin',
+        id: superAdminId,
       },
     });
 

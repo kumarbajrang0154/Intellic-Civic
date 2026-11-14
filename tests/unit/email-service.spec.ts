@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { test, expect } from '@playwright/test';
 import {
   escapeHtml,
@@ -189,6 +190,126 @@ test.describe('Email Service — HTML Escaping, Missing Key Handling, HMAC Hashi
       expect(records[0].recipientHash).not.toContain(recipient);
       expect(records[0].lastError.length).toBeLessThanOrEqual(200);
       expect(records[0].lastError).not.toContain(recipient);
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
+  test('Task C3: recipientHash uses HMAC-SHA256 keyed by EMAIL_RECIPIENT_HMAC_SECRET where stored hash != sha256(email)', () => {
+    const rawEmail = 'citizen.taxpayer@chandigarh.gov.in';
+    const hmacSecret = 'test-email-recipient-hmac-secret-2026';
+
+    const hmacHash = hashEmailRecipient(rawEmail, { EMAIL_RECIPIENT_HMAC_SECRET: hmacSecret });
+    const unkeyedSha256 = crypto.createHash('sha256').update(rawEmail.toLowerCase()).digest('hex');
+
+    expect(hmacHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(unkeyedSha256).toMatch(/^[a-f0-9]{64}$/);
+    // Keyed HMAC is cryptographically and mathematically distinct from unkeyed SHA-256
+    expect(hmacHash).not.toBe(unkeyedSha256);
+  });
+
+  test('Task C3: same email gives same HMAC across different casings and whitespace', () => {
+    const secret = 'consistent-hmac-secret-key';
+    const hashUpper = hashEmailRecipient('CITIZEN.SURNAME@EXAMPLE.COM ', { EMAIL_RECIPIENT_HMAC_SECRET: secret });
+    const hashLower = hashEmailRecipient('citizen.surname@example.com', { EMAIL_RECIPIENT_HMAC_SECRET: secret });
+    const hashMixed = hashEmailRecipient('  Citizen.Surname@Example.Com', { EMAIL_RECIPIENT_HMAC_SECRET: secret });
+
+    expect(hashUpper).toBe(hashLower);
+    expect(hashMixed).toBe(hashLower);
+  });
+
+  test('Task C3: raw address is never stored in EmailDelivery store', async () => {
+    const records: any[] = [];
+    const mockDb = {
+      emailDelivery: {
+        create: async ({ data }: { data: any }) => {
+          records.push(data);
+          return { id: 'ed_c3', ...data };
+        },
+      },
+    };
+
+    const recipient = 'confidential.whistleblower@smartcity.gov.in';
+    const mockFetch: typeof fetch = async () =>
+      new Response('Server Unavailable', { status: 503, statusText: 'Service Unavailable' });
+
+    const origWarn = console.warn;
+    console.warn = () => {};
+    try {
+      const result = await sendTemplatedEmail(
+        'complaintStatusChanged',
+        recipient,
+        {
+          ticketId: 'IC-9999',
+          title: 'Road audit',
+          newStatus: 'RESOLVED',
+          complaintUrl: '/citizen/complaints/9999',
+        },
+        {
+          env: {
+            RESEND_API_KEY: 're_mock_key',
+            EMAIL_RECIPIENT_HMAC_SECRET: 'test-c3-hmac-secret',
+          },
+          fetchImpl: mockFetch,
+          prismaClient: mockDb,
+        },
+      );
+
+      expect(result.ok).toBe(false);
+      expect(result.status).toBe('FAILED');
+      expect(records).toHaveLength(1);
+      const stored = records[0];
+      expect(stored.recipientHash).toMatch(/^[a-f0-9]{64}$/);
+      // Raw email address MUST never appear in stored database payload
+      expect(JSON.stringify(stored)).not.toContain(recipient);
+      expect(JSON.stringify(stored)).not.toContain('confidential.whistleblower');
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
+  test('Task C3: missing EMAIL_RECIPIENT_HMAC_SECRET in production skips email with non-PII warning and never sends', async () => {
+    const warnings: string[] = [];
+    const origWarn = console.warn;
+    console.warn = (...args: any[]) => {
+      warnings.push(args.map((a) => String(a)).join(' '));
+    };
+
+    let fetchCalled = false;
+    const mockFetch: typeof fetch = async () => {
+      fetchCalled = true;
+      return new Response('{}', { status: 200 });
+    };
+
+    const recipient = 'protected.citizen@smartcity.gov.in';
+    try {
+      const result = await sendTemplatedEmail(
+        'complaintResolved',
+        recipient,
+        {
+          ticketId: 'IC-7777',
+          title: 'Resolved streetlight issue',
+          feedbackUrl: '/citizen/complaints/7777#feedback',
+        },
+        {
+          env: {
+            NODE_ENV: 'production',
+            RESEND_API_KEY: 're_live_mock_key',
+            // Notice: EMAIL_RECIPIENT_HMAC_SECRET and EMAIL_HMAC_SECRET are intentionally missing
+          },
+          fetchImpl: mockFetch,
+        },
+      );
+
+      expect(result.ok).toBe(false);
+      expect(result.status).toBe('SKIPPED');
+      expect(result.skipped).toBe(true);
+      expect(fetchCalled).toBe(false);
+
+      expect(warnings.some((w) => w.includes('EMAIL_RECIPIENT_HMAC_SECRET not configured in production'))).toBe(true);
+      for (const w of warnings) {
+        expect(w).not.toContain(recipient);
+      }
     } finally {
       console.warn = origWarn;
     }

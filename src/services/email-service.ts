@@ -114,18 +114,19 @@ export function hashEmailRecipient(
   email: string,
   env: Record<string, string | undefined> = process.env,
 ): string {
-  const rawSecret = env.EMAIL_HMAC_SECRET?.trim();
+  const rawSecret = env.EMAIL_RECIPIENT_HMAC_SECRET?.trim() || env.EMAIL_HMAC_SECRET?.trim();
   const isProduction = env.NODE_ENV === 'production' || env.VERCEL_ENV === 'production';
 
   let secret = rawSecret;
   if (!secret) {
     if (isProduction) {
-      console.warn('[EmailService] EMAIL_HMAC_SECRET is not set in production; using fallback key derivation.');
+      console.warn('[EmailService] EMAIL_RECIPIENT_HMAC_SECRET (EMAIL_HMAC_SECRET) is not set in production; using fallback key derivation.');
     }
-    const fallbackSeed = env.RATE_LIMIT_HMAC_SECRET?.trim() || env.JWT_SECRET?.trim() || 'intellicivic-dev-email-hmac-secret-2026';
+    const fallbackSeed = env.RATE_LIMIT_HMAC_SECRET?.trim() || env.JWT_SECRET?.trim() || 'dev-email-recipient-hmac-secret-not-real';
     secret = `email-hash:${fallbackSeed}`;
   }
 
+  // Never fall back to an unkeyed hash. Always compute HMAC-SHA256 keyed with secret.
   return crypto
     .createHmac('sha256', secret)
     .update(email.trim().toLowerCase())
@@ -332,6 +333,13 @@ export async function sendTemplatedEmail<T extends EmailTemplateName>(
   const env = options.env || process.env;
   const db = options.prismaClient || (prisma as unknown as EmailDeliveryStore);
   const fetchImpl = options.fetchImpl || fetch;
+  const isProduction = env.NODE_ENV === 'production' || env.VERCEL_ENV === 'production';
+  const hmacSecret = env.EMAIL_RECIPIENT_HMAC_SECRET?.trim() || env.EMAIL_HMAC_SECRET?.trim();
+  if (isProduction && !hmacSecret) {
+    console.warn(`[EmailService] EMAIL_RECIPIENT_HMAC_SECRET not configured in production; skipping "${template}" email delivery.`);
+    return { ok: false, skipped: true, status: 'SKIPPED', recipientHash: '' };
+  }
+
   const trimmedRecipient = (toEmail || '').trim();
   const recipientHash = hashEmailRecipient(trimmedRecipient || 'invalid', env);
 
