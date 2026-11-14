@@ -1,0 +1,14 @@
+# Gitleaks configuration for IntelliCivic Platform
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allowlist public example environment configuration containing explicit dummy placeholders (e.g., your_private_key_body_here) for onboarding and deployment reference, and ignore untracked local directories during filesystem scans."
+paths = [
+  '''^\.env\.example$''',
+  '''^\.env$''',
+  '''(?i)node_modules''',
+  '''(?i)\.next''',
+  '''(?i)scratch''',
+  '''(?i)\.git''',
+]

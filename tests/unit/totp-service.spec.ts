@@ -12,7 +12,7 @@ import {
   verifyTotpCode,
 } from '../../src/services/totp-service';
 
-const SAMPLE_KEY = 'test-totp-cipher-key-2026-intellicivic';
+const SAMPLE_KEY = 'test-token-not-real-totp-key';
 
 test.describe('Admin 2FA TOTP & Recovery Codes Service', () => {
   test('generates local PNG DataURL QR and otpauth URI without external services', async () => {

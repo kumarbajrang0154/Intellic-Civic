@@ -20,7 +20,7 @@ test.describe('Task C3: PII Scrubber Verification Suite (33 Security Checks)', (
     // Check 5: Inserts [REDACTED_EMAIL] placeholder
     expect(scrubbedEmail).toContain('[REDACTED_EMAIL]');
 
-    const rawJwt = 'Session authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.doNotLeakThisSignature';
+    const rawJwt = 'Session authorization: ey_test_token_not_real_header_part.test_token_not_real_payload_part.doNotLeakThisSignature_test_token';
     const scrubbedJwt = scrubPiiStrings(rawJwt);
     // Check 6: Redacts JWT access token
     expect(scrubbedJwt).not.toContain('doNotLeakThisSignature');

@@ -33,7 +33,7 @@ const scrubbedEmail = scrubPiiStrings(rawEmail);
 assert(!scrubbedEmail.includes('operator.citizen@chandigarh.gov.in'), 'Redacts email address');
 assert(scrubbedEmail.includes('[REDACTED_EMAIL]'), 'Inserts [REDACTED_EMAIL] placeholder');
 
-const rawJwt = 'Session authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.doNotLeakThisSignature';
+const rawJwt = 'Session authorization: ey_test_token_not_real_header_part.test_token_not_real_payload_part.doNotLeakThisSignature_test_token';
 const scrubbedJwt = scrubPiiStrings(rawJwt);
 assert(!scrubbedJwt.includes('doNotLeakThisSignature'), 'Redacts JWT access token');
 assert(scrubbedJwt.includes('[REDACTED_JWT]'), 'Inserts [REDACTED_JWT] placeholder');
