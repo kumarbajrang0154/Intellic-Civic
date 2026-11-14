@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { NextRequest } from 'next/server';
-import { handleDevLoginRequest } from '@/app/api/auth/dev-login/route';
+import { handleDevLoginRequest } from '@/lib/dev-login';
 
 test.describe('Task C1 & C2: Dev-Login Allowlist, Production Guard & Security Tests', () => {
   const dummyUser = {

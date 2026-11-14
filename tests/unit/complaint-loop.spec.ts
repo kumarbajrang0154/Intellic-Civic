@@ -9,7 +9,7 @@ import {
   reopenCitizenComplaint,
   submitComplaintFeedback,
 } from '@/services/complaint-loop-service';
-import { handleVotePost, handleVoteDelete } from '@/app/api/complaints/[id]/vote/route';
+import { handleVotePost, handleVoteDelete } from '@/lib/vote-route-handler';
 import {
   validateComplaintIdParam,
   validateFeedbackInput,
@@ -491,7 +491,7 @@ test.describe('Citizen Feedback, Reopen & "Me Too" Upvote Transactions', () => {
     let capturedIdentifier = '';
     const mockCheckRateLimit = async (_req: any, _endpoint: string, identifier?: string) => {
       capturedIdentifier = identifier || '';
-      return { success: false, limit: 10, remaining: 0, reset: 60 };
+      return { success: false, limit: 10, remaining: 0, reset: 60, retryAfterSeconds: 60 };
     };
 
     const mockReq = new NextRequest('http://localhost:3000/api/complaints/c-rate-test/vote', {
@@ -503,7 +503,7 @@ test.describe('Citizen Feedback, Reopen & "Me Too" Upvote Transactions', () => {
         authorized: true,
         user: { id: 'rate_limited_user_1', role: 'CITIZEN' },
       }),
-      checkRateLimit: mockCheckRateLimit,
+      checkRateLimit: mockCheckRateLimit as any,
     });
 
     expect(res.status).toBe(429);
@@ -517,7 +517,7 @@ test.describe('Citizen Feedback, Reopen & "Me Too" Upvote Transactions', () => {
     let capturedIdentifier = '';
     const mockCheckRateLimit = async (_req: any, _endpoint: string, identifier?: string) => {
       capturedIdentifier = identifier || '';
-      return { success: false, limit: 10, remaining: 0, reset: 60 };
+      return { success: false, limit: 10, remaining: 0, reset: 60, retryAfterSeconds: 60 };
     };
 
     const mockReq = new NextRequest('http://localhost:3000/api/complaints/c-rate-test/vote', {
@@ -529,7 +529,7 @@ test.describe('Citizen Feedback, Reopen & "Me Too" Upvote Transactions', () => {
         authorized: true,
         user: { id: 'rate_limited_user_2', role: 'CITIZEN' },
       }),
-      checkRateLimit: mockCheckRateLimit,
+      checkRateLimit: mockCheckRateLimit as any,
     });
 
     expect(res.status).toBe(429);
@@ -548,7 +548,7 @@ test.describe('Citizen Feedback, Reopen & "Me Too" Upvote Transactions', () => {
         authorized: true,
         user: { id: 'citizen_ok', role: 'CITIZEN' },
       }),
-      checkRateLimit: async () => ({ success: true, limit: 10, remaining: 9, reset: 60 }),
+      checkRateLimit: (async () => ({ success: true, limit: 10, remaining: 9, reset: 60, retryAfterSeconds: 0 })) as any,
       castVote: async () => ({ ok: true, status: 200, voted: true, voteCount: 5, message: 'Voted successfully' }),
     });
     expect(resPost.status).toBe(200);
@@ -565,7 +565,7 @@ test.describe('Citizen Feedback, Reopen & "Me Too" Upvote Transactions', () => {
         authorized: true,
         user: { id: 'citizen_ok', role: 'CITIZEN' },
       }),
-      checkRateLimit: async () => ({ success: true, limit: 10, remaining: 8, reset: 60 }),
+      checkRateLimit: (async () => ({ success: true, limit: 10, remaining: 8, reset: 60, retryAfterSeconds: 0 })) as any,
       removeVote: async () => ({ ok: true, status: 200, voted: false, voteCount: 4, message: 'Unvoted successfully' }),
     });
     expect(resDelete.status).toBe(200);
