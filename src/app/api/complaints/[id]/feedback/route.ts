@@ -55,7 +55,10 @@ export async function POST(
       },
     }).catch(() => {});
 
-    return NextResponse.json({ success: true, message: result.message, feedback: result.feedback });
+    return NextResponse.json(
+      { success: true, message: result.message, feedback: result.feedback },
+      { status: 201 },
+    );
   } catch (error: unknown) {
     captureException(error, { route: 'POST /api/complaints/[id]/feedback' });
     return NextResponse.json(
