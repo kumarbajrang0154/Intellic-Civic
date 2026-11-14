@@ -1,11 +1,14 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
+import { assertNotProductionDatabase } from './support/db-guard';
 
 // Ensure .env is loaded
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 export default async function globalSetup() {
+  assertNotProductionDatabase();
+
   const mockFile = path.join(process.cwd(), '.gemini-mock.json');
   if (fs.existsSync(mockFile)) {
     try { fs.unlinkSync(mockFile); } catch {}

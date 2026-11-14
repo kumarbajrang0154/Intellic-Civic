@@ -6,10 +6,17 @@ require('dotenv').config();
 const { PrismaClient, UserRole, AuthProvider, ComplaintStatus, PriorityLevel } = require('@prisma/client');
 
 // Database safety guard
-const ALLOWED_TEST_HOST = 'ep-raspy-voice-aerpv8ej-pooler.c-2.us-east-2.aws.neon.tech';
+const { assertNotProductionDatabase } = require('../e2e/support/db-guard');
+assertNotProductionDatabase();
+
+const expectedTestHost = process.env.TEST_DATABASE_HOST ? process.env.TEST_DATABASE_HOST.trim() : '';
 const dbUrl = process.env.DATABASE_URL || '';
-if (!dbUrl.includes(ALLOWED_TEST_HOST) && !dbUrl.includes('localhost') && !dbUrl.includes('127.0.0.1')) {
-  console.error('[SAFETY ERROR] seed:demo is strictly restricted to the Neon TEST database.');
+let actualHost = '';
+try {
+  actualHost = dbUrl ? new URL(dbUrl).hostname : '';
+} catch {}
+if (expectedTestHost && actualHost !== expectedTestHost && !dbUrl.includes('localhost') && !dbUrl.includes('127.0.0.1')) {
+  console.error('[SAFETY ERROR] seed:demo is strictly restricted to the configured test database.');
   process.exit(1);
 }
 

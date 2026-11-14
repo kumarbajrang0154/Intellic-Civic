@@ -10,6 +10,7 @@ This document details the operational configuration, security boundaries, rate l
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `DATABASE_URL` | Server | Local/Dev Neon Pooler | Staging Neon Pooler | Production Neon Pooler | Prisma transactional connection pooler |
 | `DIRECT_URL` | Server | Local/Dev Direct Host | Staging Direct Host | Production Direct Host | Direct migration & DDL connection |
+| `PRODUCTION_DB_HOST` | Server / CI | Production Neon Hostname | Production Neon Hostname | Production Neon Hostname | Deny-list guard: immediately aborts test/seed/migration if DATABASE_URL matches it |
 | `TEST_DATABASE_HOST` | Server | Dev Neon Hostname | Staging Neon Hostname | **NEVER SET TO PROD** | Safety guard preventing tests touching production |
 | `JWT_SECRET` | Server | Dev secret (>=32 chars) | Staging secret | High-entropy secret | Session HMAC signing key |
 | `RATE_LIMIT_HMAC_SECRET` | Server | Dev fallback secret | Staging secret | **Required** (High entropy) | Secret for HMAC-SHA256 hashing mobile numbers in rate limit keys |
@@ -23,6 +24,13 @@ This document details the operational configuration, security boundaries, rate l
 | `GEMINI_MODEL` | Server | `gemini-3.1-flash-lite` | `gemini-3.1-flash-lite` | `gemini-3.1-flash-lite` | Primary classification/parsing model |
 | `GROQ_API_KEY` | Server | Optional failover | Optional failover | Staging/Prod failover | High-speed fallback AI provider |
 | `GROQ_MODEL` | Server | `qwen/qwen3.8-27b` | `qwen/qwen3.8-27b` | `qwen/qwen3.8-27b` | Groq failover model |
+
+### Production Database Deny-List Guard (`e2e/support/db-guard.ts`)
+To protect production against accidental test runs, seeding, or migrations when `DATABASE_URL` and `TEST_DATABASE_HOST` point to the same host:
+- `assertNotProductionDatabase()` reads `PRODUCTION_DB_HOST` from the environment.
+- If `DATABASE_URL` (or `DIRECT_URL`) host matches `PRODUCTION_DB_HOST`, execution is **aborted immediately with exit code 1**, regardless of `TEST_DATABASE_HOST` settings.
+- All E2E global setup scripts (`e2e/global-setup.ts`), seed scripts (`prisma/seed.ts`, `scripts/seed-demo.js`), and migration scripts invoke this guard.
+- Zero production hostnames are hardcoded in the codebase; the guard relies purely on environment variables.
 
 ---
 

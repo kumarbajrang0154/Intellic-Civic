@@ -1,4 +1,8 @@
 const { PrismaClient } = require('@prisma/client');
+const { assertNotProductionDatabase } = require('../e2e/support/db-guard');
+require('dotenv').config();
+assertNotProductionDatabase();
+
 const prisma = new PrismaClient();
 
 async function main() {

@@ -1,8 +1,11 @@
 import 'dotenv/config';
 import { PrismaClient, UserRole, AuthProvider, ComplaintStatus, PriorityLevel, EvidenceStage } from '@prisma/client';
+import { assertNotProductionDatabase } from '../e2e/support/db-guard';
 
 // Safety Guard: enforce --force flag and TEST_DATABASE_HOST
 function enforceSafetyGuard() {
+  assertNotProductionDatabase();
+
   const hasForce = process.argv.includes('--force');
   if (!hasForce) {
     console.error(
