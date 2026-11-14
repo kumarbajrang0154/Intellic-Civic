@@ -184,7 +184,7 @@ function setupCommonMocks(page: Page) {
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ success: true, voteCount, hasVoted }),
+        body: JSON.stringify({ success: true, voteCount, hasVoted, voted: hasVoted }),
       });
     }
 
@@ -384,9 +384,22 @@ for (const vp of VIEWPORTS) {
       // Upvote ("Me Too") interaction
       const upvoteBtn = page.locator('button:has-text("Me Too")').first();
       await expect(upvoteBtn).toBeVisible();
+      await expect(upvoteBtn).toHaveAttribute('aria-pressed', 'false');
       await upvoteBtn.click();
 
-      // Outcome assertion: vote count updates to 5
+      // Outcome assertion: vote count updates to 5 and aria-pressed is true after POST
+      const votedBtn = page.locator('button:has-text("Me Too"):has-text("5")').first();
+      await expect(votedBtn).toBeVisible({ timeout: 5000 });
+      await expect(votedBtn).toHaveAttribute('aria-pressed', 'true');
+
+      // Click again to unvote (DELETE)
+      await votedBtn.click();
+      const unvotedBtn = page.locator('button:has-text("Me Too"):has-text("4")').first();
+      await expect(unvotedBtn).toBeVisible({ timeout: 5000 });
+      await expect(unvotedBtn).toHaveAttribute('aria-pressed', 'false');
+
+      // Re-click to leave in voted state for detail view
+      await unvotedBtn.click();
       await expect(page.locator('button:has-text("Me Too"):has-text("5")').first()).toBeVisible({ timeout: 5000 });
 
       // Open Detail: click complaint ticket card
@@ -558,11 +571,11 @@ test.describe('Task 5d — Bounding Box Touch Target Assertion (375px)', () => {
       });
 
       for (const btn of primaryButtonHeights) {
-        // Assert height >= 43.5px (~44px touch target)
+        // Assert height >= 44px touch target (per D1 requirement)
         expect(
           btn.height,
           `Button "${btn.text}" on ${p.name} height ${btn.height}px must be >= 44px`
-        ).toBeGreaterThanOrEqual(43.5);
+        ).toBeGreaterThanOrEqual(44);
       }
     });
   }

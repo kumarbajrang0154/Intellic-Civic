@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { NextRequest } from 'next/server';
 import { ComplaintStatus, NotificationType } from '@prisma/client';
 import {
   castComplaintVote,
@@ -8,6 +9,7 @@ import {
   reopenCitizenComplaint,
   submitComplaintFeedback,
 } from '@/services/complaint-loop-service';
+import { handleVotePost, handleVoteDelete } from '@/app/api/complaints/[id]/vote/route';
 import {
   validateComplaintIdParam,
   validateFeedbackInput,
@@ -451,5 +453,125 @@ test.describe('Citizen Feedback, Reopen & "Me Too" Upvote Transactions', () => {
     expect(state.complaints[0].status).toBe(ComplaintStatus.IN_PROGRESS);
     expect(state.complaints[0].reopenCount).toBe(1);
     expect(state.notifications).toHaveLength(1);
+  });
+
+  test('Task D3: Me Too vote state toggles between voted (POST) and unvoted (DELETE)', async () => {
+    const { client } = createMockLoopPrisma({
+      complaints: [
+        {
+          id: 'c_toggle',
+          ticketId: 'IC-2044',
+          citizenId: 'citizen_author',
+          status: ComplaintStatus.IN_PROGRESS,
+          voteCount: 0,
+        },
+      ],
+    });
+
+    // 1. Initial State: Cast vote (POST equivalent)
+    const postRes1 = await castComplaintVote('c_toggle', 'supporter_citizen', client);
+    expect(postRes1.ok).toBe(true);
+    expect(postRes1.voted).toBe(true);
+    expect(postRes1.voteCount).toBe(1);
+
+    // 2. Toggled State: Remove vote (DELETE equivalent)
+    const delRes = await removeComplaintVote('c_toggle', 'supporter_citizen', client);
+    expect(delRes.ok).toBe(true);
+    expect(delRes.voted).toBe(false);
+    expect(delRes.voteCount).toBe(0);
+
+    // 3. Re-toggled State: Cast vote again (POST equivalent)
+    const postRes2 = await castComplaintVote('c_toggle', 'supporter_citizen', client);
+    expect(postRes2.ok).toBe(true);
+    expect(postRes2.voted).toBe(true);
+    expect(postRes2.voteCount).toBe(1);
+  });
+
+  test('Task D4: Vote route POST returns 429 when rate limit is exceeded for the citizen user', async () => {
+    let capturedIdentifier = '';
+    const mockCheckRateLimit = async (_req: any, _endpoint: string, identifier?: string) => {
+      capturedIdentifier = identifier || '';
+      return { success: false, limit: 10, remaining: 0, reset: 60 };
+    };
+
+    const mockReq = new NextRequest('http://localhost:3000/api/complaints/c-rate-test/vote', {
+      method: 'POST',
+    });
+
+    const res = await handleVotePost(mockReq, { id: 'c-rate-test' }, {
+      requireCitizen: async () => ({
+        authorized: true,
+        user: { id: 'rate_limited_user_1', role: 'CITIZEN' },
+      }),
+      checkRateLimit: mockCheckRateLimit,
+    });
+
+    expect(res.status).toBe(429);
+    expect(capturedIdentifier).toBe('rate_limited_user_1');
+    const body = await res.json();
+    expect(body.statusCode).toBe(429);
+    expect(body.error).toContain('Too Many Requests');
+  });
+
+  test('Task D4: Vote route DELETE returns 429 when rate limit is exceeded for the citizen user', async () => {
+    let capturedIdentifier = '';
+    const mockCheckRateLimit = async (_req: any, _endpoint: string, identifier?: string) => {
+      capturedIdentifier = identifier || '';
+      return { success: false, limit: 10, remaining: 0, reset: 60 };
+    };
+
+    const mockReq = new NextRequest('http://localhost:3000/api/complaints/c-rate-test/vote', {
+      method: 'DELETE',
+    });
+
+    const res = await handleVoteDelete(mockReq, { id: 'c-rate-test' }, {
+      requireCitizen: async () => ({
+        authorized: true,
+        user: { id: 'rate_limited_user_2', role: 'CITIZEN' },
+      }),
+      checkRateLimit: mockCheckRateLimit,
+    });
+
+    expect(res.status).toBe(429);
+    expect(capturedIdentifier).toBe('rate_limited_user_2');
+    const body = await res.json();
+    expect(body.statusCode).toBe(429);
+    expect(body.error).toContain('Too Many Requests');
+  });
+
+  test('Task D4: Vote route POST & DELETE succeed with 200 when within rate limit', async () => {
+    const mockReqPost = new NextRequest('http://localhost:3000/api/complaints/c-1/vote', {
+      method: 'POST',
+    });
+    const resPost = await handleVotePost(mockReqPost, { id: 'c-1' }, {
+      requireCitizen: async () => ({
+        authorized: true,
+        user: { id: 'citizen_ok', role: 'CITIZEN' },
+      }),
+      checkRateLimit: async () => ({ success: true, limit: 10, remaining: 9, reset: 60 }),
+      castVote: async () => ({ ok: true, status: 200, voted: true, voteCount: 5, message: 'Voted successfully' }),
+    });
+    expect(resPost.status).toBe(200);
+    const bodyPost = await resPost.json();
+    expect(bodyPost.success).toBe(true);
+    expect(bodyPost.voted).toBe(true);
+    expect(bodyPost.voteCount).toBe(5);
+
+    const mockReqDelete = new NextRequest('http://localhost:3000/api/complaints/c-1/vote', {
+      method: 'DELETE',
+    });
+    const resDelete = await handleVoteDelete(mockReqDelete, { id: 'c-1' }, {
+      requireCitizen: async () => ({
+        authorized: true,
+        user: { id: 'citizen_ok', role: 'CITIZEN' },
+      }),
+      checkRateLimit: async () => ({ success: true, limit: 10, remaining: 8, reset: 60 }),
+      removeVote: async () => ({ ok: true, status: 200, voted: false, voteCount: 4, message: 'Unvoted successfully' }),
+    });
+    expect(resDelete.status).toBe(200);
+    const bodyDelete = await resDelete.json();
+    expect(bodyDelete.success).toBe(true);
+    expect(bodyDelete.voted).toBe(false);
+    expect(bodyDelete.voteCount).toBe(4);
   });
 });

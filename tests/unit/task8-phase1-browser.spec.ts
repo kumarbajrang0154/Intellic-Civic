@@ -160,7 +160,6 @@ test.describe('Task 8f — Browser: Rating, Reopen Confirm and Vote Buttons at 3
 
   for (const vp of viewports) {
     test(`Vote, rating, and reopen confirm buttons work at ${vp.name}`, async ({ page, context }) => {
-      test.setTimeout(60000);
       await page.setViewportSize({ width: vp.width, height: vp.height });
       await setupMockApi(page);
 
@@ -180,17 +179,32 @@ test.describe('Task 8f — Browser: Rating, Reopen Confirm and Vote Buttons at 3
       const voteButton = page.locator('button[aria-label*="Upvote this complaint"]').first();
       await expect(voteButton).toBeVisible({ timeout: 10000 });
       await expect(voteButton).toBeEnabled();
+      // Verify initial aria-pressed reflects unvoted state (false)
+      await expect(voteButton).toHaveAttribute('aria-pressed', 'false');
 
-      console.log(`[8f ${vp.name}] Clicking Vote button...`);
+      console.log(`[8f ${vp.name}] Clicking Vote button (POST)...`);
       await voteButton.click();
       await page.waitForTimeout(500);
 
-      // Verify button reflects active vote count (incremented from 5 to 6)
+      // Verify button reflects active vote count (incremented from 5 to 6) and aria-pressed is true after POST
       const unvoteButton = page.locator('button[aria-label*="Remove Me Too vote"]').first();
       await expect(unvoteButton).toBeVisible();
+      await expect(unvoteButton).toHaveAttribute('aria-pressed', 'true');
       const voteText = await unvoteButton.innerText();
-      console.log(`[8f ${vp.name}] Vote Button Text after click:`, voteText.trim());
+      console.log(`[8f ${vp.name}] Vote Button Text after POST click:`, voteText.trim());
       expect(voteText).toContain('6');
+
+      // Click again to unvote (DELETE)
+      console.log(`[8f ${vp.name}] Clicking Vote button again (DELETE)...`);
+      await unvoteButton.click();
+      await page.waitForTimeout(500);
+
+      // Verify button returns to unvoted state with aria-pressed="false" after DELETE
+      const revoteButton = page.locator('button[aria-label*="Upvote this complaint"]').first();
+      await expect(revoteButton).toBeVisible();
+      await expect(revoteButton).toHaveAttribute('aria-pressed', 'false');
+      const revoteText = await revoteButton.innerText();
+      expect(revoteText).toContain('5');
 
       // 2. Test Feedback Rating and Reopen on owner complaint
       await page.goto('http://localhost:3000/citizen/complaints/cmp-owner-test', { waitUntil: 'domcontentloaded' });

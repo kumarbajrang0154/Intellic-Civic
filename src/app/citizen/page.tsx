@@ -787,7 +787,7 @@ export default function CitizenDashboardPage() {
                         variant={isVoted ? 'default' : 'outline'}
                         size="sm"
                         disabled={isOwn || isVoting}
-                        aria-pressed={isVoted}
+                        aria-pressed={Boolean(isVoted)}
                         aria-label={
                           isOwn
                             ? `Me Too votes: ${voteCount} (own complaint)`
@@ -797,7 +797,7 @@ export default function CitizenDashboardPage() {
                         }
                         title={isOwn ? 'You cannot vote on your own complaint' : 'Me Too: Upvote this issue'}
                         onClick={() => handleToggleVote(complaint)}
-                        className="h-9 px-2.5 text-xs gap-1.5 font-semibold shrink-0"
+                        className="h-11 px-3 md:h-9 md:px-2.5 text-xs gap-1.5 font-semibold shrink-0"
                       >
                         {isVoting ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />

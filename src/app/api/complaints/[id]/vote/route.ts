@@ -5,15 +5,27 @@ import { checkRateLimit, rateLimitErrorResponse } from '@/lib/rate-limit';
 import { validateComplaintIdParam } from '@/lib/validation';
 import { castComplaintVote, removeComplaintVote } from '@/services/complaint-loop-service';
 
-export async function POST(
+export interface VoteRouteDeps {
+  requireCitizen?: typeof requireCitizen;
+  checkRateLimit?: typeof checkRateLimit;
+  castVote?: typeof castComplaintVote;
+  removeVote?: typeof removeComplaintVote;
+}
+
+export async function handleVotePost(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  params: { id: string },
+  deps: VoteRouteDeps = {},
 ) {
   try {
-    const auth = await requireCitizen();
+    const requireCitizenFn = deps.requireCitizen || requireCitizen;
+    const checkRateLimitFn = deps.checkRateLimit || checkRateLimit;
+    const castVoteFn = deps.castVote || castComplaintVote;
+
+    const auth = await requireCitizenFn();
     if (!auth.authorized) return auth.response;
 
-    const rateLimit = await checkRateLimit(request, 'complaintCreate', auth.user.id);
+    const rateLimit = await checkRateLimitFn(request, 'complaintCreate', auth.user.id);
     if (!rateLimit.success) {
       return rateLimitErrorResponse(rateLimit);
     }
@@ -23,7 +35,7 @@ export async function POST(
       return NextResponse.json({ statusCode: 400, message: idValidation.error }, { status: 400 });
     }
 
-    const result = await castComplaintVote(idValidation.data!, auth.user.id);
+    const result = await castVoteFn(idValidation.data!, auth.user.id);
     if (!result.ok) {
       return NextResponse.json({ statusCode: result.status, message: result.message }, { status: result.status });
     }
@@ -43,15 +55,20 @@ export async function POST(
   }
 }
 
-export async function DELETE(
+export async function handleVoteDelete(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  params: { id: string },
+  deps: VoteRouteDeps = {},
 ) {
   try {
-    const auth = await requireCitizen();
+    const requireCitizenFn = deps.requireCitizen || requireCitizen;
+    const checkRateLimitFn = deps.checkRateLimit || checkRateLimit;
+    const removeVoteFn = deps.removeVote || removeComplaintVote;
+
+    const auth = await requireCitizenFn();
     if (!auth.authorized) return auth.response;
 
-    const rateLimit = await checkRateLimit(request, 'complaintCreate', auth.user.id);
+    const rateLimit = await checkRateLimitFn(request, 'complaintCreate', auth.user.id);
     if (!rateLimit.success) {
       return rateLimitErrorResponse(rateLimit);
     }
@@ -61,7 +78,7 @@ export async function DELETE(
       return NextResponse.json({ statusCode: 400, message: idValidation.error }, { status: 400 });
     }
 
-    const result = await removeComplaintVote(idValidation.data!, auth.user.id);
+    const result = await removeVoteFn(idValidation.data!, auth.user.id);
     if (!result.ok) {
       return NextResponse.json({ statusCode: result.status, message: result.message }, { status: result.status });
     }
@@ -79,4 +96,18 @@ export async function DELETE(
       { status: 500 },
     );
   }
+}
+
+export async function POST(
+  request: NextRequest,
+  context: { params: { id: string } },
+) {
+  return handleVotePost(request, context.params);
+}
+
+export async function DELETE(
+  request: NextRequest,
+  context: { params: { id: string } },
+) {
+  return handleVoteDelete(request, context.params);
 }
