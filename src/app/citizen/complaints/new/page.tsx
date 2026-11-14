@@ -19,6 +19,9 @@ import {
   ShieldAlert,
   ArrowRight,
   WifiOff,
+  AlertTriangle,
+  Clock,
+  RefreshCw,
   Globe,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -30,7 +33,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PhotoUpload } from '@/components/ui/photo-upload';
 import { AppShell } from '@/components/shared/app-shell';
 import { LocationPicker } from '@/components/location-picker';
-import { compressPhoto, saveDraft, registerBackgroundSync } from '@/lib/offline-queue';
+import { compressPhoto, saveDraft, registerBackgroundSync, syncDrafts } from '@/lib/offline-queue';
 import { appendTranscript } from '@/lib/voice-transcript';
 import { toast } from 'sonner';
 import {
@@ -143,6 +146,8 @@ export default function NewComplaintPage() {
   const [evidenceWarning, setEvidenceWarning] = React.useState<string | null>(null);
   const [isSavedOffline, setIsSavedOffline] = React.useState(false);
   const [savedOfflineDraftId, setSavedOfflineDraftId] = React.useState<string | null>(null);
+  const [savedOfflineStatus, setSavedOfflineStatus] = React.useState<'pending' | 'syncing' | 'synced' | 'failed'>('pending');
+  const [isManualSyncing, setIsManualSyncing] = React.useState(false);
 
   // Inline validation errors
   const [errors, setErrors] = React.useState<{
@@ -193,10 +198,17 @@ export default function NewComplaintPage() {
       }
 
       setIsOnline(navigator.onLine);
-      const handleOnline = () => setIsOnline(true);
+      const handleOnline = () => {
+        setIsOnline(true);
+        syncDrafts().catch(() => {});
+      };
       const handleOffline = () => setIsOnline(false);
       window.addEventListener('online', handleOnline);
       window.addEventListener('offline', handleOffline);
+
+      if (navigator.onLine) {
+        syncDrafts().catch(() => {});
+      }
 
       return () => {
         window.removeEventListener('online', handleOnline);
@@ -209,6 +221,44 @@ export default function NewComplaintPage() {
       };
     }
   }, []);
+
+  // Listen for draft-synced events to update saved offline screen
+  React.useEffect(() => {
+    if (!savedOfflineDraftId) return;
+
+    const handleSynced = (e: any) => {
+      if (e.detail?.draftId === savedOfflineDraftId) {
+        setSavedOfflineStatus('synced');
+        setCreatedTicketId(e.detail.ticketId);
+        setCreatedComplaintId(e.detail.complaintId);
+        setIsSavedOffline(false);
+        toast.success(`Complaint synced successfully! Ticket #${e.detail.ticketId}`);
+      }
+    };
+
+    const handleDraftsChanged = async () => {
+      try {
+        const { getDraft } = await import('@/lib/offline-queue');
+        const draft = await getDraft(savedOfflineDraftId);
+        if (draft) {
+          setSavedOfflineStatus(draft.status);
+          if (draft.status === 'synced' && draft.ticketId && draft.complaintId) {
+            setCreatedTicketId(draft.ticketId);
+            setCreatedComplaintId(draft.complaintId);
+            setIsSavedOffline(false);
+          }
+        }
+      } catch {}
+    };
+
+    window.addEventListener('intellicivic:draft-synced', handleSynced);
+    window.addEventListener('intellicivic:drafts-changed', handleDraftsChanged);
+
+    return () => {
+      window.removeEventListener('intellicivic:draft-synced', handleSynced);
+      window.removeEventListener('intellicivic:drafts-changed', handleDraftsChanged);
+    };
+  }, [savedOfflineDraftId]);
 
   // Reverse Geocoding (Auto-fetch Landmark Address from GPS or Map Pin)
   const reverseGeocode = async (lat: number, lng: number) => {
@@ -786,7 +836,33 @@ export default function NewComplaintPage() {
           </CardHeader>
           <CardContent className="space-y-4 pt-2">
             <div className="bg-amber-50/70 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 text-left space-y-1">
-              <div className="font-semibold text-slate-900 text-sm">{title}</div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-slate-900 text-sm">{title}</span>
+                <span
+                  data-testid="offline-draft-status"
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold border ${
+                    savedOfflineStatus === 'syncing'
+                      ? 'bg-blue-100 text-blue-800 border-blue-300'
+                      : savedOfflineStatus === 'synced'
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : savedOfflineStatus === 'failed'
+                      ? 'bg-rose-100 text-rose-800 border-rose-300'
+                      : 'bg-amber-100 text-amber-800 border-amber-300'
+                  }`}
+                >
+                  {savedOfflineStatus === 'syncing' && <Loader2 className="w-3 h-3 animate-spin" />}
+                  {savedOfflineStatus === 'synced' && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
+                  {savedOfflineStatus === 'failed' && <AlertTriangle className="w-3 h-3 text-rose-600" />}
+                  {savedOfflineStatus === 'pending' && <Clock className="w-3 h-3 text-amber-600" />}
+                  {savedOfflineStatus === 'syncing'
+                    ? 'Syncing...'
+                    : savedOfflineStatus === 'synced'
+                    ? 'Synced'
+                    : savedOfflineStatus === 'failed'
+                    ? 'Failed'
+                    : 'Pending'}
+                </span>
+              </div>
               <p className="line-clamp-2 text-slate-600">{description}</p>
               <div className="text-[11px] text-amber-700 font-mono pt-1">
                 Draft ID: {savedOfflineDraftId}
@@ -794,13 +870,36 @@ export default function NewComplaintPage() {
             </div>
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <Button
+                disabled={!isOnline || isManualSyncing}
+                onClick={async () => {
+                  setIsManualSyncing(true);
+                  try {
+                    const res = await syncDrafts(user.id || '');
+                    if (res.synced > 0) {
+                      toast.success('Complaint synced successfully!');
+                    } else if (res.failed > 0) {
+                      toast.error('Sync failed. Please check connection.');
+                    }
+                  } catch (e: any) {
+                    toast.error(e?.message || 'Failed to sync');
+                  } finally {
+                    setIsManualSyncing(false);
+                  }
+                }}
+                className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-medium"
+              >
+                {isManualSyncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                {isManualSyncing ? 'Syncing...' : 'Sync Now'}
+              </Button>
+              <Button
                 onClick={() => router.push('/citizen')}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                variant="outline"
+                className="flex-1 bg-white hover:bg-slate-50 text-slate-700 font-medium"
               >
                 View in Citizen Dashboard
               </Button>
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={() => {
                   setTitle('');
                   setDescription('');
@@ -808,10 +907,11 @@ export default function NewComplaintPage() {
                   setCategoryId('');
                   setIsSavedOffline(false);
                   setSavedOfflineDraftId(null);
+                  setSavedOfflineStatus('pending');
                 }}
-                className="flex-1"
+                className="flex-1 text-slate-600 hover:text-slate-900"
               >
-                File Another Complaint
+                File Another
               </Button>
             </div>
           </CardContent>

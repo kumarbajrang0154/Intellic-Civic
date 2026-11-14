@@ -24,9 +24,12 @@ export interface OfflineDraft {
   longitude: number | null;
   photos: DraftPhoto[];
   capturedAt: string; // ISO string
-  status: 'pending' | 'syncing' | 'failed';
+  status: 'pending' | 'syncing' | 'synced' | 'failed';
   attempts: number;
   lastError?: string;
+  ticketId?: string;
+  complaintId?: string;
+  syncedAt?: string;
 }
 
 const DB_NAME = 'intellicivic_offline_db';
@@ -493,15 +496,22 @@ export async function syncDrafts(userId?: string): Promise<{ synced: number; fai
         // Step 4: Handle response status codes
         if (res.status === 200 || res.status === 201) {
           const created = await res.json();
-          // Successfully synced -> delete from IndexedDB
-          await deleteDraft(draft.id);
+          // Update draft status to 'synced' and persist in IndexedDB
+          draft.status = 'synced';
+          draft.ticketId = created.ticketId;
+          draft.complaintId = created.id;
+          draft.syncedAt = new Date().toISOString();
+          draft.lastError = undefined;
+          await saveDraft(draft);
           synced++;
 
-          window.dispatchEvent(
-            new CustomEvent('intellicivic:draft-synced', {
-              detail: { draftId: draft.id, ticketId: created.ticketId, complaintId: created.id },
-            }),
-          );
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('intellicivic:draft-synced', {
+                detail: { draftId: draft.id, ticketId: created.ticketId, complaintId: created.id },
+              }),
+            );
+          }
         } else if (res.status === 401) {
           // Session expired: keep pending, prompt re-login
           draft.status = 'pending';
@@ -572,14 +582,76 @@ export function registerBackgroundSync() {
   }
 }
 
+/**
+ * Clear synced drafts for a user, or all users if not specified
+ */
+export async function clearSyncedDrafts(userId?: string): Promise<number> {
+  const drafts = await getDrafts(userId);
+  let cleared = 0;
+  for (const d of drafts) {
+    if (d.status === 'synced') {
+      await deleteDraft(d.id);
+      cleared++;
+    }
+  }
+  return cleared;
+}
+
+let isGlobalSyncInitialized = false;
+
+/**
+ * Initializes automatic synchronization on window 'online' event and on app start.
+ */
+export function initOfflineAutoSync(userId?: string): () => void {
+  if (typeof window === 'undefined') return () => {};
+
+  const handleOnline = () => {
+    if (navigator.onLine) {
+      syncDrafts(userId).catch(() => {});
+    }
+  };
+
+  window.addEventListener('online', handleOnline);
+
+  // Auto-sync on start if online
+  if (navigator.onLine) {
+    setTimeout(() => {
+      syncDrafts(userId).catch(() => {});
+    }, 200);
+  }
+
+  return () => {
+    window.removeEventListener('online', handleOnline);
+  };
+}
+
 if (typeof window !== 'undefined') {
   (window as any).__offlineQueue = {
     saveDraft,
     getDrafts,
+    getDraft,
     deleteDraft,
+    clearSyncedDrafts,
     syncDrafts,
     compressPhoto,
     openDatabase,
     closeDatabase,
+    initOfflineAutoSync,
   };
+
+  // Automatically hook auto-sync across the application
+  if (!isGlobalSyncInitialized) {
+    isGlobalSyncInitialized = true;
+    window.addEventListener('online', () => {
+      if (navigator.onLine) {
+        syncDrafts().catch(() => {});
+      }
+    });
+
+    if (navigator.onLine) {
+      setTimeout(() => {
+        syncDrafts().catch(() => {});
+      }, 300);
+    }
+  }
 }

@@ -17,6 +17,7 @@ import {
   Trash2,
   Clock,
   AlertTriangle,
+  CheckCircle2,
   ThumbsUp,
   Users,
 } from 'lucide-react';
@@ -422,6 +423,13 @@ export default function CitizenDashboardPage() {
                           <Loader2 className="w-3 h-3 animate-spin" />
                           <span className="hidden md:inline">Syncing...</span>
                           <span className="sr-only md:hidden">Syncing...</span>
+                        </span>
+                      )}
+                      {d.status === 'synced' && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 border border-emerald-300 shrink-0" title="Synced" data-testid={`draft-status-synced-${d.id}`}>
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span className="hidden md:inline">Synced</span>
+                          <span className="sr-only md:hidden">Synced</span>
                         </span>
                       )}
                       {d.status === 'failed' && (

@@ -695,6 +695,7 @@ export async function listComplaints(filters?: {
   priority?: string;
   categoryId?: string;
   search?: string;
+  clientRequestId?: string;
   fromDate?: string;
   toDate?: string;
   needsTriage?: boolean;
@@ -704,6 +705,10 @@ export async function listComplaints(filters?: {
   limit?: number;
 }): Promise<{ data: Complaint[]; meta: { total: number; page: number; limit: number; totalPages: number } }> {
   const where: any = {};
+
+  if (filters?.clientRequestId) {
+    where.clientRequestId = filters.clientRequestId;
+  }
 
   if (filters?.citizenId) {
     where.citizenId = filters.citizenId;

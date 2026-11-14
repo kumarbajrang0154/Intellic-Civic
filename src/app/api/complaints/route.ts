@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { decodeJwtToken, verifyJwtToken } from '@/lib/auth-jwt';
 import { requireCitizen } from '@/lib/citizen-auth';
 import { createComplaint, listComplaints } from '@/lib/complaints-store';
@@ -30,6 +31,7 @@ export async function GET(request: NextRequest) {
     const categoryId = searchParams.get('category') || searchParams.get('categoryId') || undefined;
     let departmentId = searchParams.get('departmentId') || searchParams.get('department') || undefined;
     const search = searchParams.get('search') || undefined;
+    const clientRequestId = searchParams.get('clientRequestId') || undefined;
     const fromDate = searchParams.get('fromDate') || undefined;
     const toDate = searchParams.get('toDate') || undefined;
     const needsTriage = searchParams.get('needsTriage') === 'true';
@@ -85,6 +87,7 @@ export async function GET(request: NextRequest) {
       priority,
       categoryId,
       search,
+      clientRequestId,
       fromDate,
       toDate,
       needsTriage,
@@ -128,6 +131,68 @@ export async function GET(request: NextRequest) {
   }
 }
 
+const createComplaintSchema = z
+  .object({
+    title: z
+      .string('Complaint title is required')
+      .trim()
+      .min(1, 'Complaint title is required'),
+    description: z
+      .string('Detailed description (min 20 characters) is required')
+      .trim()
+      .min(20, 'Detailed description (min 20 characters) is required'),
+    categoryId: z.string().trim().optional(),
+    location: z
+      .object({
+        latitude: z.number(),
+        longitude: z.number(),
+        address: z.string().optional(),
+      })
+      .optional(),
+    isVoiceInput: z.boolean().optional(),
+    voiceTranscript: z.string().optional(),
+    imageUrl: z.string().optional(),
+    imageUrls: z.array(z.string()).optional(),
+    evidence: z.array(z.string()).optional(),
+    clientRequestId: z
+      .string('Invalid clientRequestId: must be a non-empty string')
+      .trim()
+      .min(1, 'Invalid clientRequestId: must be a non-empty string')
+      .optional()
+      .nullable(),
+    capturedAt: z.union([z.string(), z.date()]).optional().nullable(),
+    language: z.string().optional(),
+    mockAiProvider: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      const allImages =
+        Array.isArray(data.evidence) && data.evidence.length > 0
+          ? data.evidence
+          : Array.isArray(data.imageUrls) && data.imageUrls.length > 0
+          ? data.imageUrls
+          : data.imageUrl
+          ? [data.imageUrl]
+          : [];
+      return allImages.length > 0;
+    },
+    {
+      message: 'At least 1 photo evidence is required to submit a complaint.',
+      path: ['evidence'],
+    },
+  )
+  .refine(
+    (data) => {
+      if (!data.capturedAt) return true;
+      const d = new Date(data.capturedAt);
+      return !isNaN(d.getTime());
+    },
+    {
+      message: 'Invalid capturedAt timestamp',
+      path: ['capturedAt'],
+    },
+  );
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireCitizen();
@@ -138,45 +203,25 @@ export async function POST(request: NextRequest) {
       return rateLimitErrorResponse(rateLimitResult);
     }
 
-    const body = await request.json();
-    const {
-      title,
-      description,
-      categoryId,
-      location,
-      isVoiceInput,
-      voiceTranscript,
-      imageUrl,
-      imageUrls,
-      clientRequestId,
-      capturedAt,
-      language,
-    } = body;
+    const body = await request.json().catch(() => ({}));
+    const parseResult = createComplaintSchema.safeParse(body);
 
-    // Validate clientRequestId if provided
-    if (clientRequestId !== undefined && clientRequestId !== null) {
-      if (typeof clientRequestId !== 'string' || !clientRequestId.trim()) {
-        return NextResponse.json(
-          { statusCode: 400, message: 'Invalid clientRequestId: must be a non-empty string' },
-          { status: 400 },
-        );
-      }
+    if (!parseResult.success) {
+      const firstIssue = parseResult.error.issues[0];
+      return NextResponse.json(
+        { statusCode: 400, message: firstIssue?.message || 'Invalid complaint data' },
+        { status: 400 },
+      );
     }
 
-    // Validate capturedAt if provided
+    const validData = parseResult.data;
+    const trimmedClientRequestId = validData.clientRequestId ? validData.clientRequestId.trim() : undefined;
+
+    // Validate and parse capturedAt if provided
     let parsedCapturedAt: Date | undefined = undefined;
-    if (capturedAt !== undefined && capturedAt !== null) {
-      const d = new Date(capturedAt);
-      if (isNaN(d.getTime())) {
-        return NextResponse.json(
-          { statusCode: 400, message: 'Invalid capturedAt timestamp' },
-          { status: 400 },
-        );
-      }
-      parsedCapturedAt = d;
+    if (validData.capturedAt) {
+      parsedCapturedAt = new Date(validData.capturedAt);
     }
-
-    const trimmedClientRequestId = typeof clientRequestId === 'string' ? clientRequestId.trim() : undefined;
 
     // Idempotency: if clientRequestId already exists, return existing complaint with status 200
     if (trimmedClientRequestId) {
@@ -202,55 +247,64 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!title || typeof title !== 'string' || !title.trim()) {
-      return NextResponse.json(
-        { statusCode: 400, message: 'Complaint title is required' },
-        { status: 400 },
-      );
-    }
-
-    if (!description || typeof description !== 'string' || description.trim().length < 20) {
-      return NextResponse.json(
-        { statusCode: 400, message: 'Detailed description (min 20 characters) is required' },
-        { status: 400 },
-      );
-    }
-
-    const { evidence } = body;
-    const allImages = Array.isArray(evidence) && evidence.length > 0
-      ? evidence
-      : (Array.isArray(imageUrls) && imageUrls.length > 0
-        ? imageUrls
-        : (imageUrl ? [imageUrl] : []));
-
-    if (allImages.length === 0) {
-      return NextResponse.json(
-        { statusCode: 400, message: 'At least 1 photo evidence is required to submit a complaint.' },
-        { status: 400 },
-      );
-    }
+    const allImages =
+      Array.isArray(validData.evidence) && validData.evidence.length > 0
+        ? validData.evidence
+        : Array.isArray(validData.imageUrls) && validData.imageUrls.length > 0
+        ? validData.imageUrls
+        : validData.imageUrl
+        ? [validData.imageUrl]
+        : [];
 
     const firstImage = allImages[0];
-    const mockAiProvider = request.headers.get('x-mock-ai-provider') || body.mockAiProvider || undefined;
+    const mockAiProvider = request.headers.get('x-mock-ai-provider') || validData.mockAiProvider || undefined;
 
-    const newComplaint = await createComplaint({
-      title: title.trim(),
-      description: description.trim(),
-      categoryId: typeof categoryId === 'string' ? categoryId : undefined,
-      location,
-      citizenId: auth.user.id,
-      citizenName: auth.user.name || 'Citizen User',
-      citizenMobile: auth.user.mobileNumber ?? undefined,
-      isVoiceInput: Boolean(isVoiceInput),
-      voiceTranscript: typeof voiceTranscript === 'string' ? voiceTranscript : undefined,
-      imageUrl: firstImage,
-      clientRequestId: trimmedClientRequestId,
-      capturedAt: parsedCapturedAt,
-      language: typeof language === 'string' && language.trim() ? language.trim().toLowerCase().slice(0, 2) : undefined,
-      mockAiProvider,
-    });
+    try {
+      const newComplaint = await createComplaint({
+        title: validData.title.trim(),
+        description: validData.description.trim(),
+        categoryId: validData.categoryId,
+        location: validData.location,
+        citizenId: auth.user.id,
+        citizenName: auth.user.name || 'Citizen User',
+        citizenMobile: auth.user.mobileNumber ?? undefined,
+        isVoiceInput: Boolean(validData.isVoiceInput),
+        voiceTranscript: validData.voiceTranscript,
+        imageUrl: firstImage,
+        clientRequestId: trimmedClientRequestId,
+        capturedAt: parsedCapturedAt,
+        language:
+          typeof validData.language === 'string' && validData.language.trim()
+            ? validData.language.trim().toLowerCase().slice(0, 2)
+            : undefined,
+        mockAiProvider,
+      });
 
-    return NextResponse.json(newComplaint, { status: 201 });
+      return NextResponse.json(newComplaint, { status: 201 });
+    } catch (createErr: any) {
+      // Catch race-condition duplicate submissions on unique constraint (Prisma P2002)
+      if (createErr?.code === 'P2002' && trimmedClientRequestId) {
+        const existing = await prisma.complaint.findUnique({
+          where: { clientRequestId: trimmedClientRequestId },
+          include: {
+            category: true,
+            department: true,
+            location: true,
+            images: true,
+          },
+        });
+        if (existing) {
+          if (existing.citizenId === auth.user.id) {
+            return NextResponse.json(existing, { status: 200 });
+          }
+          return NextResponse.json(
+            { statusCode: 403, message: 'Forbidden: clientRequestId belongs to another user' },
+            { status: 403 },
+          );
+        }
+      }
+      throw createErr;
+    }
   } catch (error: any) {
     console.error('[Complaints POST Error]', error);
     return NextResponse.json(
