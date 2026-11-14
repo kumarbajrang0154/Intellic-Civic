@@ -12,6 +12,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     return NextResponse.json(
       {
         message: result.message,
+        ...(result.reason ? { reason: result.reason } : {}),
         ...(result.blockers ? { blockers: result.blockers } : {}),
         ...(result.reasons ? { reasons: result.reasons } : {}),
       },

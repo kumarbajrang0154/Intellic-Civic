@@ -68,6 +68,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         message: result.message,
+        ...(result.field ? { field: result.field, error: result.error || result.message } : {}),
         ...(result.conflict ? { conflict: result.conflict } : {}),
       },
       { status: result.status },

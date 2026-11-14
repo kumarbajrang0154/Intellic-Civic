@@ -26,6 +26,7 @@ import { AppShell } from '@/components/layout/app-shell';
 import { StatusBadge } from '@/components/admin/status-badge';
 import { PriorityBadge } from '@/components/admin/priority-badge';
 import { Button } from '@/components/ui/button';
+import { resolveDeleteFailure } from '@/lib/delete-failure-resolutions';
 
 interface CitizenDetail {
   id: string;
@@ -180,7 +181,8 @@ export default function CitizenDetailPage() {
         setNotice({ type: 'success', message: 'Citizen account soft-deleted successfully.' });
         fetchProfile();
       } else {
-        setNotice({ type: 'error', message: data.message || 'Failed to delete citizen account' });
+        const resolution = resolveDeleteFailure(data.reason);
+        setNotice({ type: 'error', message: `${resolution.message} ${resolution.alternativeAction}` });
       }
     } catch (err: any) {
       setNotice({ type: 'error', message: err.message || 'Error deleting account' });

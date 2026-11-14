@@ -38,6 +38,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { showGlobalError } from '@/lib/api-client';
+import { resolveDeleteFailure, DELETE_FAILURE_RESOLUTIONS } from '@/lib/delete-failure-resolutions';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -153,6 +154,7 @@ export default function AdminStaffPage() {
   const [deptOfficers, setDeptOfficers] = useState<{ id: string; name: string; email: string }[]>([]);
   const [loadingOfficers, setLoadingOfficers] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [createDeptError, setCreateDeptError] = useState('');
   const [creating, setCreating] = useState(false);
 
   // Reassign Modal
@@ -217,6 +219,12 @@ export default function AdminStaffPage() {
   const [reassignToStaffId, setReassignToStaffId] = useState('');
   const [permanentDeleting, setPermanentDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [deleteErrorResolution, setDeleteErrorResolution] = useState<{
+    reason: string;
+    message: string;
+    alternativeAction: string;
+    actionType: string;
+  } | null>(null);
 
   // Bulk Permanent Delete Modal State
   const [bulkDeleteStep, setBulkDeleteStep] = useState<1 | 2 | 3>(1);
@@ -240,6 +248,7 @@ export default function AdminStaffPage() {
     departmentName: string | null;
     departmentId: string | null;
     createdAt: string;
+    message?: string;
   } | null>(null);
 
   // Conversion Dialog State (Convert Citizen / Pending -> Staff)
@@ -424,8 +433,8 @@ export default function AdminStaffPage() {
   // ── Create Staff ─────────────────────────────────────────────────────────────
 
   function openCreate() {
-    setCreateName(''); setCreateEmail(''); setCreateRole('DEPARTMENT_OFFICER');
-    setCreateDept(''); setCreateAssignedOfficer(''); setCreatePassword(''); setCreateConfirmPassword('');
+    setCreateName(''); setCreateEmail(''); setCreateRole('DEPARTMENT_HEAD');
+    setCreateDept(''); setCreateDeptError(''); setCreateAssignedOfficer(''); setCreatePassword(''); setCreateConfirmPassword('');
     setShowCreatePassword(false); setShowCreateConfirmPassword(false);
     setCreateError(''); setCreateOpen(true);
   }
@@ -434,9 +443,11 @@ export default function AdminStaffPage() {
     if (!createName.trim() || !createEmail.trim()) {
       setCreateError('Name and email are required.'); return;
     }
-    const needsDepartment = ['DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(createRole);
+    const needsDepartment = ['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(createRole);
     if (needsDepartment && !createDept) {
-      setCreateError('Department assignment is required for this role.'); return;
+      setCreateDeptError('Department assignment is required for this role.');
+      setCreateError('Department assignment is required for this role.');
+      return;
     }
     if (createRole === 'FIELD_WORKER' && !createAssignedOfficer) {
       setCreateError('An assigned Department Officer is required for Field Workers.'); return;
@@ -449,7 +460,7 @@ export default function AdminStaffPage() {
         setCreateError('Passwords do not match.'); return;
       }
     }
-    setCreating(true); setCreateError('');
+    setCreating(true); setCreateError(''); setCreateDeptError('');
     try {
       const res = await fetch('/api/admin/staff', {
         method: 'POST',
@@ -465,8 +476,11 @@ export default function AdminStaffPage() {
       if (!res.ok) {
         if (res.status === 409 && d.conflict) {
           setCreateOpen(false);
-          setConflictInfo(d.conflict);
+          setConflictInfo({ ...d.conflict, message: d.message });
           return;
+        }
+        if (d.field === 'departmentId') {
+          setCreateDeptError(d.error || d.message || 'Department assignment is required for this role.');
         }
         setCreateError(d.message || 'Failed to create staff.');
         return;
@@ -555,10 +569,13 @@ export default function AdminStaffPage() {
       });
       const d = await res.json();
       if (!res.ok) {
-        setDeleteError(d.message || 'Failed to permanently delete staff member.');
+        const resolution = resolveDeleteFailure(d.reason);
+        setDeleteErrorResolution(resolution);
+        setDeleteError(`${resolution.message} ${resolution.alternativeAction}`);
         showGlobalError({
           title: 'Permanent Delete Failed',
-          message: d.message || 'Cannot delete staff member.',
+          message: resolution.message,
+          hint: resolution.alternativeAction,
           statusCode: res.status,
         });
         return;
@@ -597,10 +614,14 @@ export default function AdminStaffPage() {
       const res = await fetch(`/api/admin/staff/${deleteTarget.id}`, { method: 'DELETE' });
       const d = await res.json();
       if (!res.ok) {
+        const resolution = resolveDeleteFailure(d.reason);
+        setDeleteErrorResolution(resolution);
+        setDeleteError(`${resolution.message} ${resolution.alternativeAction}`);
         showGlobalError({
           title: 'Delete Blocked',
-          message: d.message || 'Cannot delete staff member.',
-          hint: d.reasons?.join('\n'),
+          message: resolution.message,
+          hint: `${resolution.alternativeAction}${d.reasons?.length ? `\n• ${d.reasons.join('\n• ')}` : ''}`,
+          statusCode: res.status,
         });
         return;
       }
@@ -672,7 +693,7 @@ export default function AdminStaffPage() {
     setConverting(true);
     setConvertError('');
     try {
-      const needsDept = ['DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(convertRole);
+      const needsDept = ['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(convertRole);
       if (needsDept && !convertDept) {
         setConvertError('Department is required for this role.');
         return;
@@ -813,8 +834,8 @@ export default function AdminStaffPage() {
     }
   }
 
-  const needsDept = ['DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(createRole);
-  const reassignNeedsDept = ['DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(reassignRole);
+  const needsDept = ['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(createRole);
+  const reassignNeedsDept = ['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER', 'FIELD_WORKER'].includes(reassignRole);
 
   return (
     <AppShell user={{ name: currentUser.name, role: currentUser.role }}>
@@ -1194,7 +1215,12 @@ export default function AdminStaffPage() {
                 <label className="text-xs font-semibold text-slate-700 block mb-1">Role <span className="text-rose-500">*</span></label>
                 <select
                   value={createRole}
-                  onChange={(e) => { setCreateRole(e.target.value); setCreateDept(''); setCreateAssignedOfficer(''); }}
+                  onChange={(e) => {
+                    setCreateRole(e.target.value);
+                    setCreateDept('');
+                    setCreateDeptError('');
+                    setCreateAssignedOfficer('');
+                  }}
                   className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1769AA]/20 focus:border-[#1769AA] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <option value="DEPARTMENT_HEAD">Department Head</option>
@@ -1207,12 +1233,21 @@ export default function AdminStaffPage() {
                   <label className="text-xs font-semibold text-slate-700 block mb-1">Department <span className="text-rose-500">*</span></label>
                   <select
                     value={createDept}
-                    onChange={(e) => { setCreateDept(e.target.value); setCreateAssignedOfficer(''); }}
-                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1769AA]/20 focus:border-[#1769AA] disabled:cursor-not-allowed disabled:opacity-50"
+                    onChange={(e) => {
+                      setCreateDept(e.target.value);
+                      setCreateDeptError('');
+                      setCreateAssignedOfficer('');
+                    }}
+                    className={`flex h-10 w-full rounded-md border ${createDeptError ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-200'} bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1769AA]/20 focus:border-[#1769AA] disabled:cursor-not-allowed disabled:opacity-50`}
                   >
                     <option value="">— Select Department —</option>
                     {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
+                  {createDeptError && (
+                    <p className="text-xs text-rose-600 mt-1 font-medium" data-testid="inline-dept-error">
+                      {createDeptError}
+                    </p>
+                  )}
                 </div>
               )}
               {createRole === 'FIELD_WORKER' && (
@@ -1424,7 +1459,7 @@ export default function AdminStaffPage() {
         </Dialog>
 
         {/* ── 3-Step Permanent Delete Staff Dialog ────────────────────────── */}
-        <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setPreflightData(null); setDeleteStep(1); } }}>
+        <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setPreflightData(null); setDeleteStep(1); setDeleteError(''); setDeleteErrorResolution(null); } }}>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b pb-3">
@@ -1644,11 +1679,48 @@ export default function AdminStaffPage() {
                   {/* ────────────────── STEP 3: CONFIRM ────────────────── */}
                   {deleteStep === 3 && (
                     <div className="space-y-4">
-                      {deleteError && (
+                      {deleteErrorResolution ? (
+                        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-md space-y-2" data-testid="delete-failure-resolution">
+                          <div className="font-semibold text-rose-900 flex items-center gap-1.5">
+                            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                            {deleteErrorResolution.message}
+                          </div>
+                          <div className="text-[11px] text-rose-700">
+                            Alternative Action: <span className="font-semibold text-rose-900">{deleteErrorResolution.alternativeAction}</span>
+                          </div>
+                          {deleteErrorResolution.actionType === 'suspend' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs border-rose-300 text-rose-800 hover:bg-rose-100"
+                              onClick={() => {
+                                const target = deleteTarget;
+                                setDeleteTarget(null);
+                                setDeleteErrorResolution(null);
+                                setDeactivateTarget(target);
+                              }}
+                            >
+                              Suspend instead
+                            </Button>
+                          )}
+                          {deleteErrorResolution.actionType === 'reassign_complaints' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs border-rose-300 text-rose-800 hover:bg-rose-100"
+                              onClick={() => {
+                                setDeleteStep(2);
+                              }}
+                            >
+                              Reassign open complaints first
+                            </Button>
+                          )}
+                        </div>
+                      ) : deleteError ? (
                         <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-md">
                           {deleteError}
                         </div>
-                      )}
+                      ) : null}
 
                       {/* Open complaints resolution choice */}
                       {preflightData.blockers.openAssignedComplaints > 0 && (
@@ -1817,8 +1889,10 @@ export default function AdminStaffPage() {
               </DialogTitle>
               <DialogDescription>
                 {conflictInfo && (
-                  <span className="text-slate-800 font-medium">
-                    This email is already a <strong className="text-indigo-700 uppercase">{conflictInfo.status === 'citizen' ? 'CITIZEN' : conflictInfo.status}</strong> account in <strong>{conflictInfo.municipality}</strong>.
+                  <span className="text-slate-800 font-medium" data-testid="conflict-explanation">
+                    {conflictInfo.message || (
+                      `An account with email ${conflictInfo.email} already exists with role "${conflictInfo.role || 'CITIZEN'}" in ${conflictInfo.departmentName ? `department "${conflictInfo.departmentName}"` : 'no department assigned'}.`
+                    )}
                   </span>
                 )}
               </DialogDescription>

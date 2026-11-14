@@ -41,7 +41,7 @@ import {
 
 export type StaffRole = 'DEPARTMENT_HEAD' | 'DEPARTMENT_OFFICER' | 'FIELD_WORKER' | 'ADMIN';
 export const STAFF_ROLES: StaffRole[] = ['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER', 'FIELD_WORKER', 'ADMIN'];
-const ROLES_REQUIRING_DEPARTMENT: StaffRole[] = ['DEPARTMENT_OFFICER', 'FIELD_WORKER'];
+const ROLES_REQUIRING_DEPARTMENT: StaffRole[] = ['DEPARTMENT_HEAD', 'DEPARTMENT_OFFICER', 'FIELD_WORKER'];
 
 export interface StaffListFilters {
   search?: string;
@@ -134,6 +134,9 @@ export type ServiceResult<T> =
       ok: false;
       status: number;
       message: string;
+      field?: string;
+      error?: string;
+      reason?: string;
       conflict?: ConflictDetails;
       blockers?: DeletePreflightResult['blockers'];
       reasons?: string[];
@@ -253,6 +256,18 @@ export async function createStaff(
     return { ok: false, status: 400, message: 'Name must be at least 2 characters.' };
   }
 
+  if (requiresDepartment(input.role)) {
+    if (!input.departmentId || (typeof input.departmentId === 'string' && input.departmentId.trim() === '')) {
+      return {
+        ok: false,
+        status: 400,
+        field: 'departmentId',
+        error: 'Department assignment is required for this role.',
+        message: `Role ${input.role} requires a department assignment.`,
+      };
+    }
+  }
+
   const cleanEmail = input.email.trim().toLowerCase();
 
   let passwordHash: string | null = null;
@@ -287,16 +302,19 @@ export async function createStaff(
 
     const munName = mun?.name || 'Coimbatore Municipality';
     const deptName = dept?.name || null;
+    const existingRole = existing.role || 'CITIZEN';
+    const deptContext = deptName ? `department "${deptName}"` : 'no department assigned';
 
     return {
       ok: false,
       status: 409,
-      message: `A user with email ${cleanEmail} already exists.`,
+      field: 'email',
+      message: `An account with email ${cleanEmail} already exists with role "${existingRole}" in ${deptContext}.`,
       conflict: {
         id: existing.id,
         name: existing.name,
         email: existing.email,
-        role: existing.role,
+        role: existingRole,
         status: userStatus,
         municipality: munName,
         municipalityId: existing.municipalityId,
@@ -307,16 +325,25 @@ export async function createStaff(
     };
   }
 
-  if (requiresDepartment(input.role)) {
-    if (!input.departmentId) {
-      return { ok: false, status: 400, message: `Role ${input.role} requires a department assignment.` };
-    }
+  if (requiresDepartment(input.role) && input.departmentId) {
     const dept = await getDepartment(input.departmentId);
     if (!dept) {
-      return { ok: false, status: 400, message: 'Selected department does not exist.' };
+      return {
+        ok: false,
+        status: 400,
+        field: 'departmentId',
+        error: 'Selected department does not exist.',
+        message: 'Selected department does not exist.',
+      };
     }
     if (dept.isSuspended) {
-      return { ok: false, status: 400, message: 'Cannot assign staff to a suspended department.' };
+      return {
+        ok: false,
+        status: 400,
+        field: 'departmentId',
+        error: 'Cannot assign staff to a suspended department.',
+        message: 'Cannot assign staff to a suspended department.',
+      };
     }
   }
 
@@ -527,7 +554,12 @@ export async function removeStaff(
 
   const manageCheck = await assertCanManageStaff(actor, user, 'delete');
   if (!manageCheck.allowed) {
-    return { ok: false, status: manageCheck.status, message: manageCheck.message || 'Cannot delete staff member.' };
+    return {
+      ok: false,
+      status: manageCheck.status,
+      message: manageCheck.message || 'Cannot delete staff member.',
+      reason: isSuperAdminTarget(user) ? 'SUPER_ADMIN_PROTECTED' : 'MANAGE_STAFF_DENIED',
+    };
   }
 
   const deleteRes = await deleteUser(targetId, actor.id);
@@ -550,6 +582,7 @@ export async function removeStaff(
       ok: false,
       status,
       message: deleteRes.message,
+      reason: deleteRes.reason,
       blockers: deleteRes.blockers,
       reasons: deleteRes.reasons,
     };

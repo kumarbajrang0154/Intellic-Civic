@@ -27,6 +27,7 @@ import { EmptyState } from '@/components/admin/empty-state';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { showGlobalError } from '@/lib/api-client';
+import { resolveDeleteFailure } from '@/lib/delete-failure-resolutions';
 
 interface Citizen {
   id: string;
@@ -310,7 +311,8 @@ export default function CitizensListPage() {
         setActionNotice({ type: 'success', message: `Citizen "${selectedCitizen.name}" soft-deleted successfully.` });
         fetchCitizens(pagination.page);
       } else {
-        setActionNotice({ type: 'error', message: data.message || 'Failed to delete citizen account' });
+        const resolution = resolveDeleteFailure(data.reason);
+        setActionNotice({ type: 'error', message: `${resolution.message} ${resolution.alternativeAction}` });
       }
     } catch (err: any) {
       setActionNotice({ type: 'error', message: err.message || 'Error executing action' });

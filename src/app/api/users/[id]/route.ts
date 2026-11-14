@@ -79,7 +79,7 @@ export async function DELETE(
 
     if (isSuperAdminTarget(targetUser)) {
       return NextResponse.json(
-        { message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.' },
+        { message: 'Super Admin accounts cannot be suspended, deactivated, or deleted.', reason: 'SUPER_ADMIN_PROTECTED' },
         { status: 403 },
       );
     }
