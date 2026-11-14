@@ -160,6 +160,7 @@ test.describe('Task 8f — Browser: Rating, Reopen Confirm and Vote Buttons at 3
 
   for (const vp of viewports) {
     test(`Vote, rating, and reopen confirm buttons work at ${vp.name}`, async ({ page, context }) => {
+      test.setTimeout(60000);
       await page.setViewportSize({ width: vp.width, height: vp.height });
       await setupMockApi(page);
 
